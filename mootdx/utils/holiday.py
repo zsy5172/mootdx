@@ -1,6 +1,7 @@
 import datetime
 import logging
 import re
+from io import StringIO
 from pathlib import Path
 
 import httpx
@@ -20,10 +21,10 @@ JS_DECODE = (Path(__file__).parent / 'holiday.js').read_text(encoding='utf-8')
 
 def holidays() -> pd.DataFrame:
     try:
-        from py_mini_racer import py_mini_racer
+        from py_mini_racer import MiniRacer
     except (ImportError, ModuleNotFoundError):
-        logging.warning('!!! 缺少依赖, 请使用次命令进行安装: pip install py_mini_racer')
-        raise MootdxModuleNotFoundError('!!! 缺少依赖, 请使用次命令进行安装: pip install py_mini_racer')
+        logging.warning('!!! 缺少依赖, 请使用次命令进行安装: pip install mini_racer')
+        raise MootdxModuleNotFoundError('!!! 缺少依赖, 请使用次命令进行安装: pip install mini_racer')
 
     cache_file = get_config_path('caches/holidays.plk')
 
@@ -37,7 +38,7 @@ def holidays() -> pd.DataFrame:
         url = 'https://finance.sina.com.cn/realstock/company/klc_td_sh.txt'
         res = client.get(url)
 
-        js_code = py_mini_racer.MiniRacer()
+        js_code = MiniRacer()
         js_code.eval(JS_DECODE)
 
         # 执行js解密代码
@@ -118,12 +119,14 @@ def holiday(date=None, format_=None, country=None, result=False):
 def _holiday():
     logger.debug('调用远程接口')
     res = httpx.get('https://www.tdx.com.cn/url/holiday/')
+
     res.encoding = 'gbk'
-
     ret = re.findall(r'<textarea id="data" style="display:none;">([\s\w\W]+)</textarea>', res.text, re.M)[0].strip()
-    day = [d.split('|')[:4] for d in ret.split('\n')]
 
-    df = pd.DataFrame(day, columns=['日期', '节日', '国家', '交易所'], dtype=str)
+    df = pd.read_csv(StringIO(ret), sep='|')
+    df = df.iloc[:, :4]
+
+    df.columns = ['日期', '节日', '国家', '交易所']
     df.index = pd.to_datetime(df['日期'].astype('str'), format='%Y%m%d')
 
     if df.empty:

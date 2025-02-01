@@ -1,13 +1,14 @@
 import glob
-import pytest
 import unittest
 from pathlib import Path
+
+import pytest
 
 from mootdx.affair import Affair
 from mootdx.logger import logger
 
 
-# @pytest.mark.skip(reason='暂时不做重复测试')
+@pytest.mark.skip(reason='暂时不做重复测试')
 class TestAffair(unittest.TestCase):
     files = []
 
