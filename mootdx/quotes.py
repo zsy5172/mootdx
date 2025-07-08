@@ -327,7 +327,7 @@ class StdQuotes(BaseQuotes):
         result = self.client.get_history_transaction_data(market, symbol, start, offset, int(date))
         return to_data(result, symbol=symbol, client=self, **kwargs)
 
-    def F10C(self, symbol=''):  # noqa
+    def F10C(self, symbol='', market=None):  # noqa
         """
         查询公司信息目录
 
@@ -335,7 +335,7 @@ class StdQuotes(BaseQuotes):
         :return: pd.dataFrame or None
         """
 
-        market = int(get_stock_market(symbol))
+        market = int(get_stock_market(symbol, string=False)) if market is None else market
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
@@ -344,7 +344,7 @@ class StdQuotes(BaseQuotes):
 
         return result
 
-    def F10(self, symbol='', name=''):  # noqa
+    def F10(self, symbol='', name='', market=None):  # noqa
         """
         读取公司信息详情
 
@@ -354,7 +354,7 @@ class StdQuotes(BaseQuotes):
         """
 
         result = {}
-        market = int(get_stock_market(symbol, string=False))
+        market = int(get_stock_market(symbol, string=False)) if market is None else market
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
