@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>离线数据 - MOOTDX</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "\u79bb\u7ebf\u6570\u636e";
+        var mkdocs_page_input_path = "cli/reader.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+<script async type="text/javascript" src="../../../../_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="mootdx" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/cli/reader/" /><meta name="readthedocs-http-status" content="200" /></head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../../../index.html" class="icon icon-home"> MOOTDX
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="https://www.mootdx.com/zh-cn/latest/search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">快速开始</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../index.html">项目概述</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../setup/index.html">安装说明</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quick/index.html">快速上手</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../history/index.html">修改日志</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">行情接口</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../api/quote1/index.html">标准行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../api/quote2/index.html">扩展行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../api/reader/index.html">数据读取</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../api/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../api/fields/index.html">财务对照</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html">辅助函数</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">命令行工具</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bestip/index.html">线路测试</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="index.html">离线数据</a>
+    <ul class="current">
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quotes/index.html">行情数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../bundle/index.html">批量下载</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">常见问题</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../faq/py_mini_racer/index.html">py_mini_racer 在 Mac ARM系统问题</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">MOOTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../../index.html" class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>命令行工具 &raquo;</li>
+      <li>离线数据</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="_1">命令行使用说明</h1>
+<p><code>mootdx reader</code> 是一个命令行程序，目前功能比较简单，可以用来读取TDX导出的日线行情数据</p>
+<p>使用方法如下：</p>
+<pre><code>mootdx reader --help
+
+Usage: mootdx reader [OPTIONS]
+
+  读取股票本地行情数据.
+
+Options:
+  -d, --tdxdir TEXT  TDX数据目录.
+  -s, --symbol TEXT  股票代码.
+  -a, --action TEXT  操作类型 (daily:日线, minute:一分钟线, fzline:五分钟线).
+  -m, --market TEXT  证券市场, 默认 std (std: 标准股票市场, ext: 扩展市场).
+  -o, --output TEXT  输出文件, 支持CSV, HDF5, Excel等格式.
+  --help             Show this message and exit.
+
+</code></pre>
+<h1 id="_2">读取日线数据</h1>
+<p><code>-o</code> 参数导出数据</p>
+<pre><code class="language-shell">mootdx reader --tdxdir ../fixtures -s 600000 -a daily -o dt.csv
+
+写入到文件 : dt.csv
+
+</code></pre>
+<h1 id="_3">读取分钟数据</h1>
+<p><code>-o</code> 参数导出数据</p>
+<pre><code class="language-shell">mootdx reader --tdxdir ../fixtures -s 600000 -a minute -o dt.csv
+
+写入到文件 : dt.csv
+
+</code></pre>
+<h1 id="5">读取5分钟数据</h1>
+<p><code>-o</code> 参数导出数据</p>
+<pre><code class="language-shell">mootdx reader --tdxdir ../fixtures -s 600000 -a fzline -o dt.csv
+
+写入到文件 : dt.csv
+
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../bestip/index.html" class="btn btn-neutral float-left" title="线路测试"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../quotes/index.html" class="btn btn-neutral float-right" title="行情数据">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

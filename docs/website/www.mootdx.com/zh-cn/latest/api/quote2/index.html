@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>扩展行情 - MOOTDX</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "\u6269\u5c55\u884c\u60c5";
+        var mkdocs_page_input_path = "api/quote2.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+<script async type="text/javascript" src="../../../../_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="mootdx" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/api/quote2/" /><meta name="readthedocs-http-status" content="200" /></head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../../../index.html" class="icon icon-home"> MOOTDX
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="https://www.mootdx.com/zh-cn/latest/search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">快速开始</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../index.html">项目概述</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../setup/index.html">安装说明</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quick/index.html">快速上手</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../history/index.html">修改日志</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">行情接口</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../quote1/index.html">标准行情</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="index.html">扩展行情</a>
+    <ul class="current">
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../reader/index.html">数据读取</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fields/index.html">财务对照</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html">辅助函数</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">命令行工具</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bestip/index.html">线路测试</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/reader/index.html">离线数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/quotes/index.html">行情数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bundle/index.html">批量下载</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">常见问题</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../faq/py_mini_racer/index.html">py_mini_racer 在 Mac ARM系统问题</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">MOOTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../../index.html" class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>行情接口 &raquo;</li>
+      <li>扩展行情</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h2 id="_1">扩展行情接口</h2>
+<blockquote>
+<p>注意：扩展市场目前已经失效无法使用</p>
+</blockquote>
+<h2 id="01">01. 获取市场代码</h2>
+<p>可以获取该api服务器可以使用的市场列表，类别等信息</p>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.markets()
+
+</code></pre>
+<blockquote>
+<p>注意点：非股票品种代码，有些获取的价格不是实际价格，比如可转债获取价格为实际价格 x 10。
+这是可能是TDX为了防止浮点数错误，报价在传输和存储时实际都保存为整数，然后根据品种进行处理的结果。</p>
+</blockquote>
+<h2 id="02">02. 查询代码列表</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>start: 起始位置.</li>
+<li>offset: 获取数量.</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.instrument(start=0, offset=100)
+
+# 获取全部
+client.instruments()
+</code></pre>
+<h2 id="03">03. 市场商品数量</h2>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.instrument_count()
+
+</code></pre>
+<h2 id="04">04. 查询五档行情</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>market: 市场代码.</li>
+<li>symbol: 证券代码.</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.quote(market=47, symbol=&quot;IF1709&quot;)
+
+# 简写方式
+client.quote(symbol=&quot;47#IF1709&quot;)
+</code></pre>
+<h2 id="05">05. 查询分时行情</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>market: 市场代码. 市场代码可以通过 <code>markets</code> 方法获得</li>
+<li>symbol: 证券代码.</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.minute(market=47, symbol='IF1709')
+
+# 简写方式
+client.minute(symbol=&quot;47#IF1709&quot;)
+</code></pre>
+<h2 id="06">06. 历史分时行情</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>market: 市场代码. 场ID可以通过 <code>markets</code> 方法获得</li>
+<li>symbol: 证券代码</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.minutes(market=47, symbol='IF1709')
+
+# 简写方式
+client.minutes(symbol=&quot;47#IF1709&quot;)
+</code></pre>
+<h2 id="07-k">07. 查询k线数据</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>frequency: K线周期参考 <code>mootdx.consts</code></li>
+<li>market: 市场代码. 场ID可以通过 <code>markets</code> 方法获得</li>
+<li>symbol: 证券代码</li>
+<li>start: 起始位置</li>
+<li>offset: 数量</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+from mootdx.consts import KLINE_DAILY
+
+client = Quotes.factory(market='ext')
+client.bars(frequency=KLINE_DAILY, market=47, symbol=&quot;47#IF1709&quot;, start=0, offset=100)
+
+# 简写方式
+client.bars(frequency=KLINE_DAILY, symbol=&quot;47#IF1709&quot;, start=0, offset=100)
+</code></pre>
+<h2 id="08">08. 查询分笔成交</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>market: 市场代码. 场ID可以通过 <code>markets</code> 方法获得</li>
+<li>symbol: 证券代码</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.transaction(31, &quot;00020&quot;)
+
+# 简写方式
+client.transaction(&quot;31#00020&quot;)
+</code></pre>
+<p>注意，这个接口最多返回<code>1800</code>条记录, 如果有超过1800条记录的请求，我们有一个start 参数作为便宜量，可以取出超过1800条记录</p>
+<p>如期货的数据：这个接口可以取出1800条之前的记录，数量也是1800条</p>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.transaction(market=31, symbol='00020')
+
+# 简写方式
+client.transaction(&quot;31#00020&quot;)
+</code></pre>
+<h2 id="09">09. 历史分笔成交</h2>
+<p><strong> 参数说明: </strong></p>
+<ul>
+<li>market: 市场代码. 场ID可以通过 <code>markets</code> 方法获得</li>
+<li>symbol: 证券代码</li>
+<li>date: 日期. 日期格式 YYYYMMDD 如 20170811</li>
+<li>start: 起始位置</li>
+<li>offset: 数量</li>
+</ul>
+<p><strong> 调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='ext')
+client.transactions(market=47, symbol='IFL0', date='20170810', start=1800)
+
+# 简写方式
+client.transaction(symbol=&quot;47#IFL0&quot;, date='20170810', start=1800)
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../quote1/index.html" class="btn btn-neutral float-left" title="标准行情"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../reader/index.html" class="btn btn-neutral float-right" title="数据读取">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

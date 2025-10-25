@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>财务数据 - MOOTDX</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "\u8d22\u52a1\u6570\u636e";
+        var mkdocs_page_input_path = "api/affair.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+<script async type="text/javascript" src="../../../../_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="mootdx" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/api/affair/" /><meta name="readthedocs-http-status" content="200" /></head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../../../index.html" class="icon icon-home"> MOOTDX
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="https://www.mootdx.com/zh-cn/latest/search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">快速开始</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../index.html">项目概述</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../setup/index.html">安装说明</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quick/index.html">快速上手</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../history/index.html">修改日志</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">行情接口</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../quote1/index.html">标准行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quote2/index.html">扩展行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../reader/index.html">数据读取</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="index.html">财务数据</a>
+    <ul class="current">
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fields/index.html">财务对照</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html">辅助函数</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">命令行工具</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bestip/index.html">线路测试</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/reader/index.html">离线数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/quotes/index.html">行情数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bundle/index.html">批量下载</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">常见问题</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../faq/py_mini_racer/index.html">py_mini_racer 在 Mac ARM系统问题</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">MOOTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../../index.html" class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>行情接口 &raquo;</li>
+      <li>财务数据</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h2 id="01">01. 财务数据列表</h2>
+<blockquote>
+<p>财务数据相关字段，请参见 <a href="../fields/index.html">财务数据字段对照表</a></p>
+</blockquote>
+<p>实现了历史财务数据列表的读取，使用方式</p>
+<pre><code class="language-python">from mootdx.affair import Affair
+
+Affair.files()
+</code></pre>
+<p>结果:</p>
+<pre><code>Out[17]:
+ [{'filename': 'gpcw19990630.zip',
+  'hash': '65228d9db21d42e683698ac8dd72ef57',
+  'filesize': 443065},
+ {'filename': 'gpcw19981231.zip',
+  'hash': 'adbed98b12cbc1c4ac312ff9d0fd4b69',
+  'filesize': 639007},
+ {'filename': 'gpcw19980630.zip',
+  'hash': 'eddfbcc712aae4f3f79acee4afba6787',
+  'filesize': 385920}
+
+  .....]
+</code></pre>
+<p>其中，<code>filename</code> 字段为具体的财务数据文件地址， 后面的分别是哈希值和文件大小，在同步到本地时，可以作为是否需要更新本地数据的参考</p>
+<h2 id="02">02. 历史数据内容</h2>
+<p>获取历史专业财务数据内容</p>
+<p>使用上面返回的<code>filename</code>字段作为参数即可</p>
+<pre><code class="language-python">from mootdx.affair import Affair
+
+Affair.fetch(downdir='output', filename='gpcw20170930.zip')
+</code></pre>
+<h2 id="03">03. 解析本地数据</h2>
+<p>如果您自己管理文件的下载或者本地已经有对应的数据文件，同时支持<code>.zip</code>和解压后的<code>.dat</code>文件. 如果扩展名不写，则自动判断存在的文件.</p>
+<pre><code class="language-python">from mootdx.affair import Affair
+
+data = Affair.parse(downdir='output', filename='gpcw20170930.zip')
+</code></pre>
+<h2 id="04">04. 保存到文件</h2>
+<p>代码方式</p>
+<pre><code class="language-python">from mootdx.affair import Affair
+
+result = Affair.parse(downdir='output', filename='gpcw20170930.zip')
+
+# 保存 csv 文件
+result.to_csv('gpcw20170930.csv')
+
+# 保存 Excel 文件
+result.to_excel('gpcw20170930.xls')
+</code></pre>
+<p>命令行方式</p>
+<p>写入到文件 : <code>gpcw20170930.csv</code></p>
+<pre><code class="language-shell">mootdx affair -f gpcw20000930.zip -o gpcw20170930.csv
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../reader/index.html" class="btn btn-neutral float-left" title="数据读取"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../fields/index.html" class="btn btn-neutral float-right" title="财务对照">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

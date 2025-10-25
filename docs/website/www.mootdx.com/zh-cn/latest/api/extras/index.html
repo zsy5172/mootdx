@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>辅助函数 - MOOTDX</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "\u8f85\u52a9\u51fd\u6570";
+        var mkdocs_page_input_path = "api/extras.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+<script async type="text/javascript" src="../../../../_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="mootdx" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/api/extras/" /><meta name="readthedocs-http-status" content="200" /></head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../../../index.html" class="icon icon-home"> MOOTDX
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="https://www.mootdx.com/zh-cn/latest/search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">快速开始</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../../index.html">项目概述</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../setup/index.html">安装说明</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quick/index.html">快速上手</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../history/index.html">修改日志</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">行情接口</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../quote1/index.html">标准行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quote2/index.html">扩展行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../reader/index.html">数据读取</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../fields/index.html">财务对照</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="../../../../zh_CN/latest/api/extras/index.html">辅助函数</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html#01">01. 获取同花顺复权数据</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html#02-tdx-pandas-csv">02. TDX导出数据转为 pandas 可用的 csv 文件</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html#03-tdx-pandas-csv">03. TDX导出数据转为 pandas 可用的 csv 文件(批量异步接口)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html#04">04. 交易日是否法定节假日</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="../../../../zh_CN/latest/api/extras/index.html#05">05. 新版自定义板块操作</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">命令行工具</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bestip/index.html">线路测试</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/reader/index.html">离线数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/quotes/index.html">行情数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../cli/bundle/index.html">批量下载</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">常见问题</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../faq/py_mini_racer/index.html">py_mini_racer 在 Mac ARM系统问题</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">MOOTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../../index.html" class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>行情接口 &raquo;</li>
+      <li>辅助函数</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="_1">辅助工具函数</h1>
+<h2 id="01">01. 获取同花顺复权数据</h2>
+<p>可以按年份获取单只股票的复权行情数据 (自己计算复权蛋疼的不行，这个诸位先用着吧 😀)</p>
+<p><strong>参数说明: </strong></p>
+<ul>
+<li>symbol: 股票代码。 <code>"600300"</code> 格式</li>
+<li>factor: 前后复权。 <code>"00"</code>: 不复权, <code>"01"</code>: 前复权, <code>"02"</code>: 后复权</li>
+<li>year: 获取数据的年份。 <code>"2021"</code> 格式, 默认当前年份</li>
+</ul>
+<p>返回值：</p>
+<ul>
+<li>pd.DataFrame</li>
+</ul>
+<p><strong>调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.contrib.adjust import get_adjust_year
+
+get_adjust_year(symbol='000001', year='2021', factor='01')
+</code></pre>
+<p>以下为返回内容格式</p>
+<pre><code class="language-shell">Out[2]:
+             open   high    low  close     volume         amount adjust
+date
+2021-01-04  18.92  18.92  18.26  18.42  155421640  2891682300.00  0.801
+2021-01-05  18.22  18.30  17.62  17.99  182135210  3284606900.00  0.939
+2021-01-06  17.90  19.38  17.82  19.38  193494510  3648521900.00  0.997
+2021-01-07  19.34  19.80  19.05  19.72  158418530  3111274600.00  0.816
+2021-01-08  19.72  19.92  19.13  19.67  119547322  2348316400.00  0.616
+...           ...    ...    ...    ...        ...            ...    ...
+2021-09-02  18.00  18.78  17.80  18.40  242260350  4454545300.00  1.248
+2021-09-03  18.50  18.50  17.70  18.04  139481870  2523273200.00  0.719
+2021-09-06  17.93  18.60  17.78  18.45  151522560  2780281100.00  0.781
+2021-09-07  18.60  19.56  18.35  19.24  162234420  3067365700.00  0.836
+2021-09-08  19.24  19.55  19.10  19.31   88944393  1716830500.00  0.458
+
+[168 rows x 7 columns]
+</code></pre>
+<h2 id="02-tdx-pandas-csv">02. TDX导出数据转为 pandas 可用的 csv 文件</h2>
+<p>将TDX通过数据工具导出的txt文件转换为标准的csv文件(其实不转回pandas 也可以读取，只是使用时候比较麻烦)</p>
+<p><strong>参数说明: </strong></p>
+<ul>
+<li>infile: 输入文件</li>
+<li>outfile: 转换后的文件，可为空</li>
+</ul>
+<p>返回值：</p>
+<ul>
+<li>pd.DataFrame</li>
+</ul>
+<p><strong>调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.tools import tdx2csv
+
+tdx2csv.txt2csv(infile='sz#000001.txt', outfile='sz#000001.csv')
+</code></pre>
+<h2 id="03-tdx-pandas-csv">03. TDX导出数据转为 pandas 可用的 csv 文件(批量异步接口)</h2>
+<p>将TDX通过数据工具导出的txt文件转换为标准的csv文件(其实不转回pandas 也可以读取，只是使用时候比较麻烦)</p>
+<p><strong>参数说明: </strong></p>
+<ul>
+<li>src: 要换行的目录(tdx导出文件目录)</li>
+<li>dst: 转换后的目录</li>
+</ul>
+<p>返回值：</p>
+<ul>
+<li>None</li>
+</ul>
+<p><strong>调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.tools import tdx2csv
+
+tdx2csv.batch(src='c:/tdx/export', dst='c:/tdx/output')
+</code></pre>
+<h2 id="04">04. 交易日是否法定节假日</h2>
+<p>参数说明:</p>
+<ul>
+<li>date: 日期, 字符格式</li>
+<li>format_: 日期格式 默认: %Y-%m-%d (e: 2010-01-01)</li>
+<li>country: 国家, 默认: 中国</li>
+</ul>
+<p>返回值：</p>
+<ul>
+<li>布尔值, True 为法定节假日, False 不是法定节假日</li>
+</ul>
+<p><strong>调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.utils import holiday
+
+# 判断一个日期是否是法定节假日 （tdx接口）
+holiday.holiday(date='20200202', format_='%Y%m%d', country='中国')
+
+# 判断一个日期是否是法定节假日
+holiday.holiday(date='2020-02-02')
+
+# 判断当天日期是否是法定节假日（date的值空为当天日期）
+holiday.holiday()
+
+# 判断一个日期是否是法定节假日（sina接口）
+holiday.holiday2(date='2020-02-02')
+
+# 判断当天日期是否是法定节假日（date的值空为当天日期）
+holiday.holiday()
+</code></pre>
+<p><a href="../../../../zh_CN/latest/api/extras/index.html#05"></a></p>
+<h2 id="05">05. 新版自定义板块操作</h2>
+<p>参数说明:</p>
+<ul>
+<li>name: 板块名称</li>
+<li>symbol: 股票代码列表</li>
+<li>tdxdir: 通达信的安装目录</li>
+</ul>
+<p>返回值：</p>
+<ul>
+<li>布尔值, True 成功, False 失败</li>
+</ul>
+<p><strong>调用方法：</strong></p>
+<pre><code class="language-python">from mootdx.tools.customize import Customize
+
+# 初始化一个自定义版本操作对象, tdxdir 可根据具体情况修改
+custom = Customize(tdxdir='C:/new_tdx')
+
+# 新建自定义板块
+custom.create(name='龙虎榜', symbol=['600036', '600016'])
+
+# 再创建一个, 板块名称不能重复
+custom.create(name='优质股', symbol=['600036', '600016'])
+
+# 修改自定义板块
+custom.update(name='龙虎榜', symbol=['600036', '600016'])
+
+# 查询自定义板块
+custom.search(name='龙虎榜')
+
+# 删除指定名称的自定义板块
+custom.remove(name='龙虎榜')
+
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../fields/index.html" class="btn btn-neutral float-left" title="财务对照"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../cli/bestip/index.html" class="btn btn-neutral float-right" title="线路测试">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  
+    <script>var base_url = '../..';</script>
+    <script src="../../js/theme_extra.js" defer></script>
+    <script src="../../js/theme.js" defer></script>
+      <script src="../../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

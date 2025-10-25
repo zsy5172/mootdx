@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>修改日志 - MOOTDX</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "\u4fee\u6539\u65e5\u5fd7";
+        var mkdocs_page_input_path = "history.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+<script async type="text/javascript" src="../../../_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="mootdx" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/history/" /><meta name="readthedocs-http-status" content="200" /></head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../../index.html" class="icon icon-home"> MOOTDX
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="https://www.mootdx.com/zh-cn/latest/search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">快速开始</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../../index.html">项目概述</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../setup/index.html">安装说明</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quick/index.html">快速上手</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="index.html">修改日志</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="index.html#fix">Fix</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">行情接口</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../api/quote1/index.html">标准行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api/quote2/index.html">扩展行情</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api/reader/index.html">数据读取</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api/fields/index.html">财务对照</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../zh_CN/latest/api/extras/index.html">辅助函数</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">命令行工具</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cli/bestip/index.html">线路测试</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../cli/reader/index.html">离线数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../cli/quotes/index.html">行情数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../cli/affair/index.html">财务数据</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../cli/bundle/index.html">批量下载</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">常见问题</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../faq/py_mini_racer/index.html">py_mini_racer 在 Mac ARM系统问题</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MOOTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../index.html" class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>快速开始 &raquo;</li>
+      <li>修改日志</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h2 id="v0117-2024-05-04">v0.11.7 (2024-05-04)</h2>
+<h3 id="fix">Fix</h3>
+<ul>
+<li>调整依赖版本问题</li>
+</ul>
+<h2 id="v0116-2024-05-04">v0.11.6 (2024-05-04)</h2>
+<h3 id="fix_1">Fix</h3>
+<ul>
+<li>关闭无用测试</li>
+</ul>
+<h2 id="v0115-2024-05-04">v0.11.5 (2024-05-04)</h2>
+<h3 id="feat">Feat</h3>
+<ul>
+<li>增加几个文件 cache, timer demjson</li>
+<li>增加几个文件 cache, timer demjson</li>
+<li>增加几个文件 cache, timer demjson</li>
+</ul>
+<h3 id="fix_2">Fix</h3>
+<ul>
+<li>修改股票代码识别市场bug</li>
+</ul>
+<h2 id="v0114-2024-03-10">v0.11.4 (2024-03-10)</h2>
+<h3 id="fix_3">Fix</h3>
+<ul>
+<li>.drone.yml</li>
+<li>.drone.yml</li>
+</ul>
+<h2 id="v0113-2024-03-10">v0.11.3 (2024-03-10)</h2>
+<h2 id="v0112-2023-12-02">v0.11.2 (2023-12-02)</h2>
+<h3 id="fix_4">Fix</h3>
+<ul>
+<li>empty check</li>
+</ul>
+<h2 id="v0111-2023-10-10">v0.11.1 (2023-10-10)</h2>
+<h2 id="v0110-2023-10-09">v0.11.0 (2023-10-09)</h2>
+<h3 id="fix_5">Fix</h3>
+<ul>
+<li>修改若干问题</li>
+</ul>
+<h2 id="v01012-2023-10-09">v0.10.12 (2023-10-09)</h2>
+<h3 id="feat_1">Feat</h3>
+<ul>
+<li>修正复权算法, 开启多线程和自动应答机制, 修改若干问题</li>
+<li>pandas 最低版本降至 v1.3.5</li>
+</ul>
+<h2 id="v01011-2023-08-17">v0.10.11 (2023-08-17)</h2>
+<h3 id="fix_6">Fix</h3>
+<ul>
+<li>修复 quotes未开盘异常问题.</li>
+<li>初始化市场时候 bestip=True 异步异常问题.</li>
+<li>修复财务数据接口 columns 数量不对问题.</li>
+</ul>
+<h2 id="v01010-2023-06-30">v0.10.10 (2023-06-30)</h2>
+<h3 id="fix_7">Fix</h3>
+<ul>
+<li>修正基金复权算法</li>
+</ul>
+<h2 id="v0109-2023-06-30">v0.10.9 (2023-06-30)</h2>
+<h3 id="fix_8">Fix</h3>
+<ul>
+<li>修复ETF基金前后复权问题</li>
+</ul>
+<h2 id="v0108-2023-06-30">v0.10.8 (2023-06-30)</h2>
+<h3 id="fix_9">Fix</h3>
+<ul>
+<li>可转债和基金分钟线倍数问题</li>
+<li>所有接口 offset 默认值调整 800</li>
+<li>进度条调整为 ASCII 方式</li>
+</ul>
+<h2 id="v0107-2023-06-06">v0.10.7 (2023-06-06)</h2>
+<h3 id="fix_10">Fix</h3>
+<ul>
+<li>修正复权问题</li>
+<li>若干小bug修改</li>
+</ul>
+<h2 id="v0106-2023-05-29">v0.10.6 (2023-05-29)</h2>
+<h3 id="fix_11">Fix</h3>
+<ul>
+<li>若干小bug修改</li>
+</ul>
+<h2 id="v0105-2023-05-26">v0.10.5 (2023-05-26)</h2>
+<h3 id="fix_12">Fix</h3>
+<ul>
+<li>若干小bug修改</li>
+</ul>
+<h2 id="v0104-2023-05-22">v0.10.4 (2023-05-22)</h2>
+<h3 id="fix_13">Fix</h3>
+<ul>
+<li>调整加速获取股票除权信息数据</li>
+<li>修改 holiday 缓存异常问题</li>
+</ul>
+<h2 id="v0103-2023-05-11">v0.10.3 (2023-05-11)</h2>
+<h3 id="feat_2">Feat</h3>
+<ul>
+<li>k, ohlc 接口支持前复权功能</li>
+</ul>
+<h3 id="fix_14">Fix</h3>
+<ul>
+<li>Python 版本支持 3.8 ~ 3.11</li>
+<li>修正后复权功能, xdxr 进行缓存化加速</li>
+</ul>
+<h2 id="v0101-2023-05-10">v0.10.1 (2023-05-10)</h2>
+<h3 id="feat_3">Feat</h3>
+<ul>
+<li>holiday 添加缓存, 并增加测试代码</li>
+<li>添加缓存模块, 并增加测试代码</li>
+</ul>
+<h3 id="fix_15">Fix</h3>
+<ul>
+<li>js_decode 文件分离</li>
+<li>minute 接口数据异常修复, 使用 minutes 获取当天数据即可</li>
+<li>修正读取通达信本地数据复权问题</li>
+</ul>
+<h2 id="v0100-2023-05-09">v0.10.0 (2023-05-09)</h2>
+<h3 id="feat_4">Feat</h3>
+<ul>
+<li>移除非必要依赖, 实现按需安装</li>
+</ul>
+<h3 id="fix_16">Fix</h3>
+<ul>
+<li>修正板块文件 incon.dat 路径错误</li>
+<li>修正前复权计算错误问题</li>
+</ul>
+<h2 id="v0910-2022-12-05">v0.9.10 (2022-12-05)</h2>
+<ul>
+<li>修复若干一些小问题</li>
+<li>修复升级 mootdx 而不能自动升级 tdxpy 问题</li>
+<li>复权数据加缓存, 当天数据不会重复读取除权接口</li>
+</ul>
+<h2 id="v090-2022-05-13">v0.9.0 (2022-05-13)</h2>
+<ul>
+<li>自定义板块函数调整, 添加增、删、改、查操作</li>
+<li>日志等级调整为自行可配置(之前有反馈说日志等级太低, 太多无用日志，影响性能) 构造函数调整</li>
+<li>调整K线数据数据频次参数(frequency)的赋值方式, 原数字方式改成字符, 例如(原15分钟线值<code>1</code>改为<code>15m</code>)</li>
+<li>增加服务器IP功能, 构造函数里添加 <code>server</code>参数 例如：<code>client = Quotes.factory(market='std', server=('127.0.0.0',7727), verbose=0, quiet=True)</code></li>
+<li>日志过滤的调整</li>
+<li>恢复了holiday2</li>
+<li>财务数据的表头转为中文, 使用时更加直观</li>
+<li>复权算法, 已经修复</li>
+</ul>
+<h2 id="v0813-2022-05-07">v0.8.13 (2022-05-07)</h2>
+<ul>
+<li><a href="../../../zh_CN/latest/api/extras/index.html#05">自定义版本增删改查</a></li>
+</ul>
+<h2 id="v087-2021-01-28">v0.8.7 (2021-01-28)</h2>
+<ul>
+<li>解决北交所股票不能获取数据问题</li>
+</ul>
+<h2 id="v086-2021-01-26">v0.8.6 (2021-01-26)</h2>
+<ul>
+<li>修正判断是否是交易日函数 holiday 逻辑错误问题</li>
+<li>调整返回 df 类型数据, 自动以时间作为 index 优化性能</li>
+<li>df 类型数据的 vol, 增加一个别名 volume</li>
+</ul>
+<h2 id="v084-2021-12-04">v0.8.4 (2021-12-04)</h2>
+<h3 id="fix_17">Fix</h3>
+<ul>
+<li>修正接口重试失败情况下抛异常，改为返回空的 dateFrame 对象, 可以使用 df.empty 判断是否为空</li>
+</ul>
+<h3 id="add">Add</h3>
+<ul>
+<li>增加日志关闭参数，有人反映打印日志影响性能</li>
+</ul>
+<h2 id="v080-2021-10-25">v0.8.0 (2021-10-25)</h2>
+<h3 id="fix_18">Fix</h3>
+<ul>
+<li>修复获取最快服务器 IP，在 jupyter 中使用失败问题</li>
+<li>修正行情服务器连接超时，重写连接失败的问题</li>
+<li>修复林林总总的若干小 bug</li>
+<li>修正兼容性, 目前完全兼容 Python 3.6, 3.7, 3.8, 3.9, 3.10 版本</li>
+</ul>
+<h3 id="add_1">Add</h3>
+<ul>
+<li>添加交易日历列表数据 (说明文档: https://mootdx.readthedocs.io/zh_CN/latest/extras/#04)</li>
+<li>增加新浪复权因子数据接口，并对TDX行情接口数据进行复权计算(较慢, 已加缓存机制, 暂时过渡使用) (对应文档: https://mootdx.readthedocs.io/zh_CN/latest/quote1)</li>
+</ul>
+<h2 id="v0721-2021-09-24">v0.7.21 (2021-09-24)</h2>
+<h3 id="fix_19">Fix</h3>
+<ul>
+<li>修复配置文件无法找到的BUG，上个版本修复不完善。</li>
+</ul>
+<h2 id="v0720-2021-09-22">v0.7.20 (2021-09-22)</h2>
+<h3 id="fix_20">Fix</h3>
+<ul>
+<li>修复配置文件无法找到的问题</li>
+</ul>
+<h3 id="changes">Changes</h3>
+<ul>
+<li>清理部分垃圾代码</li>
+<li>更新部分文档错误</li>
+<li>增加部分测试代码</li>
+</ul>
+<h2 id="v0719-2021-09-18">v0.7.19 (2021-09-18)</h2>
+<h3 id="add_2">Add</h3>
+<ul>
+<li>增加将tdx导出的txt文件，转换为标准csv文件的接口(具体内容见文档)</li>
+</ul>
+<h3 id="changes_1">Changes</h3>
+<ul>
+<li>清理部分垃圾代码</li>
+</ul>
+<h2 id="v0718-2021-09-14">v0.7.18 (2021-09-14)</h2>
+<h3 id="changes_2">Changes</h3>
+<ul>
+<li>修正文档多处书写错误</li>
+<li>财务数据下载更换为异步，性能提6倍</li>
+<li>bestip 验证最快服务器接口实现异步</li>
+<li>更新测试代码，增加测试用例</li>
+<li>增加超时自动重连接机制，再也不需要手动重新连接。</li>
+</ul>
+<h2 id="v0717-2021-09-12">v0.7.17 (2021-09-12)</h2>
+<h3 id="changes_3">Changes</h3>
+<ul>
+<li>
+<p>财务数据调整为异步下载方式, 性能提升十几倍. [bopo]</p>
+</li>
+<li>
+<p>调整logger, 使用异步方式选择最优服务器ip. [bopo]</p>
+</li>
+<li>
+<p>更新文档. [bopo]</p>
+</li>
+<li>
+<p>(2021-09-08) 解决行数数据访问服务器经常超时而返回空数据问题</p>
+</li>
+<li>(2021-09-08) 增加同花顺复权数据接口 (可查看文档<code>辅助函数</code>章节)</li>
+<li>(2021-09-08) 修复分钟线数据读取bug (感谢 wangjild 的帮助)</li>
+<li>更新部分文档</li>
+<li>优化行情服务器连接，性能更好更快</li>
+<li>修改测试最快服务器方式，之后不需要命令行直接可以使用</li>
+<li>增加自定义板块的添加数据功能</li>
+<li>增加一个获取复权因子接口</li>
+<li>修复科创板行情数据无法下载问题</li>
+<li>修复本地数据读取路径错误问题</li>
+<li>增加扩展数据本地分钟线数据读取</li>
+<li>修复本地标准市场和扩展市场不能读取问题</li>
+<li>修改科创板无法获取数据问题(感谢 bopomofo 的鼎力支持)</li>
+<li>修改缺少依赖的问题</li>
+<li>删除过期功能(交易服务等)</li>
+<li>可转债历史数据获取识别(添加113开头).</li>
+<li>修正转债数据无法获取问题.</li>
+<li>修改获取股票数据接口(自动全部获取).</li>
+<li>修改指数数据接口，市场参数错误。</li>
+<li>修复财务数据无法下载问题.</li>
+<li>更新了详细的文档.</li>
+<li>多种线路配置方案. (配置文件, 环境变量等).</li>
+<li>重写了专业财务数据接口.</li>
+<li>更新了最佳服务器选择问题.</li>
+<li>修改了 PIP 安装程序问题.</li>
+<li>本程序全面支持 python3.</li>
+<li>通达信客户端文件转换.</li>
+<li>通达信在线行情下载.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../quick/index.html" class="btn btn-neutral float-left" title="快速上手"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../api/quote1/index.html" class="btn btn-neutral float-right" title="标准行情">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
