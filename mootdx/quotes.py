@@ -16,23 +16,39 @@ from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
 from mootdx.server import check_server
 from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, to_data
+from mootdx_next import ServerEndpoint
+from mootdx_next import SyncClient as NextSyncClient
+from mootdx_next.errors import InvalidDateError
+from mootdx_next.errors import InvalidFrequencyError
+from mootdx_next.errors import InvalidSymbolError
+from mootdx_next.errors import OutsideTradingSessionError
+from mootdx_next.errors import UnsupportedMarketError
 
 
 class Quotes(object):
     @staticmethod
-    def factory(market='std', **kwargs):
+    def factory(market='std', engine='legacy', **kwargs):
         """
         股票市场 工厂方法
 
         :param market:  std 股票市场, ext 扩展市场， 默认股票市场
+        :param engine: legacy 旧实现, next 新核心兼容层
         :param kwargs:  可变参数
         :return: object
         """
 
         logger.debug(kwargs)
 
+        if engine not in ['legacy', 'next']:
+            raise _validation_exception('engine 参数错误, 目前只支持 legacy / next')
+
         if market == 'ext':
+            if engine == 'next':
+                raise _validation_exception('next engine 暂不支持扩展市场')
             return ExtQuotes(**kwargs)
+
+        if engine == 'next':
+            return NextStdQuotes(**kwargs)
 
         return StdQuotes(**kwargs)
 
@@ -103,6 +119,12 @@ class BaseQuotes(object):
 
     def pool(self):
         ...
+
+
+def _validation_exception(message: str) -> MootdxValidationException:
+    exc = MootdxValidationException()
+    exc.args = (message,)
+    return exc
 
 
 instance: BaseQuotes
@@ -509,6 +531,257 @@ class StdQuotes(BaseQuotes):
 
         result = self.client.get_and_parse_block_info(tofile)
         return to_data(result, **kwargs)
+
+
+class NextStdQuotes(BaseQuotes):
+    """
+    基于 mootdx_next 的标准市场兼容层
+    """
+
+    def __init__(
+        self,
+        server=None,
+        bestip=False,
+        timeout=15,
+        heartbeat=False,
+        auto_retry=True,
+        raise_exception=False,
+        engine_client=None,
+        **kwargs,
+    ):
+        super().__init__(bestip=False, timeout=timeout, server=server, **kwargs)
+        self.server and config.set('BESTIP', {'HQ': self.server})
+
+        try:
+            config.get('SERVER').get('HQ')[0]
+        except ValueError as ex:
+            logger.warning(ex)
+        finally:
+            default = config.get('SERVER').get('HQ')[0][1:]
+            self.server = config.get('BESTIP').get('HQ', default)
+
+        logger.debug(f'next engine server: {self.server}')
+        ip, port = self.server
+        self.bestip = (ip, int(port))
+        self.heartbeat = heartbeat
+        self.auto_retry = auto_retry
+        self.raise_exception = raise_exception
+        self.client = engine_client or NextSyncClient(
+            servers=[ServerEndpoint(host=ip, port=int(port), label='std-next')],
+        )
+
+        global instance
+        instance = self
+
+    @property
+    def closed(self) -> bool:
+        return bool(getattr(self.client, 'closed', False))
+
+    def close(self):
+        logger.debug('close')
+        hasattr(self.client, 'close') and self.client.close()
+
+    def reconnect(self):
+        logger.debug('reconnect')
+        hasattr(self.client, 'reconnect') and self.client.reconnect()
+
+    def traffic(self):
+        if hasattr(self.client, 'connection_pool'):
+            return self.client.connection_pool.snapshot()
+        return None
+
+    def quotes(self, symbol=None, **kwargs):
+        if not symbol:
+            return to_data(None)
+
+        try:
+            result = self.client.quotes(symbol=symbol)
+        except (InvalidSymbolError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def bars(self, symbol='000001', frequency=9, start=0, offset=800, **kwargs):
+        frequency = get_frequency(frequency)
+        offset = min(int(offset), 800)
+
+        try:
+            result = self.client.bars(symbol=str(symbol), frequency=frequency, start=int(start), offset=offset)
+        except (InvalidSymbolError, InvalidFrequencyError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def stock_count(self, market=MARKET_SH):
+        if market not in [0, 1, 2]:
+            raise _validation_exception('市场代码错误')
+
+        return self.client.stock_count(int(market))
+
+    def stocks(self, market=MARKET_SH):
+        if market not in [0, 1]:
+            raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+
+        result = self.client.stocks(int(market))
+        return to_data(result)
+
+    def stock_all(self):
+        return pandas.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
+
+    def minute(self, symbol=None, **kwargs):
+        today = datetime.now().strftime('%Y%m%d')
+        return self.minutes(symbol=symbol, date=today, **kwargs)
+
+    def minutes(self, symbol=None, date='20191023', **kwargs):
+        market = get_stock_market(symbol)
+        if market not in [0, 1]:
+            raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+
+        try:
+            result = self.client.minutes(symbol=str(symbol), date=date)
+        except (InvalidSymbolError, InvalidDateError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def transaction(self, symbol='', start=0, offset=800, **kwargs):
+        try:
+            result = self.client.transaction(symbol=str(symbol), start=int(start), offset=int(offset))
+        except (InvalidSymbolError, OutsideTradingSessionError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def transactions(self, symbol='', start=0, offset=800, date='20170209', **kwargs):
+        market = get_stock_market(symbol, string=False)
+        if market not in [0, 1]:
+            raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+
+        try:
+            result = self.client.transactions(symbol=str(symbol), start=int(start), offset=int(offset), date=date)
+        except (InvalidSymbolError, InvalidDateError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def F10C(self, symbol='', market=None):  # noqa
+        market = int(get_stock_market(symbol, string=False)) if market is None else market
+        if market not in [0, 1]:
+            raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+
+        try:
+            return self.client.f10_categories(str(symbol))
+        except (InvalidSymbolError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+    def F10(self, symbol='', name='', market=None):  # noqa
+        market = int(get_stock_market(symbol, string=False)) if market is None else market
+        if market not in [0, 1]:
+            raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+
+        try:
+            categories = self.client.f10_categories(str(symbol))
+        except (InvalidSymbolError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        if not categories:
+            return None
+
+        if name:
+            for item in categories:
+                if item['name'] == name:
+                    return self.client.f10_content(str(symbol), item['name'])
+
+        return {item['name']: self.client.f10_content(str(symbol), item['name']) for item in categories}
+
+    def xdxr(self, symbol='', **kwargs):
+        try:
+            result = self.client.xdxr(str(symbol))
+        except (InvalidSymbolError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def finance(self, symbol='000001', **kwargs):
+        try:
+            result = self.client.finance(str(symbol))
+        except (InvalidSymbolError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def index_bars(self, symbol='000001', frequency=9, start=0, offset=800, market=None, **kwargs):
+        frequency = get_frequency(frequency)
+        offset = min(int(offset), 800)
+
+        try:
+            result = self.client.index_bars(
+                symbol=str(symbol),
+                frequency=frequency,
+                start=int(start),
+                offset=offset,
+                market=market,
+            )
+        except (InvalidSymbolError, InvalidFrequencyError, UnsupportedMarketError) as exc:
+            raise _validation_exception(str(exc))
+
+        return to_data(result, symbol=symbol, client=self, **kwargs)
+
+    def index(self, symbol='000001', frequency=9, start=0, offset=800, market=None, **kwargs):
+        return self.index_bars(
+            symbol=symbol,
+            frequency=frequency,
+            start=start,
+            offset=offset,
+            market=market,
+            **kwargs,
+        )
+
+    def block(self, tofile='block.dat', **kwargs):
+        result = self.client.block(str(tofile))
+        return to_data(result, **kwargs)
+
+    def get_k_data(self, code: str, start_date: Union[str, datetime], end_date: Union[str, datetime]) -> pd.DataFrame:
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+        if end_date <= start_date:
+            return pd.DataFrame()
+
+        today = pd.to_datetime(datetime.now().date())
+        workday_count = count_weekdays(start_date, end_date)
+        if workday_count <= 0:
+            return pd.DataFrame()
+
+        offset_end = max((end_date - today).days, 0)
+
+        chunk_size = 800
+        page_num = math.ceil(workday_count / chunk_size)
+        all_data = []
+        for i in range(page_num):
+            offset = offset_end + i * chunk_size
+            count = min(chunk_size, workday_count - i * chunk_size)
+            rows = self.client.bars(symbol=str(code), frequency=9, start=int(offset), offset=int(count))
+            df = to_data(rows, symbol=code, client=self)
+            if not df.empty:
+                all_data.append(df)
+
+        if not all_data:
+            return pd.DataFrame()
+
+        data = pd.concat(all_data, ignore_index=True)
+        data["date"] = pd.to_datetime(data["datetime"].astype(str).str[:10])
+        data["code"] = str(code)
+        data.drop(columns=["year", "month", "day", "hour", "minute", "datetime"], inplace=True)
+        data.set_index("date", inplace=True)
+        data = data.loc[(data.index >= start_date) & (data.index <= end_date)].sort_index()
+        return data
+
+    def k(self, symbol='', begin=None, end=None, **kwargs):
+        result = self.get_k_data(symbol, begin, end)
+        return to_data(result, symbol=symbol, **kwargs)
+
+    def ohlc(self, **kwargs):
+        return self.k(**kwargs)
 
 
 class ExtQuotes(BaseQuotes):
