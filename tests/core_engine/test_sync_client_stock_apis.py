@@ -1,0 +1,219 @@
+from __future__ import annotations
+
+import struct
+from dataclasses import dataclass
+
+import pytest
+
+from mootdx_next.api.clients import SyncClient
+from mootdx_next.errors import NoHealthyServerError
+from mootdx_next.errors import TransportTimeoutError
+from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.models import ConnectionLease
+from mootdx_next.models import RequestContext
+from mootdx_next.models import ResponseEnvelope
+from mootdx_next.models import ServerEndpoint
+from mootdx_next.models import TransportMetrics
+from mootdx_next.protocol import StdQuoteProtocol
+
+
+def _build_stock_list_body(rows: list[dict[str, object]]) -> bytes:
+    body = bytearray(struct.pack("<H", len(rows)))
+    for row in rows:
+        body.extend(
+            struct.pack(
+                "<6sH8s4sBI4s",
+                str(row["code"]).encode("utf-8"),
+                int(row.get("volunit", 100)),
+                str(row.get("name", "")).encode("gbk", errors="ignore").ljust(8, b"\x00")[:8],
+                b"\x00\x00\x00\x00",
+                int(row.get("decimal_point", 2)),
+                int(row.get("pre_close_raw", 0)),
+                b"\x00\x00\x00\x00",
+            )
+        )
+    return bytes(body)
+
+
+class RecordingTransport:
+    def __init__(self, responses: list[bytes] | None = None, send_error: Exception | None = None) -> None:
+        self.responses = list(responses or [])
+        self.send_error = send_error
+        self.metrics = TransportMetrics(last_latency_ms=1.5)
+        self.sent_payloads: list[bytes] = []
+        self.closed = False
+
+    def connect(self, server: ServerEndpoint, timeout_ms: int | None = None) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+    def is_connected(self) -> bool:
+        return True
+
+    def send(self, context: RequestContext, payload: bytes, server: ServerEndpoint) -> ResponseEnvelope:
+        self.sent_payloads.append(payload)
+        if self.send_error is not None:
+            raise self.send_error
+        if not self.responses:
+            raise AssertionError("no response queued")
+        return ResponseEnvelope(body=self.responses.pop(0), server=server, elapsed_ms=1.5)
+
+
+@dataclass
+class RecordingScheduler:
+    server: ServerEndpoint
+    select_error: Exception | None = None
+
+    def __post_init__(self) -> None:
+        self.success_calls: list[tuple[ServerEndpoint, TransportMetrics]] = []
+        self.failure_calls: list[tuple[ServerEndpoint, Exception]] = []
+
+    def select_server(
+        self,
+        context: RequestContext,
+        excluded: set[tuple[str, int]] | None = None,
+    ) -> ServerEndpoint:
+        if self.select_error is not None:
+            raise self.select_error
+        return self.server
+
+    def record_success(self, server: ServerEndpoint, metrics: TransportMetrics) -> None:
+        self.success_calls.append((server, metrics))
+
+    def record_failure(self, server: ServerEndpoint, exc: Exception) -> None:
+        self.failure_calls.append((server, exc))
+
+
+class RecordingConnectionPool:
+    def __init__(self, transport: RecordingTransport) -> None:
+        self.transport = transport
+        self.released: list[ConnectionLease] = []
+        self.discarded: list[ConnectionLease] = []
+        self.server = ServerEndpoint(host="127.0.0.1", port=7709, label="test")
+
+    def acquire(self, server: ServerEndpoint) -> ConnectionLease:
+        self.server = server
+        return ConnectionLease(server=server, transport=self.transport, created_at_ms=0.0, last_used_ms=0.0)
+
+    def release(self, lease: ConnectionLease) -> None:
+        self.released.append(lease)
+
+    def discard(self, lease: ConnectionLease) -> None:
+        self.discarded.append(lease)
+
+    def active_count(self, server: ServerEndpoint) -> int:
+        return 0
+
+    def close_all(self) -> None:
+        self.transport.close()
+
+
+def test_sync_client_stock_count_returns_decoded_value() -> None:
+    transport = RecordingTransport(responses=[struct.pack("<H", 321)])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.stock_count(1) == 321
+    assert len(pool.released) == 1
+    assert not pool.discarded
+    assert scheduler.success_calls[0][0] == pool.server
+
+
+@pytest.mark.parametrize("count, expected_page_starts", [(999, [0]), (1000, [0]), (1001, [0, 1000])])
+def test_sync_client_stocks_pages_requests_by_thousands(count: int, expected_page_starts: list[int]) -> None:
+    responses = [struct.pack("<H", count)] + [struct.pack("<H", 0) for _ in expected_page_starts]
+    transport = RecordingTransport(responses=responses)
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.stocks(1) == []
+
+    sent_page_starts = []
+    for payload in transport.sent_payloads[1:]:
+        market, start = struct.unpack("<HH", payload[-4:])
+        assert market == 1
+        sent_page_starts.append(start)
+    assert sent_page_starts == expected_page_starts
+
+
+def test_sync_client_stocks_aggregates_multiple_pages() -> None:
+    page_one = _build_stock_list_body(
+        [
+            {"code": "600000", "name": "PFBANK", "pre_close_raw": 123456789},
+            {"code": "600004", "name": "BAYPORT", "pre_close_raw": 98765432},
+        ]
+    )
+    page_two = _build_stock_list_body(
+        [
+            {"code": "600006", "name": "CARGO", "pre_close_raw": 1234},
+        ]
+    )
+    transport = RecordingTransport(responses=[struct.pack("<H", 1001), page_one, page_two])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    rows = client.stocks(1)
+
+    assert [row["code"] for row in rows] == ["600000", "600004", "600006"]
+    assert len(pool.released) == 3
+    assert not pool.discarded
+
+
+def test_sync_client_stocks_returns_empty_when_count_is_zero() -> None:
+    transport = RecordingTransport(responses=[struct.pack("<H", 0)])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.stocks(1) == []
+    assert len(transport.sent_payloads) == 1
+
+
+def test_sync_client_rejects_invalid_market() -> None:
+    client = SyncClient()
+
+    with pytest.raises(UnsupportedMarketError):
+        client.stock_count(9)
+
+    with pytest.raises(UnsupportedMarketError):
+        client.stocks(2)
+
+
+def test_sync_client_propagates_scheduler_failure() -> None:
+    transport = RecordingTransport()
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server, select_error=NoHealthyServerError("no server"))
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    with pytest.raises(NoHealthyServerError):
+        client.stock_count(1)
+
+    assert not pool.released
+    assert not pool.discarded
+
+
+def test_sync_client_discards_lease_on_transport_failure() -> None:
+    transport = RecordingTransport(send_error=TransportTimeoutError("timed out"))
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    with pytest.raises(TransportTimeoutError):
+        client.stock_count(1)
+
+    assert not pool.released
+    assert len(pool.discarded) == 2
+    assert len(scheduler.failure_calls) == 2
+
+
+def test_sync_client_defaults_wire_up_protocol_and_pool() -> None:
+    server = ServerEndpoint(host="127.0.0.1", port=7709, label="local")
+    client = SyncClient(servers=[server])
+
+    assert isinstance(client.protocol, StdQuoteProtocol)
+    assert client.scheduler.select_server(RequestContext(api="stock_count")) == server
