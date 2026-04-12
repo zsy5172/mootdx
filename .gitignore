@@ -62,8 +62,10 @@ docs/_build/
 target/
 
 # pyenv python configuration file
-.python-version
 
 .idea
 .github
+!.github/
+!.github/workflows/
+!.github/workflows/compat-nightly.yml
 .DS_Store
