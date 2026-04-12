@@ -229,6 +229,7 @@ def _build_client(spec: dict[str, Any], runtime: str = "legacy") -> Any:
         raise ValueError(f"unsupported client kind: {client_spec.get('kind')}")
 
     factory_kwargs = dict(client_spec.get("factory", {}))
+    factory_kwargs.setdefault("engine", "legacy")
     factory_kwargs.setdefault("server", list(DEFAULT_CAPTURE_SERVER))
     return Quotes.factory(**factory_kwargs)
 

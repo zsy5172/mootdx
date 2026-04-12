@@ -14,7 +14,7 @@ class TestStdQuotes(unittest.TestCase):
 
     # 初始化工作
     def setup_class(self):
-        self.client = Quotes.factory(market='std', timeout=10, verbose=2)  # 标准市场
+        self.client = Quotes.factory(market='std', engine='legacy', timeout=10, verbose=2)  # 标准市场
         logger.debug('初始化工作')
 
     # 退出清理工作
@@ -115,7 +115,7 @@ class TestStdRaises(unittest.TestCase):
 
     # 初始化工作
     def setup_class(self):
-        self.client = Quotes.factory(market='std', timeout=10, verbose=2)  # 标准市场
+        self.client = Quotes.factory(market='std', engine='legacy', timeout=10, verbose=2)  # 标准市场
 
     def test_stock_count_raises(self):
         with pytest.raises(MootdxValidationException) as e:

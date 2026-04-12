@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27.0"]
+requires = ["hatchling~=1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -23,15 +23,19 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "click>=8.1,<9",
-  "httpx>=0.25,<1",
-  "mini-racer>=0.12,<1",
-  "pandas>=2.2,<3",
-  "prettytable>=3.5,<4",
-  "tdxpy>=0.2.7,<0.3",
-  "tenacity>=8.1,<10",
-  "tqdm>=4.66,<5",
-  "typing-extensions>=4.5,<5",
+  "click~=8.3.2",
+  "httpx~=0.28.1",
+  "mini-racer~=0.14.1",
+  "pandas~=3.0.2",
+  "prettytable~=3.17.0",
+  "tenacity~=9.1.4",
+  "tqdm~=4.67.3",
+  "typing-extensions~=4.15.0",
+]
+
+[project.optional-dependencies]
+legacy = [
+  "tdxpy~=0.2.7",
 ]
 
 [project.urls]
@@ -43,12 +47,12 @@ mootdx = "mootdx.__main__:entry"
 
 [dependency-groups]
 dev = [
-  "freezegun>=1.2.2",
-  "mkdocs>=1.6.1",
-  "nox>=2025.5.1",
-  "pytest>=8.3.5",
-  "pytest-cov>=6.0.0",
-  "ruff>=0.11.0",
+  "freezegun~=1.5.5",
+  "mkdocs~=1.6.1",
+  "nox~=2026.4.10",
+  "pytest~=9.0.3",
+  "pytest-cov~=7.1.0",
+  "ruff~=0.15.10",
 ]
 compat = []
 

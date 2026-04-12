@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pandas as pd
-from tdxpy.reader import BlockReader
 
+from mootdx._optional import import_legacy_attr
 from mootdx.consts import TYPE_FLATS
 from mootdx.consts import TYPE_GROUP
 from mootdx.logger import logger
@@ -37,6 +37,7 @@ class BaseParse:
             return self.__incon(vipdoc)
 
         if 'block_' in symbol and suffix == '.dat':
+            BlockReader = import_legacy_attr('tdxpy.reader', 'BlockReader', 'legacy 板块解析')
             return BlockReader().get_df(str(Path(self.tdxdir, vipdoc)), (TYPE_FLATS, TYPE_GROUP)[bool(group)])
 
         return self.cfg(vipdoc)

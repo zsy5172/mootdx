@@ -6,7 +6,7 @@ from mootdx.utils import FREQUENCY
 
 @pytest.fixture(scope='function')
 def client():
-    return Quotes.factory(market='std')
+    return Quotes.factory(market='std', engine='legacy')
 
 
 @pytest.mark.skip(reason='暂时不做重复测试')

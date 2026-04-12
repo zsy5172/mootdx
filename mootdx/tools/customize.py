@@ -2,12 +2,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from tdxpy.reader import CustomerBlockReader
-
+from mootdx._optional import import_legacy_attr
 from mootdx.consts import TYPE_FLATS
 from mootdx.consts import TYPE_GROUP
 from mootdx.logger import logger
 from mootdx.utils import get_stock_market
+
+CustomerBlockReader = import_legacy_attr('tdxpy.reader', 'CustomerBlockReader', 'legacy 自定义板块工具')
 
 try:
     from time import time_ns

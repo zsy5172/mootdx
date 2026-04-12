@@ -7,8 +7,8 @@ from struct import calcsize
 from struct import unpack
 
 import pandas as pd
-from tdxpy.hq import TdxHq_API
 
+from mootdx._optional import import_legacy_attr
 from ..logger import logger
 from .base import BaseFinancial
 from .columns import columns
@@ -50,6 +50,7 @@ class FinancialList(BaseFinancial):
 
         tmp = tempfile.NamedTemporaryFile(delete=True)
 
+        TdxHq_API = import_legacy_attr('tdxpy.hq', 'TdxHq_API', 'legacy 财务下载')
         api = TdxHq_API(**kwargs)
         api.need_setup = False
 
@@ -108,6 +109,7 @@ class Financial(BaseFinancial):
         if not filename:
             raise Exception('Param filename is not set')
 
+        TdxHq_API = import_legacy_attr('tdxpy.hq', 'TdxHq_API', 'legacy 财务下载')
         api = TdxHq_API()
         api.need_setup = False
 

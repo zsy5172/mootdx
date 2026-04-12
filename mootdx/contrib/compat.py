@@ -1,15 +1,16 @@
 import socket
 import threading
 
-from tdxpy.base_socket_client import BaseSocketClient
-from tdxpy.base_socket_client import CONNECT_TIMEOUT
-from tdxpy.base_socket_client import TrafficStatSocket
-from tdxpy.constants import SECURITY_EXCHANGE
-from tdxpy.exceptions import TdxConnectionError
-from tdxpy.heartbeat import HeartBeatThread
-from tdxpy.reader import TdxDailyBarReader
-
+from mootdx._optional import import_legacy_attr
 from mootdx.logger import logger
+
+BaseSocketClient = import_legacy_attr('tdxpy.base_socket_client', 'BaseSocketClient', 'legacy 本地行情兼容层')
+CONNECT_TIMEOUT = import_legacy_attr('tdxpy.base_socket_client', 'CONNECT_TIMEOUT', 'legacy 本地行情兼容层')
+TrafficStatSocket = import_legacy_attr('tdxpy.base_socket_client', 'TrafficStatSocket', 'legacy 本地行情兼容层')
+SECURITY_EXCHANGE = import_legacy_attr('tdxpy.constants', 'SECURITY_EXCHANGE', 'legacy 本地行情兼容层')
+TdxConnectionError = import_legacy_attr('tdxpy.exceptions', 'TdxConnectionError', 'legacy 本地行情兼容层')
+HeartBeatThread = import_legacy_attr('tdxpy.heartbeat', 'HeartBeatThread', 'legacy 本地行情兼容层')
+TdxDailyBarReader = import_legacy_attr('tdxpy.reader', 'TdxDailyBarReader', 'legacy 本地行情兼容层')
 
 
 class MooTdxDailyBarReader(TdxDailyBarReader):

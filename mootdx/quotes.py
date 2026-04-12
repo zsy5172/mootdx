@@ -4,17 +4,14 @@ from typing import Union
 
 import pandas
 import pandas as pd
-from tdxpy.exceptions import ValidationException
-from tdxpy.exhq import TdxExHq_API
-from tdxpy.hq import TdxHq_API
 from tenacity import retry, retry_if_exception_type, retry_if_result, stop_after_attempt, wait_random
 from tqdm import tqdm
 
 from mootdx import config
+from mootdx._optional import import_legacy_attr
 from mootdx.consts import MARKET_SH, MARKET_SZ, return_last_value
 from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
-from mootdx.server import check_server
 from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, to_data
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient as NextSyncClient
@@ -27,7 +24,7 @@ from mootdx_next.errors import UnsupportedMarketError
 
 class Quotes(object):
     @staticmethod
-    def factory(market='std', engine='legacy', **kwargs):
+    def factory(market='std', engine=None, **kwargs):
         """
         股票市场 工厂方法
 
@@ -38,6 +35,9 @@ class Quotes(object):
         """
 
         logger.debug(kwargs)
+
+        if engine is None:
+            engine = 'legacy' if market == 'ext' else 'next'
 
         if engine not in ['legacy', 'next']:
             raise _validation_exception('engine 参数错误, 目前只支持 legacy / next')
@@ -89,7 +89,7 @@ class BaseQuotes(object):
         self.server = valid_server(server)
 
         logger.debug(f'bestip => {bestip}')
-        bestip and check_server(sync=True)
+        bestip and _check_server(sync=True)
 
         self.timeout = timeout or 15
         logger.debug(f'timeout => {self.timeout}')
@@ -98,8 +98,11 @@ class BaseQuotes(object):
         logger.debug(f'verbose => {self.verbose}')
 
     def __del__(self):
-        logger.debug('call __del__')
-        self.close()
+        try:
+            logger.debug('call __del__')
+            self.close()
+        except Exception:
+            pass
 
     def reconnect(self):
         if self.closed:
@@ -128,6 +131,24 @@ def _validation_exception(message: str) -> MootdxValidationException:
 
 
 instance: BaseQuotes
+
+
+def _legacy_validation_exception():
+    return import_legacy_attr('tdxpy.exceptions', 'ValidationException', 'legacy 标准行情')
+
+
+def _legacy_hq_api():
+    return import_legacy_attr('tdxpy.hq', 'TdxHq_API', 'legacy 标准行情')
+
+
+def _legacy_exhq_api():
+    return import_legacy_attr('tdxpy.exhq', 'TdxExHq_API', 'legacy 扩展行情')
+
+
+def _check_server(sync=True):
+    from mootdx.server import check_server
+
+    return check_server(sync=sync)
 
 
 def check_empty(value):
@@ -174,6 +195,7 @@ class StdQuotes(BaseQuotes):
         logger.debug(f'server: {self.server}')
         ip, port = self.server
 
+        TdxHq_API = _legacy_hq_api()
         self.client = TdxHq_API(heartbeat=heartbeat, auto_retry=auto_retry, raise_exception=raise_exception)
         self.client.connect(ip, int(port), time_out=timeout)
 
@@ -200,7 +222,7 @@ class StdQuotes(BaseQuotes):
         try:
             symbol = get_stock_markets(symbol)
             result = self.client.get_security_quotes(symbol)
-        except ValidationException:
+        except _legacy_validation_exception():
             return to_data(None)
 
         return to_data(result, symbol=symbol, client=self, **kwargs)
@@ -814,6 +836,7 @@ class ExtQuotes(BaseQuotes):
             if x in kwargs.keys():
                 del kwargs[x]
 
+        TdxExHq_API = _legacy_exhq_api()
         try:
             self.client = TdxExHq_API(raise_exception=False, auto_retry=True, **kwargs)
             self.client.connect(*self.server)

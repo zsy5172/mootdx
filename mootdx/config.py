@@ -6,7 +6,6 @@ from mootdx.consts import EX_HOSTS
 from mootdx.consts import GP_HOSTS
 from mootdx.consts import HQ_HOSTS
 from mootdx.logger import logger
-from mootdx.server import bestip
 from mootdx.utils import get_config_path
 
 __all__ = ['set', 'get', 'copy', 'update', 'settings']
@@ -40,7 +39,13 @@ def setup():
         load_config()
     except (json.JSONDecodeError, FileNotFoundError):
         logger.warning(f'未找到配置文件 {CONF}, 正在生成配置文件.')
-        bestip(console=False, limit=5, sync=False)
+        try:
+            from mootdx.server import bestip
+        except Exception as exc:
+            logger.warning(exc)
+            Path(CONF).write_text(json.dumps(settings), encoding='utf-8')
+        else:
+            bestip(console=False, limit=5, sync=False)
     finally:
         load_config()
 

@@ -36,10 +36,11 @@ def entry():
 @click.option('-s', '--symbol', default='600000', help='股票代码.')
 @click.option('-a', '--action', default='bars', help='操作类型 (daily: 日线, minute: 一分钟线, fzline: 五分钟线).', )
 @click.option('-m', '--market', default='std', help='证券市场, 默认 std (std: 标准股票市场, ext: 扩展市场).')
-def quotes(symbol, action, market, output):
+@click.option('-e', '--engine', default=None, type=click.Choice(['legacy', 'next']), help='运行引擎, 默认 std 为 next, ext 为 legacy.')
+def quotes(symbol, action, market, output, engine):
     from mootdx.quotes import Quotes
 
-    client = Quotes.factory(market=market, multithread=True)
+    client = Quotes.factory(market=market, engine=engine, multithread=True)
 
     try:
         action = 'bars' if 'daily' else action
@@ -163,15 +164,16 @@ def affair(parse, fetch, downdir, output, downall, verbose, listfile):
 @click.option('-s', '--symbol', default='600000', help='股票代码. 多个用,隔开')
 @click.option('-a', '--action', default='bars', help='操作类型 (daily: 日线, minute: 一分钟线, fzline: 五分钟线).')
 @click.option('-m', '--market', default='std', help='证券市场, 默认 std (std: 标准股票市场, ext: 扩展市场).')
-@click.option('-e', '--extension', default='csv', help='转存文件的格式, 支持 CSV, HDF5, Excel, JSON 等格式.')
-def bundle(symbol, action, market, output, extension):
+@click.option('-e', '--engine', default=None, type=click.Choice(['legacy', 'next']), help='运行引擎, 默认 std 为 next, ext 为 legacy.')
+@click.option('-x', '--extension', default='csv', help='转存文件的格式, 支持 CSV, HDF5, Excel, JSON 等格式.')
+def bundle(symbol, action, market, engine, output, extension):
     """
     批量下载行情数据
     :return:
     """
     from mootdx.quotes import Quotes
 
-    client = Quotes.factory(market=market, multithread=True)
+    client = Quotes.factory(market=market, engine=engine, multithread=True)
     symbol = symbol.replace('，', ',').strip(',').split(',')
 
     for code in symbol:

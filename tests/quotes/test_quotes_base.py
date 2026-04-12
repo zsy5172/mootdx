@@ -11,19 +11,19 @@ class TestStdQuotes(unittest.TestCase):
     server = ('39.100.68.59', 7709)
 
     def test_server(self):
-        client = Quotes.factory(market='std', server=self.server, verbose=2, timeout=10)  # 标准市场
+        client = Quotes.factory(market='std', engine='legacy', server=self.server, verbose=2, timeout=10)  # 标准市场
         assert client.server == self.server
 
     def test_not_server(self):
-        client = Quotes.factory(market='std', server=None, verbose=2, timeout=10)  # 标准市场
+        client = Quotes.factory(market='std', engine='legacy', server=None, verbose=2, timeout=10)  # 标准市场
         assert client.server != self.server
 
     def test_empty_server(self):
-        client = Quotes.factory(market='std', verbose=2, timeout=10)  # 标准市场
+        client = Quotes.factory(market='std', engine='legacy', verbose=2, timeout=10)  # 标准市场
         assert client.server != self.server
 
     def test_set_server(self):
-        client = Quotes.factory(market='std', server=self.server, verbose=2, timeout=10)  # 标准市场
+        client = Quotes.factory(market='std', engine='legacy', server=self.server, verbose=2, timeout=10)  # 标准市场
         assert client.server == self.server, self.server
 
         server = ('112.74.214.43', 7727)

@@ -5,10 +5,7 @@ import socket
 import time
 from functools import partial
 
-from tdxpy.constants import hq_hosts
-from tdxpy.exhq import TdxExHq_API
-from tdxpy.hq import TdxHq_API
-
+from mootdx._optional import import_legacy_attr
 from mootdx.consts import CONFIG
 from mootdx.consts import EX_HOSTS
 from mootdx.consts import GP_HOSTS
@@ -16,8 +13,23 @@ from mootdx.consts import HQ_HOSTS
 from mootdx.logger import logger
 from mootdx.utils import get_config_path
 
+
+def _hq_hosts():
+    try:
+        return import_legacy_attr('tdxpy.constants', 'hq_hosts', 'legacy 服务器探测')
+    except Exception:
+        return []
+
+
+def _legacy_server_apis():
+    return (
+        import_legacy_attr('tdxpy.hq', 'TdxHq_API', 'legacy 服务器探测'),
+        import_legacy_attr('tdxpy.exhq', 'TdxExHq_API', 'legacy 服务器探测'),
+    )
+
+
 hosts = {
-    'HQ': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in hq_hosts + HQ_HOSTS],
+    'HQ': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in _hq_hosts() + HQ_HOSTS],
     'EX': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in EX_HOSTS],
     'GP': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in GP_HOSTS],
 }
@@ -73,6 +85,7 @@ def connect2(proxy, index='HQ'):
     if index == 'GP':
         return connect(proxy)
 
+    TdxHq_API, TdxExHq_API = _legacy_server_apis()
     api = (TdxHq_API(), TdxExHq_API())[index != 'HQ']
     fun = ('get_security_count', 'get_instrument_count')[index != 'HQ']
 

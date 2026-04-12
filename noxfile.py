@@ -21,9 +21,11 @@ LEGACY_IMAGE = "mootdx-legacy-baseline:py311"
 CONTAINER_SPEC_ROOT = Path("/workspace/compat/specs")
 CONTAINER_CORPUS_ROOT = Path("/workspace/compat/corpus")
 CONTAINER_ARTIFACTS_DIR = Path("/workspace/compat/artifacts")
+NEXT_INSTALL = "."
+LEGACY_INSTALL = ".[legacy]"
 
 nox.options.default_venv_backend = "uv|virtualenv"
-nox.options.sessions = ["unit", "compat_replay"]
+nox.options.sessions = ["next_only_install", "unit", "compat_replay"]
 
 
 def _docker_available() -> bool:
@@ -31,14 +33,20 @@ def _docker_available() -> bool:
 
 
 @nox.session(python=["3.13"])
+def next_only_install(session: nox.Session) -> None:
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.run("pytest", "tests/core_engine/test_next_only_runtime.py", "-q")
+
+
+@nox.session(python=["3.13"])
 def unit(session: nox.Session) -> None:
-    session.install("-e", ".", "freezegun>=1.2.2", "pytest>=8.3.5", "pytest-cov>=6.0.0")
+    session.install("-e", LEGACY_INSTALL, "freezegun~=1.5.5", "pytest~=9.0.3", "pytest-cov~=7.1.0")
     session.run("pytest", "tests/utils/test_utils.py", "tests/cache/test_file.py", "tests/core_engine", "tests/compat", "-q")
 
 
 @nox.session(python=["3.13"])
 def compat_replay(session: nox.Session) -> None:
-    session.install("-e", ".")
+    session.install("-e", LEGACY_INSTALL)
     session.run(
         "python",
         "-m",
@@ -112,7 +120,7 @@ def baseline_capture(session: nox.Session) -> None:
 
 @nox.session(python=["3.13"])
 def compat_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", LEGACY_INSTALL, "pytest~=9.0.3")
     session.run(
         "python",
         "-m",
@@ -228,37 +236,37 @@ def compat_live_smoke(session: nox.Session) -> None:
 
 @nox.session(python=["3.13"])
 def transport_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_transport_live_smoke.py", "-q")
 
 
 @nox.session(python=["3.13"])
 def scheduler_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_scheduler_live_smoke.py", "-q")
 
 
 @nox.session(python=["3.13"])
 def quotes_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_next_quotes_live_smoke.py", "-q")
 
 
 @nox.session(python=["3.13"])
 def history_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_next_history_live_smoke.py", "-q")
 
 
 @nox.session(python=["3.13"])
 def transaction_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", LEGACY_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_next_transaction_live_smoke.py", "-q")
 
 
 @nox.session(python=["3.13"])
 def info_live_smoke(session: nox.Session) -> None:
-    session.install("-e", ".", "pytest>=8.3.5")
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_next_info_live_smoke.py", "-q")
 
 

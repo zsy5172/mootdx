@@ -131,6 +131,11 @@ def test_factory_returns_next_std_quotes() -> None:
     assert isinstance(client, NextStdQuotes)
 
 
+def test_factory_defaults_std_market_to_next_engine() -> None:
+    client = Quotes.factory(market="std", server=("127.0.0.1", 7709), engine_client=DummyNextClient())
+    assert isinstance(client, NextStdQuotes)
+
+
 def test_factory_rejects_ext_next_engine() -> None:
     with pytest.raises(MootdxValidationException):
         Quotes.factory(market="ext", engine="next")
