@@ -1,0 +1,36 @@
+{
+  "case_id": "daily_sh_600036_last10",
+  "api": "bars",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "110.41.174.169",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "600036",
+      "frequency": 9,
+      "start": 0,
+      "offset": 10
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sh",
+      "frequency": "daily",
+      "window": "head"
+    },
+    "tags": [
+      "systematic",
+      "history"
+    ]
+  }
+}

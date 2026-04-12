@@ -1,0 +1,12 @@
+{
+  "case_id": "daily_bj_430090_last10",
+  "api": "bars",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [],
+    "records": []
+  },
+  "error": null
+}

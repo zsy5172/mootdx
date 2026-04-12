@@ -1,0 +1,114 @@
+{
+  "case_id": "sh_600036",
+  "api": "f10_categories",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [
+      "name",
+      "filename",
+      "start",
+      "length"
+    ],
+    "records": [
+      {
+        "name": "最新提示",
+        "filename": "600036.txt",
+        "start": 0,
+        "length": 15257
+      },
+      {
+        "name": "公司概况",
+        "filename": "600036.txt",
+        "start": 15257,
+        "length": 10433
+      },
+      {
+        "name": "财务分析",
+        "filename": "600036.txt",
+        "start": 25690,
+        "length": 44125
+      },
+      {
+        "name": "股本结构",
+        "filename": "600036.txt",
+        "start": 69815,
+        "length": 5246
+      },
+      {
+        "name": "股东研究",
+        "filename": "600036.txt",
+        "start": 75061,
+        "length": 34683
+      },
+      {
+        "name": "机构持股",
+        "filename": "600036.txt",
+        "start": 109744,
+        "length": 31632
+      },
+      {
+        "name": "分红融资",
+        "filename": "600036.txt",
+        "start": 141376,
+        "length": 13021
+      },
+      {
+        "name": "高管治理",
+        "filename": "600036.txt",
+        "start": 154397,
+        "length": 28794
+      },
+      {
+        "name": "资金动向",
+        "filename": "600036.txt",
+        "start": 183191,
+        "length": 7347
+      },
+      {
+        "name": "资本运作",
+        "filename": "600036.txt",
+        "start": 190538,
+        "length": 62197
+      },
+      {
+        "name": "热点题材",
+        "filename": "600036.txt",
+        "start": 252735,
+        "length": 46457
+      },
+      {
+        "name": "公司公告",
+        "filename": "600036.txt",
+        "start": 299192,
+        "length": 38659
+      },
+      {
+        "name": "公司报道",
+        "filename": "600036.txt",
+        "start": 337851,
+        "length": 17381
+      },
+      {
+        "name": "经营分析",
+        "filename": "600036.txt",
+        "start": 355232,
+        "length": 12877
+      },
+      {
+        "name": "行业分析",
+        "filename": "600036.txt",
+        "start": 368109,
+        "length": 8999
+      },
+      {
+        "name": "研报评级",
+        "filename": "600036.txt",
+        "start": 377108,
+        "length": 58625
+      }
+    ]
+  },
+  "error": null
+}

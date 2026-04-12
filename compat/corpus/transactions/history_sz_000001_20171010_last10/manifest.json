@@ -1,0 +1,21 @@
+{
+  "case_id": "history_sz_000001_20171010_last10",
+  "api": "transactions",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_transactions",
+      "parser": "GetHistoryTransactionData",
+      "kwargs": {
+        "symbol": "000001",
+        "market": 0,
+        "start": 0,
+        "offset": 10,
+        "date": 20171010
+      },
+      "request_path": "steps/01_transactions/request.bin",
+      "response_body_path": "steps/01_transactions/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

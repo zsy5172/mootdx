@@ -1,0 +1,21 @@
+{
+  "case_id": "intraday_5m_sh_600036_last20",
+  "api": "bars",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_bars",
+      "parser": "GetSecurityBarsCmd",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1,
+        "frequency": 0,
+        "start": 0,
+        "offset": 20
+      },
+      "request_path": "steps/01_bars/request.bin",
+      "response_body_path": "steps/01_bars/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

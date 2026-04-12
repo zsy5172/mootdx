@@ -1,0 +1,138 @@
+{
+  "case_id": "block_zs_dat",
+  "api": "block",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_block_info_meta",
+      "parser": "GetBlockInfoMeta",
+      "kwargs": {
+        "block_file": "block_zs.dat"
+      },
+      "request_path": "steps/01_block_info_meta/request.bin",
+      "response_body_path": "steps/01_block_info_meta/response.body.bin"
+    },
+    {
+      "id": "02_block_piece_00000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 0,
+        "size": 326694
+      },
+      "request_path": "steps/02_block_piece_00000/request.bin",
+      "response_body_path": "steps/02_block_piece_00000/response.body.bin"
+    },
+    {
+      "id": "03_block_piece_30000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 30000,
+        "size": 326694
+      },
+      "request_path": "steps/03_block_piece_30000/request.bin",
+      "response_body_path": "steps/03_block_piece_30000/response.body.bin"
+    },
+    {
+      "id": "04_block_piece_60000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 60000,
+        "size": 326694
+      },
+      "request_path": "steps/04_block_piece_60000/request.bin",
+      "response_body_path": "steps/04_block_piece_60000/response.body.bin"
+    },
+    {
+      "id": "05_block_piece_90000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 90000,
+        "size": 326694
+      },
+      "request_path": "steps/05_block_piece_90000/request.bin",
+      "response_body_path": "steps/05_block_piece_90000/response.body.bin"
+    },
+    {
+      "id": "06_block_piece_120000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 120000,
+        "size": 326694
+      },
+      "request_path": "steps/06_block_piece_120000/request.bin",
+      "response_body_path": "steps/06_block_piece_120000/response.body.bin"
+    },
+    {
+      "id": "07_block_piece_150000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 150000,
+        "size": 326694
+      },
+      "request_path": "steps/07_block_piece_150000/request.bin",
+      "response_body_path": "steps/07_block_piece_150000/response.body.bin"
+    },
+    {
+      "id": "08_block_piece_180000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 180000,
+        "size": 326694
+      },
+      "request_path": "steps/08_block_piece_180000/request.bin",
+      "response_body_path": "steps/08_block_piece_180000/response.body.bin"
+    },
+    {
+      "id": "09_block_piece_210000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 210000,
+        "size": 326694
+      },
+      "request_path": "steps/09_block_piece_210000/request.bin",
+      "response_body_path": "steps/09_block_piece_210000/response.body.bin"
+    },
+    {
+      "id": "10_block_piece_240000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 240000,
+        "size": 326694
+      },
+      "request_path": "steps/10_block_piece_240000/request.bin",
+      "response_body_path": "steps/10_block_piece_240000/response.body.bin"
+    },
+    {
+      "id": "11_block_piece_270000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 270000,
+        "size": 326694
+      },
+      "request_path": "steps/11_block_piece_270000/request.bin",
+      "response_body_path": "steps/11_block_piece_270000/response.body.bin"
+    },
+    {
+      "id": "12_block_piece_300000",
+      "parser": "GetBlockInfo",
+      "kwargs": {
+        "block_file": "block_zs.dat",
+        "start": 300000,
+        "size": 326694
+      },
+      "request_path": "steps/12_block_piece_300000/request.bin",
+      "response_body_path": "steps/12_block_piece_300000/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

@@ -1,0 +1,37 @@
+{
+  "case_id": "sh_600036_20190703_20190710_empty",
+  "api": "ohlc",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "110.41.174.169",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "600036",
+      "begin": "2019-07-03",
+      "end": "2019-07-10"
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sh",
+      "result_shape": "empty",
+      "wrapper": "ohlc"
+    },
+    "tags": [
+      "systematic",
+      "compat",
+      "alias",
+      "empty_ok"
+    ]
+  }
+}

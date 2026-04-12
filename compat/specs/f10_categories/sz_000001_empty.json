@@ -1,0 +1,33 @@
+{
+  "case_id": "sz_000001_empty",
+  "api": "f10_categories",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "175.178.128.227",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "000001"
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sz",
+      "result_shape": "empty"
+    },
+    "tags": [
+      "systematic",
+      "info",
+      "empty_ok"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "case_id": "sh",
+  "api": "stock_count",
+  "comparator": "scalar_exact",
+  "steps": [
+    {
+      "id": "01_stock_count",
+      "parser": "GetSecurityCountCmd",
+      "kwargs": {
+        "market": 1
+      },
+      "request_path": "steps/01_stock_count/request.bin",
+      "response_body_path": "steps/01_stock_count/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

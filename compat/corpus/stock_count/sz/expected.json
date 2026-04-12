@@ -1,0 +1,9 @@
+{
+  "case_id": "sz",
+  "api": "stock_count",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "int",
+  "result": 22981,
+  "error": null
+}

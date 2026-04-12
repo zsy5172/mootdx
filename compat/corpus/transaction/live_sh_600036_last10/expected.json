@@ -1,0 +1,100 @@
+{
+  "case_id": "live_sh_600036_last10",
+  "api": "transaction",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [
+      "time",
+      "price",
+      "vol",
+      "num",
+      "buyorsell",
+      "volume"
+    ],
+    "records": [
+      {
+        "time": "14:56",
+        "price": 39.21,
+        "vol": 55,
+        "num": 28,
+        "buyorsell": 0,
+        "volume": 55
+      },
+      {
+        "time": "14:56",
+        "price": 39.21,
+        "vol": 121,
+        "num": 24,
+        "buyorsell": 0,
+        "volume": 121
+      },
+      {
+        "time": "14:56",
+        "price": 39.21,
+        "vol": 115,
+        "num": 16,
+        "buyorsell": 1,
+        "volume": 115
+      },
+      {
+        "time": "14:56",
+        "price": 39.2,
+        "vol": 123,
+        "num": 14,
+        "buyorsell": 1,
+        "volume": 123
+      },
+      {
+        "time": "14:56",
+        "price": 39.21,
+        "vol": 186,
+        "num": 11,
+        "buyorsell": 2,
+        "volume": 186
+      },
+      {
+        "time": "14:56",
+        "price": 39.22,
+        "vol": 261,
+        "num": 12,
+        "buyorsell": 0,
+        "volume": 261
+      },
+      {
+        "time": "14:56",
+        "price": 39.22,
+        "vol": 37,
+        "num": 3,
+        "buyorsell": 0,
+        "volume": 37
+      },
+      {
+        "time": "14:56",
+        "price": 39.21,
+        "vol": 72,
+        "num": 15,
+        "buyorsell": 1,
+        "volume": 72
+      },
+      {
+        "time": "14:57",
+        "price": 39.21,
+        "vol": 29,
+        "num": 11,
+        "buyorsell": 0,
+        "volume": 29
+      },
+      {
+        "time": "15:00",
+        "price": 39.21,
+        "vol": 7381,
+        "num": 573,
+        "buyorsell": 2,
+        "volume": 7381
+      }
+    ]
+  },
+  "error": null
+}

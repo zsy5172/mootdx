@@ -1,0 +1,36 @@
+{
+  "case_id": "daily_sz_000001_last10",
+  "api": "bars",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "110.41.174.169",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "000001",
+      "frequency": 9,
+      "start": 0,
+      "offset": 10
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sz",
+      "frequency": "daily",
+      "window": "head"
+    },
+    "tags": [
+      "systematic",
+      "history"
+    ]
+  }
+}

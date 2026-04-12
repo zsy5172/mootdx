@@ -1,0 +1,21 @@
+{
+  "case_id": "daily_sz_000001_last10",
+  "api": "bars",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_bars",
+      "parser": "GetSecurityBarsCmd",
+      "kwargs": {
+        "symbol": "000001",
+        "market": 0,
+        "frequency": 9,
+        "start": 0,
+        "offset": 10
+      },
+      "request_path": "steps/01_bars/request.bin",
+      "response_body_path": "steps/01_bars/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

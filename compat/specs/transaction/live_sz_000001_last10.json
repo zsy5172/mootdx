@@ -1,0 +1,34 @@
+{
+  "case_id": "live_sz_000001_last10",
+  "api": "transaction",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "110.41.174.169",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "000001",
+      "start": 0,
+      "offset": 10
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sz",
+      "window": "head"
+    },
+    "tags": [
+      "systematic",
+      "realtime"
+    ]
+  }
+}

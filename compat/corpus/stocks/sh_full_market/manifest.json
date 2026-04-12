@@ -1,0 +1,287 @@
+{
+  "case_id": "sh_full_market",
+  "api": "stocks",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_stock_count",
+      "parser": "GetSecurityCountCmd",
+      "kwargs": {
+        "market": 1
+      },
+      "request_path": "steps/01_stock_count/request.bin",
+      "response_body_path": "steps/01_stock_count/response.body.bin"
+    },
+    {
+      "id": "02_list_00000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 0
+      },
+      "request_path": "steps/02_list_00000/request.bin",
+      "response_body_path": "steps/02_list_00000/response.body.bin"
+    },
+    {
+      "id": "03_list_01000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 1000
+      },
+      "request_path": "steps/03_list_01000/request.bin",
+      "response_body_path": "steps/03_list_01000/response.body.bin"
+    },
+    {
+      "id": "04_list_02000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 2000
+      },
+      "request_path": "steps/04_list_02000/request.bin",
+      "response_body_path": "steps/04_list_02000/response.body.bin"
+    },
+    {
+      "id": "05_list_03000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 3000
+      },
+      "request_path": "steps/05_list_03000/request.bin",
+      "response_body_path": "steps/05_list_03000/response.body.bin"
+    },
+    {
+      "id": "06_list_04000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 4000
+      },
+      "request_path": "steps/06_list_04000/request.bin",
+      "response_body_path": "steps/06_list_04000/response.body.bin"
+    },
+    {
+      "id": "07_list_05000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 5000
+      },
+      "request_path": "steps/07_list_05000/request.bin",
+      "response_body_path": "steps/07_list_05000/response.body.bin"
+    },
+    {
+      "id": "08_list_06000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 6000
+      },
+      "request_path": "steps/08_list_06000/request.bin",
+      "response_body_path": "steps/08_list_06000/response.body.bin"
+    },
+    {
+      "id": "09_list_07000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 7000
+      },
+      "request_path": "steps/09_list_07000/request.bin",
+      "response_body_path": "steps/09_list_07000/response.body.bin"
+    },
+    {
+      "id": "10_list_08000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 8000
+      },
+      "request_path": "steps/10_list_08000/request.bin",
+      "response_body_path": "steps/10_list_08000/response.body.bin"
+    },
+    {
+      "id": "11_list_09000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 9000
+      },
+      "request_path": "steps/11_list_09000/request.bin",
+      "response_body_path": "steps/11_list_09000/response.body.bin"
+    },
+    {
+      "id": "12_list_10000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 10000
+      },
+      "request_path": "steps/12_list_10000/request.bin",
+      "response_body_path": "steps/12_list_10000/response.body.bin"
+    },
+    {
+      "id": "13_list_11000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 11000
+      },
+      "request_path": "steps/13_list_11000/request.bin",
+      "response_body_path": "steps/13_list_11000/response.body.bin"
+    },
+    {
+      "id": "14_list_12000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 12000
+      },
+      "request_path": "steps/14_list_12000/request.bin",
+      "response_body_path": "steps/14_list_12000/response.body.bin"
+    },
+    {
+      "id": "15_list_13000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 13000
+      },
+      "request_path": "steps/15_list_13000/request.bin",
+      "response_body_path": "steps/15_list_13000/response.body.bin"
+    },
+    {
+      "id": "16_list_14000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 14000
+      },
+      "request_path": "steps/16_list_14000/request.bin",
+      "response_body_path": "steps/16_list_14000/response.body.bin"
+    },
+    {
+      "id": "17_list_15000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 15000
+      },
+      "request_path": "steps/17_list_15000/request.bin",
+      "response_body_path": "steps/17_list_15000/response.body.bin"
+    },
+    {
+      "id": "18_list_16000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 16000
+      },
+      "request_path": "steps/18_list_16000/request.bin",
+      "response_body_path": "steps/18_list_16000/response.body.bin"
+    },
+    {
+      "id": "19_list_17000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 17000
+      },
+      "request_path": "steps/19_list_17000/request.bin",
+      "response_body_path": "steps/19_list_17000/response.body.bin"
+    },
+    {
+      "id": "20_list_18000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 18000
+      },
+      "request_path": "steps/20_list_18000/request.bin",
+      "response_body_path": "steps/20_list_18000/response.body.bin"
+    },
+    {
+      "id": "21_list_19000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 19000
+      },
+      "request_path": "steps/21_list_19000/request.bin",
+      "response_body_path": "steps/21_list_19000/response.body.bin"
+    },
+    {
+      "id": "22_list_20000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 20000
+      },
+      "request_path": "steps/22_list_20000/request.bin",
+      "response_body_path": "steps/22_list_20000/response.body.bin"
+    },
+    {
+      "id": "23_list_21000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 21000
+      },
+      "request_path": "steps/23_list_21000/request.bin",
+      "response_body_path": "steps/23_list_21000/response.body.bin"
+    },
+    {
+      "id": "24_list_22000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 22000
+      },
+      "request_path": "steps/24_list_22000/request.bin",
+      "response_body_path": "steps/24_list_22000/response.body.bin"
+    },
+    {
+      "id": "25_list_23000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 23000
+      },
+      "request_path": "steps/25_list_23000/request.bin",
+      "response_body_path": "steps/25_list_23000/response.body.bin"
+    },
+    {
+      "id": "26_list_24000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 24000
+      },
+      "request_path": "steps/26_list_24000/request.bin",
+      "response_body_path": "steps/26_list_24000/response.body.bin"
+    },
+    {
+      "id": "27_list_25000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 25000
+      },
+      "request_path": "steps/27_list_25000/request.bin",
+      "response_body_path": "steps/27_list_25000/response.body.bin"
+    },
+    {
+      "id": "28_list_26000",
+      "parser": "GetSecurityList",
+      "kwargs": {
+        "market": 1,
+        "start": 26000
+      },
+      "request_path": "steps/28_list_26000/request.bin",
+      "response_body_path": "steps/28_list_26000/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

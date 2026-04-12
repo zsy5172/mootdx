@@ -1,0 +1,9 @@
+{
+  "case_id": "sh",
+  "api": "stock_count",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "int",
+  "result": 26885,
+  "error": null
+}
