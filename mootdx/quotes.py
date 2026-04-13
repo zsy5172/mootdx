@@ -2,7 +2,6 @@ import math
 from datetime import datetime
 from typing import Union
 
-import pandas
 import pandas as pd
 from tenacity import retry, retry_if_exception_type, retry_if_result, stop_after_attempt, wait_random
 from tqdm import tqdm
@@ -36,16 +35,14 @@ class Quotes(object):
 
         logger.debug(kwargs)
 
+        if market == 'ext':
+            raise _validation_exception('扩展市场已经废弃且不再支持')
+
         if engine is None:
-            engine = 'legacy' if market == 'ext' else 'next'
+            engine = 'next'
 
         if engine not in ['legacy', 'next']:
             raise _validation_exception('engine 参数错误, 目前只支持 legacy / next')
-
-        if market == 'ext':
-            if engine == 'next':
-                raise _validation_exception('next engine 暂不支持扩展市场')
-            return ExtQuotes(**kwargs)
 
         if engine == 'next':
             return NextStdQuotes(**kwargs)
@@ -89,7 +86,8 @@ class BaseQuotes(object):
         self.server = valid_server(server)
 
         logger.debug(f'bestip => {bestip}')
-        bestip and _check_server(sync=True)
+        if bestip:
+            _check_server(sync=True)
 
         self.timeout = timeout or 15
         logger.debug(f'timeout => {self.timeout}')
@@ -130,7 +128,23 @@ def _validation_exception(message: str) -> MootdxValidationException:
     return exc
 
 
-instance: BaseQuotes
+instance: BaseQuotes | None = None
+
+
+def _resolve_bestip_server(index: str, default):
+    bestip = config.get('BESTIP') or {}
+    server = bestip.get(index)
+
+    if isinstance(server, (list, tuple)) and len(server) >= 2:
+        return server[0], int(server[1])
+
+    if isinstance(default, (list, tuple)) and len(default) >= 3:
+        return default[-2], int(default[-1])
+
+    if isinstance(default, (list, tuple)) and len(default) >= 2:
+        return default[0], int(default[1])
+
+    return tuple(default)
 
 
 def _legacy_validation_exception():
@@ -190,7 +204,7 @@ class StdQuotes(BaseQuotes):
             logger.warning(ex)
         finally:
             default = config.get('SERVER').get('HQ')[0][1:]
-            self.server = config.get('BESTIP').get('HQ', default)
+            self.server = _resolve_bestip_server('HQ', default)
 
         logger.debug(f'server: {self.server}')
         ip, port = self.server
@@ -276,7 +290,7 @@ class StdQuotes(BaseQuotes):
         if counts > 0:
             for start in tqdm(range(0, counts, 1000), ascii=True):
                 result = self.client.get_security_list(market=market, start=start)
-                stocks = pandas.concat([stocks, to_data(result)], ignore_index=True) if start > 1 else to_data(result)
+                stocks = pd.concat([stocks, to_data(result)], ignore_index=True) if start > 1 else to_data(result)
 
         return stocks
 
@@ -284,7 +298,7 @@ class StdQuotes(BaseQuotes):
         stocks = None
 
         for m in [0, 1]:
-            stocks = pandas.concat([stocks, self.stocks(m)], ignore_index=True)
+            stocks = pd.concat([stocks, self.stocks(m)], ignore_index=True)
 
         return stocks
 
@@ -580,7 +594,7 @@ class NextStdQuotes(BaseQuotes):
             logger.warning(ex)
         finally:
             default = config.get('SERVER').get('HQ')[0][1:]
-            self.server = config.get('BESTIP').get('HQ', default)
+            self.server = _resolve_bestip_server('HQ', default)
 
         logger.debug(f'next engine server: {self.server}')
         ip, port = self.server
@@ -648,7 +662,7 @@ class NextStdQuotes(BaseQuotes):
         return to_data(result)
 
     def stock_all(self):
-        return pandas.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
+        return pd.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
 
     def minute(self, symbol=None, **kwargs):
         today = datetime.now().strftime('%Y%m%d')
@@ -830,7 +844,7 @@ class ExtQuotes(BaseQuotes):
             logger.warning(ex)
         finally:
             default = config.get('SERVER').get('EX')[0]
-            self.server = config.get('BESTIP').get('EX', default)
+            self.server = _resolve_bestip_server('EX', default)
 
         for x in ['verbose', 'server', 'quiet']:
             if x in kwargs.keys():

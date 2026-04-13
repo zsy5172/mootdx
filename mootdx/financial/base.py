@@ -1,7 +1,7 @@
 import struct
 
 from .. import config
-from ..logger import logger
+from ..exceptions import MootdxValidationException
 
 
 def reporthook(downloaded, total_size):
@@ -40,12 +40,23 @@ class BaseFinancial:
 
         config.setup()
 
-        try:
-            default = config.get('SERVER').get('GP')[0][1:]
-            self.bestip = config.get('BESTIP').get('GP', default)
-        except ValueError as ex:
-            logger.error(ex)
-            self.bestip = ('106.14.95.149', 7727)
+        server_cfg = config.get('SERVER') or {}
+        gp_hosts = server_cfg.get('GP') or []
+        default = tuple(gp_hosts[0][1:]) if gp_hosts else None
+
+        bestip_cfg = config.get('BESTIP') or {}
+        bestip = bestip_cfg.get('GP')
+
+        if isinstance(bestip, (list, tuple)) and len(bestip) >= 2:
+            self.bestip = (bestip[0], int(bestip[1]))
+        else:
+            self.bestip = default
+
+    @staticmethod
+    def unsupported_gp():
+        exc = MootdxValidationException()
+        exc.args = ('GP 财务下载线路已经废弃且不再支持',)
+        return exc
 
     def fetch_and_parse(self, report_hook=None, downdir=None, chunk_size=51200, *args, **kwargs):
         """

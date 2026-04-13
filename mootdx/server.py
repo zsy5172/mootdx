@@ -4,37 +4,30 @@ import json
 import socket
 import time
 from functools import partial
+from pathlib import Path
 
-from mootdx._optional import import_legacy_attr
+from mootdx import config
 from mootdx.consts import CONFIG
 from mootdx.consts import EX_HOSTS
-from mootdx.consts import GP_HOSTS
 from mootdx.consts import HQ_HOSTS
+from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
-from mootdx.utils import get_config_path
-
-
-def _hq_hosts():
-    try:
-        return import_legacy_attr('tdxpy.constants', 'hq_hosts', 'legacy 服务器探测')
-    except Exception:
-        return []
-
-
-def _legacy_server_apis():
-    return (
-        import_legacy_attr('tdxpy.hq', 'TdxHq_API', 'legacy 服务器探测'),
-        import_legacy_attr('tdxpy.exhq', 'TdxExHq_API', 'legacy 服务器探测'),
-    )
+from mootdx_next.models import RequestContext
+from mootdx_next.models import ServerEndpoint
+from mootdx_next.protocol.report_files import decode_ex_instrument_count
+from mootdx_next.protocol.std_quotes import StdQuoteProtocol
+from mootdx_next.transport.constants import EX_INSTRUMENT_COUNT_PAYLOAD
+from mootdx_next.transport.constants import EX_SETUP_PAYLOADS
+from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 
 hosts = {
-    'HQ': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in _hq_hosts() + HQ_HOSTS],
+    'HQ': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in HQ_HOSTS],
     'EX': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in EX_HOSTS],
-    'GP': [{'addr': hs[1], 'port': hs[2], 'time': 0, 'site': hs[0]} for hs in GP_HOSTS],
 }
 
 results = {k: [] for k in hosts}
+_std_protocol = StdQuoteProtocol()
 
 
 def callback(res, key):
@@ -82,23 +75,20 @@ def connect(proxy: dict) -> dict:
 
 
 def connect2(proxy, index='HQ'):
-    if index == 'GP':
-        return connect(proxy)
-
-    TdxHq_API, TdxExHq_API = _legacy_server_apis()
-    api = (TdxHq_API(), TdxExHq_API())[index != 'HQ']
-    fun = ('get_security_count', 'get_instrument_count')[index != 'HQ']
-
     proxy['time'] = None
+    ok = False
 
     try:
-        with api.connect(proxy.get('addr'), int(proxy.get('port')), time_out=0.7):
-            tms = time.perf_counter()
-            if getattr(api, fun)():
-                proxy['time'] = (time.perf_counter() - tms) * 1000
-                logger.debug('{addr}:{port} 验证通过，响应时间：{time} ms.'.format(**proxy))
-            else:
-                logger.debug('{addr}:{port} 验证失败.'.format(**proxy))
+        tms = time.perf_counter()
+        if index == 'HQ':
+            ok = _probe_hq(proxy)
+        elif index == 'EX':
+            ok = _probe_ex(proxy)
+        if ok:
+            proxy['time'] = (time.perf_counter() - tms) * 1000
+            logger.debug('{addr}:{port} 验证通过，响应时间：{time} ms.'.format(**proxy))
+        else:
+            logger.debug('{addr}:{port} 验证失败.'.format(**proxy))
     except socket.timeout:  # noqa
         logger.debug('{addr}:{port} time out.'.format(**proxy))
         proxy['time'] = None
@@ -119,8 +109,52 @@ async def verify(proxy: dict, index):
     return await asyncio.get_event_loop().run_in_executor(None, functools.partial(connect2, proxy=proxy, index=index))
 
 
+def _build_server_endpoint(proxy: dict) -> ServerEndpoint:
+    return ServerEndpoint(host=proxy.get('addr'), port=int(proxy.get('port')), label=proxy.get('site'))
+
+
+def _probe_hq(proxy: dict) -> bool:
+    transport = SyncSocketTransport()
+    server = _build_server_endpoint(proxy)
+    try:
+        envelope = transport.send(
+            RequestContext(api='stock_count', params={'market': 0}, timeout_ms=700),
+            _std_protocol.encode('stock_count', market=0),
+            server,
+        )
+        return int(_std_protocol.decode('stock_count', envelope)) > 0
+    finally:
+        transport.close()
+
+
+def _probe_ex(proxy: dict) -> bool:
+    transport = SyncSocketTransport(setup_payloads=EX_SETUP_PAYLOADS)
+    server = _build_server_endpoint(proxy)
+    try:
+        envelope = transport.send(
+            RequestContext(api='ex_instrument_count', params={}, timeout_ms=700),
+            EX_INSTRUMENT_COUNT_PAYLOAD,
+            server,
+        )
+        return decode_ex_instrument_count(envelope.body or b'') > 0
+    finally:
+        transport.close()
+
+
+def _unsupported_gp():
+    exc = MootdxValidationException()
+    exc.args = ('GP 财务下载线路已经废弃且不再支持',)
+    return exc
+
+
 def server(index=None, limit=5, console=False, sync=True):
-    _hosts = hosts[index]
+    if index == 'GP':
+        raise _unsupported_gp()
+
+    if index not in hosts:
+        raise KeyError(index)
+
+    _hosts = [dict(item) for item in hosts[index]]
 
     def async_event():
         event = asyncio.get_event_loop()
@@ -138,7 +172,7 @@ def server(index=None, limit=5, console=False, sync=True):
     global results
 
     if sync:
-        results[index] = [connect(proxy) for proxy in _hosts]
+        results[index] = [connect2(proxy, index=index) for proxy in _hosts]
         results[index] = [x for x in results[index] if x.get('time')]
     else:
         async_event()
@@ -183,13 +217,12 @@ def check_server(console=False, limit=5, sync=False) -> None:
 
 
 def bestip(console=False, limit=5, sync=False) -> None:
-    config_ = get_config_path('config.json')
     default = dict(CONFIG)
 
     logger.info('[-] 选择最快的服务器...')
     logger.debug(f'sync => {sync}')
 
-    for index in ['HQ', 'EX', 'GP']:
+    for index in ['HQ', 'EX']:
         try:
             data = server(index=index, limit=limit, console=console, sync=sync)
 
@@ -199,7 +232,12 @@ def bestip(console=False, limit=5, sync=False) -> None:
             logger.error('请手动运行`python -m mootdx bestip`')
             break
 
-    json.dump(default, open(config_, 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+    config_path = Path(config.CONF)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(default, indent=2, ensure_ascii=False),
+        encoding='utf-8',
+    )
 
 
 if __name__ == '__main__':

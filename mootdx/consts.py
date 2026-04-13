@@ -129,7 +129,7 @@ GP_HOSTS = [
 
 CONFIG = {
     'SERVER': {'HQ': HQ_HOSTS, 'EX': EX_HOSTS, 'GP': GP_HOSTS},
-    'BESTIP': {'HQ': '', 'EX': '', 'GP': ''},
+    'BESTIP': {'HQ': None, 'EX': None, 'GP': None},
     'TDXDIR': 'C:/new_tdx',
 }
 

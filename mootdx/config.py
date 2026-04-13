@@ -12,7 +12,7 @@ __all__ = ['set', 'get', 'copy', 'update', 'settings']
 
 settings = {
     'SERVER': {'HQ': HQ_HOSTS, 'EX': EX_HOSTS, 'GP': GP_HOSTS},
-    'BESTIP': {'HQ': '', 'EX': '', 'GP': ''},
+    'BESTIP': {'HQ': None, 'EX': None, 'GP': None},
     'TDXDIR': 'C:/new_tdx',
 }
 
