@@ -520,6 +520,35 @@ class AsyncClient:
     async def xdxr(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))
 
+    async def index_bars(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        start: int = 0,
+        offset: int = 800,
+        market: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "index_bars",
+                symbol,
+                frequency,
+                start,
+                offset,
+                market,
+            )
+        )
+
+    async def block(self, block_file: str = "block.dat") -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "block", block_file))
+
+    async def f10_categories(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "f10_categories", symbol))
+
+    async def f10_content(self, symbol: str, name: str) -> str:
+        return str(await asyncio.to_thread(self._call_sync, "f10_content", symbol, name))
+
     def _call_sync(self, api: str, *args: Any, **kwargs: Any) -> object:
         client = self._get_sync_client()
         if not hasattr(client, api):

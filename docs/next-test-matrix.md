@@ -18,12 +18,9 @@ It fails when a public method is added without updating the matrix and covers:
 - SH, SZ, BJ, and explicit market prefixes;
 - invalid type, invalid range, invalid market, and session-state classes.
 
-The following Sync/Async parity gaps are intentionally explicit in the test:
-
-- `index_bars`
-- `block`
-- `f10_categories`
-- `f10_content`
+`AsyncClient` has typed wrappers for every `SyncClient` business API. The
+inventory test requires exact parity and fails if either facade changes without
+updating the matrix.
 
 Run the deterministic matrix with:
 

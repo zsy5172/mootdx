@@ -105,14 +105,22 @@ def test_live_async_matrix() -> None:
     async def run() -> None:
         client = AsyncClient(servers=_servers(), max_retries=2)
         try:
-            quotes, bars, finance = await asyncio.gather(
+            quotes, bars, finance, index, categories, block = await asyncio.gather(
                 client.quotes(["600036", "000001"]),
                 client.bars("600036", "day", 0, 2),
                 client.finance("600036"),
+                client.index_bars("000001", "day", 0, 2, 1),
+                client.f10_categories("600036"),
+                client.block("block_zs.dat"),
             )
             assert isinstance(quotes, list)
             assert isinstance(bars, list)
             assert isinstance(finance, dict)
+            assert isinstance(index, list)
+            assert isinstance(categories, list)
+            assert isinstance(block, list)
+            if categories:
+                assert isinstance(await client.f10_content("600036", categories[0]["name"]), str)
         finally:
             client.close()
 

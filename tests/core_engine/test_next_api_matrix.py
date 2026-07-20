@@ -63,6 +63,10 @@ ASYNC_PUBLIC_API = {
     "transactions",
     "finance",
     "xdxr",
+    "index_bars",
+    "block",
+    "f10_categories",
+    "f10_content",
 }
 
 NEXT_FACADE_PUBLIC_API = {
@@ -91,17 +95,6 @@ NEXT_FACADE_PUBLIC_API = {
     "ohlc",
 }
 
-# AsyncClient intentionally exposes only the calls implemented by its current
-# thread-local facade. Keeping exclusions explicit makes API parity gaps visible
-# and forces this matrix to change when one of them is implemented.
-ASYNC_PARITY_EXCLUSIONS = {
-    "index_bars",
-    "block",
-    "f10_categories",
-    "f10_content",
-}
-
-
 def _public_api(owner: type) -> set[str]:
     return {
         name
@@ -116,12 +109,11 @@ def test_public_api_inventory_requires_matrix_updates_for_new_methods() -> None:
     assert _public_api(NextStdQuotes) == NEXT_FACADE_PUBLIC_API
 
 
-def test_async_parity_gaps_are_explicit() -> None:
+def test_async_business_api_has_full_sync_parity() -> None:
     sync_business_api = SYNC_PUBLIC_API - {"closed", "close", "reconnect", "request"}
     async_business_api = ASYNC_PUBLIC_API - {"closed", "close", "reconnect", "request"}
 
-    assert sync_business_api - async_business_api == ASYNC_PARITY_EXCLUSIONS
-    assert not (async_business_api - sync_business_api)
+    assert async_business_api == sync_business_api
 
 
 class MatrixProtocol:
@@ -355,6 +347,8 @@ class AsyncDispatchRecorder:
                 return 1
             if name == "finance":
                 return {"code": "600036"}
+            if name == "f10_content":
+                return "content"
             return [{"api": name}]
 
         return call
@@ -395,6 +389,24 @@ ASYNC_CALL_CASES = (
     ),
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
     AsyncCallCase("xdxr", ("600036",), {}, "xdxr", ("600036",), {}),
+    AsyncCallCase(
+        "index_bars",
+        ("000001", "day", 20, 15, 1),
+        {},
+        "index_bars",
+        ("000001", "day", 20, 15, 1),
+        {},
+    ),
+    AsyncCallCase("block", ("block_zs.dat",), {}, "block", ("block_zs.dat",), {}),
+    AsyncCallCase("f10_categories", ("600036",), {}, "f10_categories", ("600036",), {}),
+    AsyncCallCase(
+        "f10_content",
+        ("600036", "最新提示"),
+        {},
+        "f10_content",
+        ("600036", "最新提示"),
+        {},
+    ),
 )
 
 
