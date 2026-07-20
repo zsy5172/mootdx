@@ -1,0 +1,32 @@
+{
+  "case_id": "sh_600036__latest_tip",
+  "api": "f10_content",
+  "comparator": "scalar_exact",
+  "steps": [
+    {
+      "id": "01_f10_categories",
+      "parser": "GetCompanyInfoCategory",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1
+      },
+      "request_path": "steps/01_f10_categories/request.bin",
+      "response_body_path": "steps/01_f10_categories/response.body.bin"
+    },
+    {
+      "id": "02_f10_content",
+      "parser": "GetCompanyInfoContent",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1,
+        "name": "最新提示",
+        "filename": "600036.txt",
+        "start": 0,
+        "length": 15257
+      },
+      "request_path": "steps/02_f10_content/request.bin",
+      "response_body_path": "steps/02_f10_content/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

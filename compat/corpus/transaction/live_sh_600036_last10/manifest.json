@@ -1,0 +1,20 @@
+{
+  "case_id": "live_sh_600036_last10",
+  "api": "transaction",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_transaction",
+      "parser": "GetTransactionData",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1,
+        "start": 0,
+        "offset": 10
+      },
+      "request_path": "steps/01_transaction/request.bin",
+      "response_body_path": "steps/01_transaction/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

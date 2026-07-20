@@ -1,0 +1,124 @@
+{
+  "case_id": "history_sh_600036_20170209_start20_offset15",
+  "api": "transactions",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [
+      "time",
+      "price",
+      "vol",
+      "buyorsell",
+      "volume"
+    ],
+    "records": [
+      {
+        "time": "14:57",
+        "price": 18.72,
+        "vol": 5,
+        "buyorsell": 0,
+        "volume": 5
+      },
+      {
+        "time": "14:57",
+        "price": 18.74,
+        "vol": 250,
+        "buyorsell": 0,
+        "volume": 250
+      },
+      {
+        "time": "14:57",
+        "price": 18.72,
+        "vol": 2,
+        "buyorsell": 1,
+        "volume": 2
+      },
+      {
+        "time": "14:57",
+        "price": 18.74,
+        "vol": 1,
+        "buyorsell": 0,
+        "volume": 1
+      },
+      {
+        "time": "14:57",
+        "price": 18.74,
+        "vol": 1,
+        "buyorsell": 0,
+        "volume": 1
+      },
+      {
+        "time": "14:57",
+        "price": 18.73,
+        "vol": 3,
+        "buyorsell": 1,
+        "volume": 3
+      },
+      {
+        "time": "14:57",
+        "price": 18.74,
+        "vol": 13,
+        "buyorsell": 0,
+        "volume": 13
+      },
+      {
+        "time": "14:57",
+        "price": 18.73,
+        "vol": 1,
+        "buyorsell": 1,
+        "volume": 1
+      },
+      {
+        "time": "14:57",
+        "price": 18.73,
+        "vol": 10,
+        "buyorsell": 0,
+        "volume": 10
+      },
+      {
+        "time": "14:58",
+        "price": 18.74,
+        "vol": 10,
+        "buyorsell": 0,
+        "volume": 10
+      },
+      {
+        "time": "14:58",
+        "price": 18.74,
+        "vol": 13,
+        "buyorsell": 0,
+        "volume": 13
+      },
+      {
+        "time": "14:58",
+        "price": 18.74,
+        "vol": 78,
+        "buyorsell": 0,
+        "volume": 78
+      },
+      {
+        "time": "14:58",
+        "price": 18.73,
+        "vol": 2,
+        "buyorsell": 1,
+        "volume": 2
+      },
+      {
+        "time": "14:58",
+        "price": 18.73,
+        "vol": 20,
+        "buyorsell": 1,
+        "volume": 20
+      },
+      {
+        "time": "14:58",
+        "price": 18.74,
+        "vol": 10,
+        "buyorsell": 0,
+        "volume": 10
+      }
+    ]
+  },
+  "error": null
+}

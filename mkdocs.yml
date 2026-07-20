@@ -10,6 +10,13 @@ nav:
     - 快速上手: quick.md
     - 修改日志: history.md
 
+  - 开发计划:
+    - 核心重构计划: rewrite-plan.md
+    - 旧版行为缺陷: legacy-bugs.md
+    - F10 接口现状: f10-status.md
+    - Week 9 性能记录: perf-week9.md
+    - Week 10 阶段验收: week10-acceptance.md
+
   - 行情接口:
     - 标准行情: api/quote1.md
     - 扩展行情: api/quote2.md

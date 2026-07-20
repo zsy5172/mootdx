@@ -1,0 +1,21 @@
+{
+  "case_id": "sh_600036_20190703_20190710_empty",
+  "api": "ohlc",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [
+      "open",
+      "close",
+      "high",
+      "low",
+      "vol",
+      "amount",
+      "volume",
+      "code"
+    ],
+    "records": []
+  },
+  "error": null
+}

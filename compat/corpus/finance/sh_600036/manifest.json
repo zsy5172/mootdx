@@ -1,0 +1,18 @@
+{
+  "case_id": "sh_600036",
+  "api": "finance",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_finance",
+      "parser": "GetFinanceInfo",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1
+      },
+      "request_path": "steps/01_finance/request.bin",
+      "response_body_path": "steps/01_finance/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

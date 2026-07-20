@@ -1,0 +1,18 @@
+{
+  "case_id": "sh_600036",
+  "api": "xdxr",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_xdxr",
+      "parser": "GetXdXrInfo",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1
+      },
+      "request_path": "steps/01_xdxr/request.bin",
+      "response_body_path": "steps/01_xdxr/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

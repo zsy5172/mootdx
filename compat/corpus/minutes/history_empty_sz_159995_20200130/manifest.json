@@ -1,0 +1,19 @@
+{
+  "case_id": "history_empty_sz_159995_20200130",
+  "api": "minutes",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_minutes",
+      "parser": "GetHistoryMinuteTimeData",
+      "kwargs": {
+        "symbol": "159995",
+        "market": 0,
+        "date": 20200130
+      },
+      "request_path": "steps/01_minutes/request.bin",
+      "response_body_path": "steps/01_minutes/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

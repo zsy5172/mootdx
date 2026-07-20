@@ -1,0 +1,20 @@
+{
+  "case_id": "live_sz_000001_last10",
+  "api": "transaction",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_transaction",
+      "parser": "GetTransactionData",
+      "kwargs": {
+        "symbol": "000001",
+        "market": 0,
+        "start": 0,
+        "offset": 10
+      },
+      "request_path": "steps/01_transaction/request.bin",
+      "response_body_path": "steps/01_transaction/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

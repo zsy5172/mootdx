@@ -7,8 +7,6 @@ from struct import calcsize
 from struct import unpack
 
 import pandas as pd
-from tdxpy.hq import TdxHq_API
-
 from ..logger import logger
 from .base import BaseFinancial
 from .columns import columns
@@ -48,18 +46,7 @@ class FinancialList(BaseFinancial):
         :return:
         """
 
-        tmp = tempfile.NamedTemporaryFile(delete=True)
-
-        api = TdxHq_API(**kwargs)
-        api.need_setup = False
-
-        with api.connect(*self.bestip):
-            content = api.get_report_file_by_size('tdxfin/gpcw.txt')
-            download_file = open(downdir, 'wb') if downdir else tmp
-            download_file.write(content)
-            download_file.seek(0)
-
-            return download_file
+        raise self.unsupported_gp()
 
     def parse(self, download_file, *args, **kwargs):
         """
@@ -99,29 +86,7 @@ class Financial(BaseFinancial):
         :return:
         """
 
-        filename = kwargs.get('filename')
-        downfile = str(Path(downdir) / filename)
-        filesize = kwargs.get('filesize') if kwargs.get('filesize') else 0
-
-        logger.debug(f'{filename}: start download...')
-
-        if not filename:
-            raise Exception('Param filename is not set')
-
-        api = TdxHq_API()
-        api.need_setup = False
-
-        with api.connect(*self.bestip):
-            content = api.get_report_file_by_size(f'tdxfin/{filename}', filesize=filesize, reporthook=report_hook)
-            download_file = downfile and open(downfile, 'wb') or tempfile.NamedTemporaryFile(delete=True)
-            download_file.write(content)
-            download_file.seek(0)
-
-            del content
-
-            logger.debug(f'{filename}: done')
-
-            return download_file
+        raise self.unsupported_gp()
 
     def parse(self, download_file, *args, **kwargs):
         """

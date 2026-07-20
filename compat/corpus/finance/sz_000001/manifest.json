@@ -1,0 +1,18 @@
+{
+  "case_id": "sz_000001",
+  "api": "finance",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_finance",
+      "parser": "GetFinanceInfo",
+      "kwargs": {
+        "symbol": "000001",
+        "market": 0
+      },
+      "request_path": "steps/01_finance/request.bin",
+      "response_body_path": "steps/01_finance/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

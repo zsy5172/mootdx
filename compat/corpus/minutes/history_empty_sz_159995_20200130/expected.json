@@ -1,0 +1,12 @@
+{
+  "case_id": "history_empty_sz_159995_20200130",
+  "api": "minutes",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [],
+    "records": []
+  },
+  "error": null
+}

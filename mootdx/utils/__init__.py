@@ -2,6 +2,7 @@ import hashlib
 from pathlib import Path
 from struct import calcsize
 from struct import unpack
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -77,29 +78,28 @@ def get_stock_market(symbol='', string=False):
 
 
 def gpcw(filepath):
-    cw_file = open(filepath, 'rb')
-
     header_size = calcsize('<3h1H3L')
     stock_item_size = calcsize('<6s1c1L')
 
-    data_header = cw_file.read(header_size)
-    stock_header = unpack('<3h1H3L', data_header)
+    with open(filepath, 'rb') as cw_file:
+        data_header = cw_file.read(header_size)
+        stock_header = unpack('<3h1H3L', data_header)
 
-    max_count = stock_header[3]
+        max_count = stock_header[3]
 
-    for idx in range(0, max_count):
-        cw_file.seek(header_size + idx * calcsize('<6s1c1L'))
-        si = cw_file.read(stock_item_size)
-        stock_item = unpack('<6s1c1L', si)
-        code = stock_item[0].decode()
-        foa = stock_item[2]
-        cw_file.seek(foa)
+        for idx in range(0, max_count):
+            cw_file.seek(header_size + idx * calcsize('<6s1c1L'))
+            si = cw_file.read(stock_item_size)
+            stock_item = unpack('<6s1c1L', si)
+            code = stock_item[0].decode()
+            foa = stock_item[2]
+            cw_file.seek(foa)
 
-        info_data = cw_file.read(calcsize('<264f'))
-        cw_info = unpack('<264f', info_data)
+            info_data = cw_file.read(calcsize('<264f'))
+            cw_info = unpack('<264f', info_data)
 
-        logger.debug(f'{code}, {cw_info}')
-        return code, cw_info
+            logger.debug(f'{code}, {cw_info}')
+            return code, cw_info
 
 
 def md5sum(downfile):
@@ -137,34 +137,19 @@ def to_data(v, **kwargs):
     else:
         adjust = None
 
-    # 空值
-    if not isinstance(v, DataFrame) and not v:
-        return pd.DataFrame(data=None)
-
-    # DataFrame
     if isinstance(v, DataFrame):
         result = v
-
-    # 列表
-    elif isinstance(v, list):
-        result = pd.DataFrame(data=v) if len(v) else None
-
-    # 字典
-    elif isinstance(v, dict):
-        result = pd.DataFrame(data=[v])
-
-    # 空值
     else:
-        result = pd.DataFrame(data=[])
+        result = _coerce_tabular(v)
 
     if 'datetime' in result.columns:
-        result.index = pd.to_datetime(result.datetime)
+        result.index = pd.to_datetime(result['datetime'])
 
     if 'date' in result.columns:
-        result.index = pd.to_datetime(result.date)
+        result.index = pd.to_datetime(result['date'])
 
-    if 'vol' in result.columns:
-        result['volume'] = result.vol
+    if 'vol' in result.columns and 'volume' not in result.columns:
+        result['volume'] = result['vol'].to_numpy(copy=False)
 
     if adjust and adjust in ['qfq', 'hfq'] and symbol:
         from mootdx.utils.adjust import to_adjust
@@ -176,6 +161,19 @@ def to_data(v, **kwargs):
     #     return data
 
     return result
+
+
+def _coerce_tabular(value: Any) -> pd.DataFrame:
+    if not value:
+        return pd.DataFrame()
+
+    if isinstance(value, list):
+        return pd.DataFrame.from_records(value)
+
+    if isinstance(value, dict):
+        return pd.DataFrame.from_records([value])
+
+    return pd.DataFrame()
 
 
 def to_file(df, filename=None):

@@ -1,0 +1,22 @@
+{
+  "case_id": "single_sz",
+  "api": "quotes",
+  "comparator": "quotes_snapshot_exact",
+  "steps": [
+    {
+      "id": "01_quotes",
+      "parser": "GetSecurityQuotesCmd",
+      "kwargs": {
+        "all_stock": [
+          [
+            0,
+            "000001"
+          ]
+        ]
+      },
+      "request_path": "steps/01_quotes/request.bin",
+      "response_body_path": "steps/01_quotes/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

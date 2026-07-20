@@ -1,0 +1,21 @@
+{
+  "case_id": "history_sh_600036_20170209_start20_offset15",
+  "api": "transactions",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_transactions",
+      "parser": "GetHistoryTransactionData",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1,
+        "start": 20,
+        "offset": 15,
+        "date": 20170209
+      },
+      "request_path": "steps/01_transactions/request.bin",
+      "response_body_path": "steps/01_transactions/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

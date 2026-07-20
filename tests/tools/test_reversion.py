@@ -11,7 +11,7 @@ class TestReversion(unittest.TestCase):
 
     # 初始化工作
     def setup_class(self):
-        self.client = Quotes.factory(market='std', timeout=10)  # 标准市场
+        self.client = Quotes.factory(market='std', engine='legacy', timeout=10)  # 标准市场
 
     # 退出清理工作
     def teardown_class(self):

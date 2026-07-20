@@ -1,0 +1,36 @@
+{
+  "case_id": "intraday_5m_sh_600036_last20",
+  "api": "bars",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "110.41.174.169",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "600036",
+      "frequency": "5m",
+      "start": 0,
+      "offset": 20
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sh",
+      "frequency": "5m",
+      "window": "head"
+    },
+    "tags": [
+      "systematic",
+      "history"
+    ]
+  }
+}

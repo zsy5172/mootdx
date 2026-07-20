@@ -15,4 +15,4 @@ class TestBestIP(unittest.TestCase):
         logger.setLevel(logging.DEBUG)
 
     def test_normal(self):
-        Quotes.factory(market='std', bestip=True)
+        Quotes.factory(market='std', engine='legacy', bestip=True)

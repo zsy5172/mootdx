@@ -1,0 +1,21 @@
+{
+  "case_id": "sh_000001_daily_last10",
+  "api": "index_bars",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_index_bars",
+      "parser": "GetIndexBarsCmd",
+      "kwargs": {
+        "symbol": "000001",
+        "market": 1,
+        "frequency": 9,
+        "start": 0,
+        "offset": 10
+      },
+      "request_path": "steps/01_index_bars/request.bin",
+      "response_body_path": "steps/01_index_bars/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

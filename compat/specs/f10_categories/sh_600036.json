@@ -1,0 +1,32 @@
+{
+  "case_id": "sh_600036",
+  "api": "f10_categories",
+  "comparator": "table_exact",
+  "client": {
+    "kind": "quotes",
+    "factory": {
+      "market": "std",
+      "timeout": 5,
+      "raise_exception": true,
+      "server": [
+        "175.178.128.227",
+        7709
+      ]
+    }
+  },
+  "call": {
+    "kwargs": {
+      "symbol": "600036"
+    }
+  },
+  "matrix": {
+    "dimensions": {
+      "market": "sh",
+      "result_shape": "populated"
+    },
+    "tags": [
+      "systematic",
+      "info"
+    ]
+  }
+}

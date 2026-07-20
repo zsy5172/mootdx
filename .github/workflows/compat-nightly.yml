@@ -1,0 +1,33 @@
+name: Compat Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  compat-nightly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv and nox
+        run: python -m pip install --upgrade uv nox
+
+      - name: Run compat nightly
+        run: uv run nox -s compat_nightly
+
+      - name: Upload compat artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-artifacts
+          path: compat/artifacts
+          if-no-files-found: ignore
