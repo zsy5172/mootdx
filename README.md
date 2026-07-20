@@ -310,7 +310,3 @@ uv run nox -s next_live_matrix
 ### `bestip=True` 会启动后台进程吗？
 
 不会。候选注册表只是当前 Python 进程中的线程安全模块级对象，采用懒加载和 10 分钟有效期。
-
-## Stargazers over time
-
-[![Stargazers over time](https://starchart.cc/mootdx/mootdx.svg)](https://starchart.cc/mootdx/mootdx)
