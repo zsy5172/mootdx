@@ -1,7 +1,10 @@
 from abc import ABC
 from pathlib import Path
 
-from mootdx._optional import import_legacy_attr
+from mootdx.localfiles import ExtBarReader
+from mootdx.localfiles import StdDailyBarReader
+from mootdx.localfiles import StdLCMinBarReader
+from mootdx.localfiles import StdMinBarReader
 from mootdx.utils import get_stock_market
 from mootdx.utils import to_data
 
@@ -91,10 +94,8 @@ class StdReader(ReaderBase):
         :param symbol: 证券代码
         :return: pd.dataFrame or None
         """
-        from mootdx.contrib.compat import MooTdxDailyBarReader
-
         symbol = Path(symbol).stem
-        reader = MooTdxDailyBarReader()
+        reader = StdDailyBarReader()
         vipdoc = self.find_path(symbol=symbol, subdir='lday', suffix='day')
 
         result = reader.get_df(str(vipdoc)) if vipdoc else None
@@ -114,9 +115,7 @@ class StdReader(ReaderBase):
         symbol = self.find_path(symbol, subdir=subdir, suffix=suffix)
 
         if symbol is not None:
-            TdxMinBarReader = import_legacy_attr('tdxpy.reader', 'TdxMinBarReader', 'legacy 本地行情 Reader')
-            TdxLCMinBarReader = import_legacy_attr('tdxpy.reader', 'TdxLCMinBarReader', 'legacy 本地行情 Reader')
-            reader = TdxMinBarReader() if 'lc' not in symbol.suffix else TdxLCMinBarReader()
+            reader = StdMinBarReader() if 'lc' not in symbol.suffix else StdLCMinBarReader()
             return reader.get_df(str(symbol))
 
         return None
@@ -167,8 +166,7 @@ class ExtReader(ReaderBase):
 
     def __init__(self, tdxdir=None):
         super(ExtReader, self).__init__(tdxdir)
-        TdxExHqDailyBarReader = import_legacy_attr('tdxpy.reader', 'TdxExHqDailyBarReader', 'legacy 扩展市场 Reader')
-        self.reader = TdxExHqDailyBarReader()
+        self.reader = ExtBarReader()
 
     def daily(self, symbol=None):
         """

@@ -2,13 +2,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from mootdx._optional import import_legacy_attr
 from mootdx.consts import TYPE_FLATS
 from mootdx.consts import TYPE_GROUP
+from mootdx.localfiles import CustomerBlockReader
 from mootdx.logger import logger
 from mootdx.utils import get_stock_market
-
-CustomerBlockReader = import_legacy_attr('tdxpy.reader', 'CustomerBlockReader', 'legacy 自定义板块工具')
 
 try:
     from time import time_ns
@@ -37,7 +35,7 @@ class Customize:
 
         block_data = self.search()
 
-        if block_data.empty:
+        if block_data.empty or 'blockname' not in block_data.columns:
             logger.error('自定义板块数据是空的')
             return
 
@@ -77,6 +75,8 @@ class Customize:
 
         if name:
             result = CustomerBlockReader().get_df(str(self.vipdoc), TYPE_GROUP)
+            if result.empty or 'blockname' not in result.columns:
+                return None
             result = result[result.blockname == name]
 
             if result.empty:
@@ -108,6 +108,9 @@ class Customize:
 
         # 板块数据
         block_data = self.search()
+        if block_data.empty or 'blockname' not in block_data.columns:
+            logger.debug(f'block_data is empty {block_data.empty}')
+            return _blocknew(self.tdxdir, name=name, symbol=list(set(symbol)))
         block_temp = block_data[block_data.blockname == name]
 
         # 对于名称空的情况, 直接创建写入
