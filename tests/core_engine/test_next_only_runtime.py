@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from importlib.util import find_spec
-
 import pytest
 
 import mootdx
-from mootdx.exceptions import MootdxModuleNotFoundError
+from mootdx.affair import Affair
+from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import NextStdQuotes
 from mootdx.quotes import Quotes
+from mootdx.server import server
 
 
 class DummyNextClient:
@@ -29,9 +29,14 @@ def test_package_import_and_default_std_engine_work_without_legacy_extra() -> No
     assert isinstance(client, NextStdQuotes)
 
 
-def test_ext_market_without_legacy_extra_raises_clear_error() -> None:
-    if find_spec("tdxpy") is not None:
-        pytest.skip("legacy extra is installed in this environment")
-
-    with pytest.raises(MootdxModuleNotFoundError, match=r"mootdx\[legacy\]"):
+def test_ext_market_is_explicitly_unsupported() -> None:
+    with pytest.raises(MootdxValidationException, match="扩展市场已经废弃且不再支持"):
         Quotes.factory(market="ext")
+
+
+def test_gp_remote_entrypoints_are_explicitly_unsupported() -> None:
+    with pytest.raises(MootdxValidationException, match="GP 财务下载线路已经废弃且不再支持"):
+        server(index="GP")
+
+    with pytest.raises(MootdxValidationException, match="GP 财务下载线路已经废弃且不再支持"):
+        Affair.files()
