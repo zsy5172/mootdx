@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from datetime import datetime
 from typing import Union
 
@@ -20,6 +21,9 @@ from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnsupportedMarketError
+
+_KLINE_PAGE_SIZE = 800
+_KLINE_MAX_PAGES = 100
 
 
 class Quotes(object):
@@ -69,6 +73,56 @@ def count_weekdays(start: pd.Timestamp, end: pd.Timestamp) -> int:
     # 左闭右开：[start, end)
     all_days = pd.date_range(start=start, end=end - pd.Timedelta(days=1), freq="D")
     return (all_days.weekday < 5).sum()
+
+
+def _get_k_data_by_pages(
+    code: str,
+    start_date: Union[str, datetime],
+    end_date: Union[str, datetime],
+    fetch_page: Callable[[int, int], pd.DataFrame],
+) -> pd.DataFrame:
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+    if end_date <= start_date:
+        return pd.DataFrame()
+
+    frames: list[pd.DataFrame] = []
+    previous_oldest: pd.Timestamp | None = None
+
+    for page_index in range(_KLINE_MAX_PAGES):
+        offset = page_index * _KLINE_PAGE_SIZE
+        frame = fetch_page(offset, _KLINE_PAGE_SIZE)
+        if frame is None or frame.empty:
+            break
+
+        page = frame.copy()
+        dates = pd.to_datetime(page["datetime"].astype(str).str[:10], errors="coerce")
+        valid_dates = dates.notna()
+        if not valid_dates.any():
+            break
+
+        page = page.loc[valid_dates].copy()
+        page["date"] = dates.loc[valid_dates]
+        frames.append(page)
+
+        oldest = page["date"].min()
+        if oldest <= start_date:
+            break
+        if len(frame) < _KLINE_PAGE_SIZE:
+            break
+        if previous_oldest is not None and oldest >= previous_oldest:
+            break
+        previous_oldest = oldest
+
+    if not frames:
+        return pd.DataFrame()
+
+    data = pd.concat(frames, ignore_index=True)
+    data["code"] = str(code)
+    data.drop_duplicates(subset=["date"], keep="last", inplace=True)
+    data.drop(columns=["year", "month", "day", "hour", "minute", "datetime"], errors="ignore", inplace=True)
+    data.set_index("date", inplace=True)
+    return data.loc[(data.index >= start_date) & (data.index <= end_date)].sort_index()
 
 
 class BaseQuotes(object):
@@ -484,46 +538,13 @@ class StdQuotes(BaseQuotes):
         return self.k(**kwargs)
 
     def get_k_data(self, code: str, start_date: Union[str, datetime], end_date: Union[str, datetime]) -> pd.DataFrame:
-        start_date = pd.to_datetime(start_date)
-        end_date = pd.to_datetime(end_date)
-        if end_date <= start_date:
-            return pd.DataFrame()
-
-        today = pd.to_datetime(datetime.now().date())
         market = get_stock_market(code)
 
-        workday_count = count_weekdays(start_date, end_date)
-        if workday_count <= 0:
-            return pd.DataFrame()
-
-        offset_end = max((end_date - today).days, 0)
-
-        chunk_size = 800
-        page_num = math.ceil(workday_count / chunk_size)
-
-        all_data = []
-        for i in range(page_num):
-            offset = offset_end + i * chunk_size
-            count = min(chunk_size, workday_count - i * chunk_size)
+        def fetch_page(offset: int, count: int) -> pd.DataFrame:
             bars = self.client.get_security_bars(9, market, code, offset, count)
-            df = self.client.to_df(bars)
-            if not df.empty:
-                all_data.append(df)
+            return self.client.to_df(bars)
 
-        if not all_data:
-            return pd.DataFrame()
-
-        # 数据整理与过滤
-        data = pd.concat(all_data, ignore_index=True)
-        # 格式清洗
-        data["date"] = pd.to_datetime(data["datetime"].astype(str).str[:10])
-        data["code"] = str(code)
-        data.drop(columns=["year", "month", "day", "hour", "minute", "datetime"], inplace=True)
-        data.set_index("date", inplace=True)
-        # 按时间过滤并返回
-        data = data.loc[(data.index >= start_date) & (data.index <= end_date)].sort_index()
-
-        return data
+        return _get_k_data_by_pages(code, start_date, end_date, fetch_page)
 
     def index(self, symbol='000001', frequency=9, start=0, offset=800, **kwargs):
         """
@@ -792,39 +813,11 @@ class NextStdQuotes(BaseQuotes):
         return to_data(result, **kwargs)
 
     def get_k_data(self, code: str, start_date: Union[str, datetime], end_date: Union[str, datetime]) -> pd.DataFrame:
-        start_date = pd.to_datetime(start_date)
-        end_date = pd.to_datetime(end_date)
-        if end_date <= start_date:
-            return pd.DataFrame()
-
-        today = pd.to_datetime(datetime.now().date())
-        workday_count = count_weekdays(start_date, end_date)
-        if workday_count <= 0:
-            return pd.DataFrame()
-
-        offset_end = max((end_date - today).days, 0)
-
-        chunk_size = 800
-        page_num = math.ceil(workday_count / chunk_size)
-        all_data = []
-        for i in range(page_num):
-            offset = offset_end + i * chunk_size
-            count = min(chunk_size, workday_count - i * chunk_size)
+        def fetch_page(offset: int, count: int) -> pd.DataFrame:
             rows = self.client.bars(symbol=str(code), frequency=9, start=int(offset), offset=int(count))
-            df = to_data(rows, symbol=code, client=self)
-            if not df.empty:
-                all_data.append(df)
+            return to_data(rows, symbol=code, client=self)
 
-        if not all_data:
-            return pd.DataFrame()
-
-        data = pd.concat(all_data, ignore_index=True)
-        data["date"] = pd.to_datetime(data["datetime"].astype(str).str[:10])
-        data["code"] = str(code)
-        data.drop(columns=["year", "month", "day", "hour", "minute", "datetime"], inplace=True)
-        data.set_index("date", inplace=True)
-        data = data.loc[(data.index >= start_date) & (data.index <= end_date)].sort_index()
-        return data
+        return _get_k_data_by_pages(code, start_date, end_date, fetch_page)
 
     def k(self, symbol='', begin=None, end=None, **kwargs):
         result = self.get_k_data(symbol, begin, end)

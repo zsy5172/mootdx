@@ -296,6 +296,42 @@ def test_next_k_and_ohlc_use_get_k_data_shape() -> None:
     assert "datetime" not in raw.columns
 
 
+def test_next_get_k_data_pages_back_until_requested_history(monkeypatch) -> None:
+    class PagedBarsClient(DummyNextClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = []
+
+        def bars(self, symbol: str, frequency: int | str = 9, start: int = 0, offset: int = 800):
+            self.calls.append((start, offset))
+            pages = {
+                0: ["2026-07-20 00:00:00", "2026-07-17 00:00:00"],
+                2: ["2019-07-10 00:00:00", "2019-07-03 00:00:00"],
+            }
+            return [
+                {
+                    "open": 10.0,
+                    "close": 11.0,
+                    "high": 12.0,
+                    "low": 9.0,
+                    "vol": 100,
+                    "amount": 1000.0,
+                    "datetime": value,
+                }
+                for value in pages.get(start, [])
+            ]
+
+    monkeypatch.setattr(quotes_module, "_KLINE_PAGE_SIZE", 2)
+    engine_client = PagedBarsClient()
+    client = NextStdQuotes(server=("127.0.0.1", 7709), engine_client=engine_client)
+
+    result = client.get_k_data(code="000001", start_date="2019-07-03", end_date="2019-07-10")
+
+    assert engine_client.calls == [(0, 2), (2, 2)]
+    assert list(result.index.strftime("%Y-%m-%d")) == ["2019-07-03", "2019-07-10"]
+    assert set(result["code"]) == {"000001"}
+
+
 def test_next_f10_unknown_name_falls_back_to_full_dict() -> None:
     client = _client()
 
