@@ -14,6 +14,7 @@ from mootdx.logger import logger
 from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, to_data
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient as NextSyncClient
+from mootdx_next import get_hq_candidates
 from mootdx_next.errors import InvalidDateError
 from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
@@ -585,26 +586,39 @@ class NextStdQuotes(BaseQuotes):
         engine_client=None,
         **kwargs,
     ):
-        super().__init__(bestip=False, timeout=timeout, server=server, **kwargs)
-        self.server and config.set('BESTIP', {'HQ': self.server})
-
-        try:
-            config.get('SERVER').get('HQ')[0]
-        except ValueError as ex:
-            logger.warning(ex)
-        finally:
-            default = config.get('SERVER').get('HQ')[0][1:]
-            self.server = _resolve_bestip_server('HQ', default)
-
-        logger.debug(f'next engine server: {self.server}')
-        ip, port = self.server
-        self.bestip = (ip, int(port))
+        self.server = valid_server(server)
+        self.bestip = self.server
+        self.timeout = timeout or 15
+        self.verbose = kwargs.get('verbose', False)
         self.heartbeat = heartbeat
         self.auto_retry = auto_retry
         self.raise_exception = raise_exception
-        self.client = engine_client or NextSyncClient(
-            servers=[ServerEndpoint(host=ip, port=int(port), label='std-next')],
-        )
+
+        if engine_client is not None:
+            self.client = engine_client
+        elif self.server is not None:
+            ip, port = self.server
+            self.client = NextSyncClient(
+                servers=[ServerEndpoint(host=ip, port=int(port), label='std-next')],
+            )
+        elif bestip:
+            candidates = get_hq_candidates()
+            if candidates:
+                self.bestip = (candidates[0].host, candidates[0].port)
+                self.client = NextSyncClient(
+                    servers=[
+                        ServerEndpoint(
+                            host=candidate.host,
+                            port=candidate.port,
+                            label=candidate.label,
+                        )
+                        for candidate in candidates
+                    ]
+                )
+            else:
+                self.client = NextSyncClient()
+        else:
+            self.client = NextSyncClient()
 
         global instance
         instance = self

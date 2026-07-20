@@ -1,5 +1,11 @@
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
+from mootdx_next.candidates import CandidateRegistry
+from mootdx_next.candidates import get_hq_candidates
+from mootdx_next.candidates import hq_candidate_snapshot
+from mootdx_next.candidates import invalidate_hq_candidates
+from mootdx_next.candidates import refresh_hq_candidates
+from mootdx_next.candidates import ServerCandidate
 from mootdx_next.adapters import bars_to_frame
 from mootdx_next.adapters import block_to_frame
 from mootdx_next.adapters import f10_categories_to_frame
@@ -45,8 +51,11 @@ __all__ = [
     "AsyncClient",
     "bars_to_frame",
     "block_to_frame",
+    "CandidateRegistry",
     "f10_categories_to_frame",
     "finance_to_frame",
+    "get_hq_candidates",
+    "hq_candidate_snapshot",
     "ConnectionLease",
     "ConnectionPool",
     "ConnectionPoolSnapshot",
@@ -55,6 +64,7 @@ __all__ = [
     "InvalidFrequencyError",
     "InvalidSymbolError",
     "InvalidResponseHeaderError",
+    "invalidate_hq_candidates",
     "MootdxNextError",
     "NoHealthyServerError",
     "OutsideTradingSessionError",
@@ -63,10 +73,12 @@ __all__ = [
     "ProtocolDecodeError",
     "ProtocolError",
     "RequestContext",
+    "refresh_hq_candidates",
     "ResponseEnvelope",
     "ResponseHeader",
     "SchedulerError",
     "ServerEndpoint",
+    "ServerCandidate",
     "ServerHealthSnapshot",
     "ServerPool",
     "StdQuoteProtocol",
