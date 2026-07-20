@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import struct
+import threading
 from typing import Any
 
 from mootdx.consts import HQ_HOSTS
@@ -433,13 +435,107 @@ class AsyncClient:
         transport: AbstractTransport | None = None,
         protocol: AbstractProtocol | None = None,
         scheduler: AbstractScheduler | None = None,
+        connection_pool: ConnectionPool | None = None,
+        servers: list[ServerEndpoint] | None = None,
+        max_retries: int = 1,
+        sync_client: SyncClient | None = None,
     ) -> None:
-        self.transport = transport
-        self.protocol = protocol
-        self.scheduler = scheduler
+        self._explicit_sync_client = sync_client
+        self._thread_local = threading.local()
+        self._sync_client_kwargs = {
+            "transport": transport,
+            "protocol": protocol,
+            "scheduler": scheduler,
+            "connection_pool": connection_pool,
+            "servers": servers,
+            "max_retries": max_retries,
+        }
+
+    @property
+    def closed(self) -> bool:
+        if self._explicit_sync_client is not None:
+            return self._explicit_sync_client.closed
+        return bool(getattr(self._thread_local, "closed", False))
+
+    def close(self) -> None:
+        if self._explicit_sync_client is not None:
+            self._explicit_sync_client.close()
+            return
+        client = getattr(self._thread_local, "client", None)
+        if client is not None:
+            client.close()
+        self._thread_local.closed = True
+
+    def reconnect(self) -> None:
+        if self._explicit_sync_client is not None:
+            self._explicit_sync_client.reconnect()
+            return
+        client = getattr(self._thread_local, "client", None)
+        if client is not None:
+            client.reconnect()
+        self._thread_local.closed = False
 
     async def request(self, api: str, **kwargs: Any) -> object:
-        raise NotImplementedError("AsyncClient.request() is not implemented in Week 1")
+        return await asyncio.to_thread(self._call_sync, api, **kwargs)
+
+    async def stock_count(self, market: int) -> int:
+        return int(await asyncio.to_thread(self._call_sync, "stock_count", market))
+
+    async def stocks(self, market: int) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "stocks", market))
+
+    async def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "quotes", symbol))
+
+    async def bars(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        start: int = 0,
+        offset: int = 800,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "bars", symbol, frequency, start, offset))
+
+    async def minutes(self, symbol: str, date: str | int) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "minutes", symbol, date))
+
+    async def minute(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "minute", symbol))
+
+    async def transaction(self, symbol: str, start: int = 0, offset: int = 800) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "transaction", symbol, start, offset))
+
+    async def transactions(
+        self,
+        symbol: str,
+        date: str | int,
+        start: int = 0,
+        offset: int = 800,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "transactions", symbol, date, start, offset))
+
+    async def finance(self, symbol: str) -> dict[str, object]:
+        return dict(await asyncio.to_thread(self._call_sync, "finance", symbol))
+
+    async def xdxr(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))
+
+    def _call_sync(self, api: str, *args: Any, **kwargs: Any) -> object:
+        client = self._get_sync_client()
+        if not hasattr(client, api):
+            raise NotImplementedError(f"AsyncClient.request() does not support api: {api}")
+        return getattr(client, api)(*args, **kwargs)
+
+    def _get_sync_client(self) -> SyncClient:
+        if self._explicit_sync_client is not None:
+            return self._explicit_sync_client
+
+        client = getattr(self._thread_local, "client", None)
+        if client is None or getattr(self._thread_local, "closed", False):
+            client = SyncClient(**self._sync_client_kwargs)
+            self._thread_local.client = client
+            self._thread_local.closed = False
+        return client
 
 
 def _get_index_market(symbol: str, market: int | None = None) -> int:
