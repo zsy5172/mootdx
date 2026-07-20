@@ -13,6 +13,7 @@ from mootdx_next.errors import TransportConnectionError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.transport.constants import STD_SETUP_PAYLOADS
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 
@@ -84,6 +85,30 @@ class SocketFactory:
         sock = self.sockets.pop(0)
         self.created.append(sock)
         return sock
+
+
+def test_default_setup_skips_legacy_client_identity() -> None:
+    response_body = b"\x2a\x00"
+    fake_socket = FakeSocket(
+        recv_chunks=[
+            _pack_header(0, 0),
+            _pack_header(0, 0),
+            _pack_header(len(response_body), len(response_body)),
+            response_body,
+        ]
+    )
+    transport = SyncSocketTransport(socket_factory=SocketFactory([fake_socket]))
+
+    envelope = transport.send(
+        RequestContext(api="stock_count"),
+        b"request",
+        ServerEndpoint(host="127.0.0.1", port=7709),
+    )
+
+    assert len(STD_SETUP_PAYLOADS) == 2
+    assert fake_socket.sent_payloads == [*STD_SETUP_PAYLOADS, b"request"]
+    assert not any(payload.startswith(b"\x0c\x03\x18\x99") for payload in fake_socket.sent_payloads)
+    assert envelope.body == response_body
 
 
 def test_send_reads_uncompressed_response() -> None:
