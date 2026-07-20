@@ -39,6 +39,24 @@ XDXR_CATEGORY_MAPPING = {
     14: "送认沽权证",
 }
 
+U16_STRUCT = struct.Struct("<H")
+U32_STRUCT = struct.Struct("<I")
+U16_PAIR_STRUCT = struct.Struct("<HH")
+STOCK_LIST_ROW_STRUCT = struct.Struct("<6sH8s4sBI4s")
+QUOTE_HEAD_STRUCT = struct.Struct("<B6sH")
+QUOTE_TAIL_STRUCT = struct.Struct("<hH")
+FINANCE_HEAD_STRUCT = struct.Struct("<B6s")
+FINANCE_BODY_STRUCT = struct.Struct("<fHHIIffffffffffffffffffffffffffffff")
+XDXR_FLOAT4_STRUCT = struct.Struct("<ffff")
+XDXR_MIXED_STRUCT = struct.Struct("<IIfI")
+XDXR_WARRANT_STRUCT = struct.Struct("<fIfI")
+XDXR_UINT4_STRUCT = struct.Struct("<IIII")
+F10_CATEGORY_STRUCT = struct.Struct("<64s80sII")
+F10_CONTENT_HEAD_STRUCT = struct.Struct("<10sH")
+BLOCK_INFO_META_STRUCT = struct.Struct("<I1s32s1s")
+ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
+QUOTE_REV4_STRUCT = struct.Struct("<H")
+
 
 def _get_volume(vol: int) -> float:
     logpoint = vol >> (8 * 3)
@@ -287,7 +305,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"stock_count body too short: {len(body)}")
 
         try:
-            (count,) = struct.unpack("<H", body[:2])
+            (count,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode stock_count body") from exc
 
@@ -308,7 +326,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"stock_list_page body too short: {len(body)}")
 
         try:
-            (num_rows,) = struct.unpack("<H", body[:2])
+            (num_rows,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode stock_list_page count") from exc
 
@@ -323,8 +341,8 @@ class StdQuoteProtocol(AbstractProtocol):
                 )
 
             try:
-                code, volunit, name_bytes, _reserved_1, decimal_point, pre_close_raw, _reserved_2 = struct.unpack(
-                    "<6sH8s4sBI4s", chunk
+                code, volunit, name_bytes, _reserved_1, decimal_point, pre_close_raw, _reserved_2 = (
+                    STOCK_LIST_ROW_STRUCT.unpack_from(body, pos)
                 )
             except struct.error as exc:
                 raise ProtocolDecodeError(f"failed to decode stock_list_page row {index}") from exc
@@ -370,7 +388,7 @@ class StdQuoteProtocol(AbstractProtocol):
 
         pos = 2
         try:
-            (num_stock,) = struct.unpack("<H", body[pos : pos + 2])
+            (num_stock,) = U16_STRUCT.unpack_from(body, pos)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode quotes count") from exc
 
@@ -379,7 +397,7 @@ class StdQuoteProtocol(AbstractProtocol):
 
         try:
             for index in range(num_stock):
-                market, code, active1 = struct.unpack("<B6sH", body[pos : pos + 9])
+                market, code, active1 = QUOTE_HEAD_STRUCT.unpack_from(body, pos)
                 pos += 9
 
                 price, pos = _get_price(body, pos)
@@ -392,7 +410,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 vol, pos = _get_price(body, pos)
                 cur_vol, pos = _get_price(body, pos)
 
-                (amount_raw,) = struct.unpack("<I", body[pos : pos + 4])
+                (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
                 amount = _get_volume(amount_raw)
                 pos += 4
 
@@ -420,13 +438,13 @@ class StdQuoteProtocol(AbstractProtocol):
                 ask5, pos = _get_price(body, pos)
                 bid_vol5, pos = _get_price(body, pos)
                 ask_vol5, pos = _get_price(body, pos)
-                reversed_bytes4 = list(struct.unpack("<H", body[pos : pos + 2]))
+                reversed_bytes4 = list(QUOTE_REV4_STRUCT.unpack_from(body, pos))
                 pos += 2
                 reversed_bytes5, pos = _get_price(body, pos)
                 reversed_bytes6, pos = _get_price(body, pos)
                 reversed_bytes7, pos = _get_price(body, pos)
                 reversed_bytes8, pos = _get_price(body, pos)
-                reversed_bytes9, active2 = struct.unpack("<hH", body[pos : pos + 4])
+                reversed_bytes9, active2 = QUOTE_TAIL_STRUCT.unpack_from(body, pos)
                 pos += 4
 
                 decoded_code = code.decode("utf-8")
@@ -511,7 +529,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"bars body too short: {len(body)}")
 
         try:
-            (ret_count,) = struct.unpack("<H", body[0:2])
+            (ret_count,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode bars count") from exc
 
@@ -526,10 +544,10 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_close_diff, pos = _get_price(body, pos)
                 price_high_diff, pos = _get_price(body, pos)
                 price_low_diff, pos = _get_price(body, pos)
-                (vol_raw,) = struct.unpack("<I", body[pos : pos + 4])
+                (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
                 vol = _get_volume(vol_raw)
                 pos += 4
-                (amount_raw,) = struct.unpack("<I", body[pos : pos + 4])
+                (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
                 amount = _get_volume(amount_raw)
                 pos += 4
 
@@ -570,7 +588,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"index bars body too short: {len(body)}")
 
         try:
-            (ret_count,) = struct.unpack("<H", body[0:2])
+            (ret_count,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode index bars count") from exc
 
@@ -585,13 +603,13 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_close_diff, pos = _get_price(body, pos)
                 price_high_diff, pos = _get_price(body, pos)
                 price_low_diff, pos = _get_price(body, pos)
-                (vol_raw,) = struct.unpack("<I", body[pos : pos + 4])
+                (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
                 vol = _get_volume(vol_raw)
                 pos += 4
-                (amount_raw,) = struct.unpack("<I", body[pos : pos + 4])
+                (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
                 amount = _get_volume(amount_raw)
                 pos += 4
-                (up_count, down_count) = struct.unpack("<HH", body[pos : pos + 4])
+                up_count, down_count = U16_PAIR_STRUCT.unpack_from(body, pos)
                 pos += 4
 
                 open_ = float(price_open_diff + pre_diff_base) / 1000
@@ -642,7 +660,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"minutes body too short: {len(body)}")
 
         try:
-            (num,) = struct.unpack("<H", body[:2])
+            (num,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode minutes count") from exc
 
@@ -678,7 +696,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"transaction body too short: {len(body)}")
 
         try:
-            (num,) = struct.unpack("<H", body[:2])
+            (num,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode transaction count") from exc
 
@@ -734,7 +752,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"transactions body too short: {len(body)}")
 
         try:
-            (num,) = struct.unpack("<H", body[:2])
+            (num,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode transactions count") from exc
 
@@ -774,14 +792,13 @@ class StdQuoteProtocol(AbstractProtocol):
         return bytes(payload)
 
     def decode_finance(self, body: bytes) -> dict[str, object]:
-        fmt = "<fHHIIffffffffffffffffffffffffffffff"
-        expected_size = 2 + 7 + struct.calcsize(fmt)
+        expected_size = 2 + 7 + FINANCE_BODY_STRUCT.size
         if len(body) < expected_size:
             raise ProtocolDecodeError(f"finance body too short: {len(body)}")
 
         pos = 2
         try:
-            market, code = struct.unpack("<B6s", body[pos : pos + 7])
+            market, code = FINANCE_HEAD_STRUCT.unpack_from(body, pos)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode finance header") from exc
 
@@ -823,7 +840,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 weifenlirun,
                 baoliu1,
                 baoliu2,
-            ) = struct.unpack(fmt, body[pos : pos + struct.calcsize(fmt)])
+            ) = FINANCE_BODY_STRUCT.unpack_from(body, pos)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode finance body") from exc
 
@@ -882,7 +899,7 @@ class StdQuoteProtocol(AbstractProtocol):
 
         pos = 9
         try:
-            (num,) = struct.unpack("<H", body[pos : pos + 2])
+            (num,) = U16_STRUCT.unpack_from(body, pos)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode xdxr count") from exc
         pos += 2
@@ -892,7 +909,7 @@ class StdQuoteProtocol(AbstractProtocol):
             for _ in range(num):
                 pos += 8
                 year, month, day, hour, minute, pos = _get_datetime(9, body, pos)
-                (category,) = struct.unpack("<B", body[pos : pos + 1])
+                category = body[pos]
                 pos += 1
                 suogu = None
                 panqianliutong = None
@@ -907,13 +924,13 @@ class StdQuoteProtocol(AbstractProtocol):
                 xingquanjia = None
 
                 if category == 1:
-                    fenhong, peigujia, songzhuangu, peigu = struct.unpack("<ffff", body[pos : pos + 16])
+                    fenhong, peigujia, songzhuangu, peigu = XDXR_FLOAT4_STRUCT.unpack_from(body, pos)
                 elif category in {11, 12}:
-                    _, _, suogu, _ = struct.unpack("<IIfI", body[pos : pos + 16])
+                    _, _, suogu, _ = XDXR_MIXED_STRUCT.unpack_from(body, pos)
                 elif category in {13, 14}:
-                    xingquanjia, _, fenshu, _ = struct.unpack("<fIfI", body[pos : pos + 16])
+                    xingquanjia, _, fenshu, _ = XDXR_WARRANT_STRUCT.unpack_from(body, pos)
                 else:
-                    panqian_raw, qianzong_raw, panhou_raw, houzong_raw = struct.unpack("<IIII", body[pos : pos + 16])
+                    panqian_raw, qianzong_raw, panhou_raw, houzong_raw = XDXR_UINT4_STRUCT.unpack_from(body, pos)
                     panqianliutong = 0 if panqian_raw == 0 else _get_volume(panqian_raw)
                     panhouliutong = 0 if panhou_raw == 0 else _get_volume(panhou_raw)
                     qianzongguben = 0 if qianzong_raw == 0 else _get_volume(qianzong_raw)
@@ -959,7 +976,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"f10_categories body too short: {len(body)}")
 
         try:
-            (num,) = struct.unpack("<H", body[:2])
+            (num,) = U16_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode f10_categories count") from exc
 
@@ -967,8 +984,8 @@ class StdQuoteProtocol(AbstractProtocol):
         rows: list[dict[str, object]] = []
         try:
             for _ in range(num):
-                name, filename, start, length = struct.unpack("<64s80sII", body[pos : pos + 152])
-                pos += 152
+                name, filename, start, length = F10_CATEGORY_STRUCT.unpack_from(body, pos)
+                pos += F10_CATEGORY_STRUCT.size
                 rows.append(
                     {
                         "name": _decode_gbk_string(name),
@@ -1006,7 +1023,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"f10_content body too short: {len(body)}")
 
         try:
-            _, length = struct.unpack("<10sH", body[:12])
+            _, length = F10_CONTENT_HEAD_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode f10_content header") from exc
 
@@ -1026,7 +1043,7 @@ class StdQuoteProtocol(AbstractProtocol):
             raise ProtocolDecodeError(f"block info meta body too short: {len(body)}")
 
         try:
-            size, _, hash_value, _ = struct.unpack("<I1s32s1s", body[:38])
+            size, _, hash_value, _ = BLOCK_INFO_META_STRUCT.unpack_from(body, 0)
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode block info meta") from exc
 
@@ -1049,14 +1066,14 @@ def _get_datetime(category: int, buffer: bytes, pos: int) -> tuple[int, int, int
     minute = 0
     hour = 15
     if category < 4 or category in {7, 8}:
-        zip_day, minutes = struct.unpack("<HH", buffer[pos : pos + 4])
+        zip_day, minutes = ZIP_DAY_MINUTES_STRUCT.unpack_from(buffer, pos)
         month = int((zip_day % 2048) / 100)
         year = (zip_day >> 11) + 2004
         day = (zip_day % 2048) % 100
         minute = minutes % 60
         hour = int(minutes / 60)
     else:
-        (zip_day,) = struct.unpack("<I", buffer[pos : pos + 4])
+        (zip_day,) = U32_STRUCT.unpack_from(buffer, pos)
         month = int((zip_day % 10000) / 100)
         year = int(zip_day / 10000)
         day = zip_day % 100
@@ -1065,7 +1082,7 @@ def _get_datetime(category: int, buffer: bytes, pos: int) -> tuple[int, int, int
 
 
 def _get_time(buffer: bytes, pos: int) -> tuple[int, int, int]:
-    (minutes,) = struct.unpack("<H", buffer[pos : pos + 2])
+    (minutes,) = U16_STRUCT.unpack_from(buffer, pos)
     hour = int(minutes / 60)
     minute = minutes % 60
     return hour, minute, pos + 2
