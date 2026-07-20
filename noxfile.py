@@ -297,3 +297,27 @@ def server_live_smoke(session: nox.Session) -> None:
 def financial_live_smoke(session: nox.Session) -> None:
     session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
     session.run("pytest", "tests/core_engine/test_next_financial_live_smoke.py", "-q")
+
+
+@nox.session(python=["3.13"])
+def next_matrix(session: nox.Session) -> None:
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.run(
+        "pytest",
+        "tests/core_engine/test_next_api_matrix.py",
+        "tests/core_engine/test_next_adapter_matrix.py",
+        "tests/core_engine/test_report_file_client.py",
+        "tests/compat/test_matrix.py",
+        "-q",
+    )
+
+
+@nox.session(python=["3.13"])
+def next_live_matrix(session: nox.Session) -> None:
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.run(
+        "pytest",
+        "tests/core_engine/test_next_full_live_matrix.py",
+        "-q",
+        env={"MOOTDX_RUN_LIVE_MATRIX": "1"},
+    )
