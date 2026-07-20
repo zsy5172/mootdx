@@ -35,7 +35,13 @@ def _docker_available() -> bool:
 @nox.session(python=["3.13"])
 def next_only_install(session: nox.Session) -> None:
     session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
-    session.run("pytest", "tests/core_engine/test_next_only_runtime.py", "-q")
+    session.run(
+        "pytest",
+        "tests/core_engine/test_next_only_runtime.py",
+        "tests/core_engine/test_next_local_readers.py",
+        "tests/core_engine/test_report_file_protocol.py",
+        "-q",
+    )
 
 
 @nox.session(python=["3.13"])
@@ -277,3 +283,17 @@ def compat_nightly(session: nox.Session) -> None:
     session.notify("history_live_smoke")
     session.notify("transaction_live_smoke")
     session.notify("info_live_smoke")
+    session.notify("server_live_smoke")
+    session.notify("financial_live_smoke")
+
+
+@nox.session(python=["3.13"])
+def server_live_smoke(session: nox.Session) -> None:
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.run("pytest", "tests/core_engine/test_next_server_live_smoke.py", "-q")
+
+
+@nox.session(python=["3.13"])
+def financial_live_smoke(session: nox.Session) -> None:
+    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.run("pytest", "tests/core_engine/test_next_financial_live_smoke.py", "-q")
