@@ -3,6 +3,7 @@ import functools
 import json
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
@@ -156,37 +157,22 @@ def server(index=None, limit=5, console=False, sync=True):
 
     _hosts = [dict(item) for item in hosts[index]]
 
-    def async_event():
-        event = asyncio.get_event_loop()
-        tasks = []
-
-        while len(_hosts) > 0:
-            task = event.create_task(verify(_hosts.pop(0), index))
-            task.add_done_callback(partial(callback, key=index))
-            tasks.append(task)
-
-        # event.is_closed()
-        # event.is_running()
-        event.run_until_complete(asyncio.wait(tasks))
-
-    global results
-
     if sync:
-        results[index] = [connect2(proxy, index=index) for proxy in _hosts]
-        results[index] = [x for x in results[index] if x.get('time')]
+        measured = [connect2(proxy, index=index) for proxy in _hosts]
     else:
-        async_event()
+        with ThreadPoolExecutor() as executor:
+            measured = list(executor.map(partial(connect2, index=index), _hosts))
 
-    servers = results[index]
+    servers = [item for item in measured if item.get('time')]
+    servers.sort(key=lambda item: item['time'])
+    results[index] = list(servers)
+
+    if limit:
+        servers = servers[:limit]
 
     # 结果按响应时间从小到大排序
     if console:
         from prettytable import PrettyTable
-
-        servers.sort(key=lambda item: item['time'])
-
-        if limit:
-            servers = servers[:limit]
 
         logger.debug('[√] 最优服务器:')
 

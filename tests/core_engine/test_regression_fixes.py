@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 import mootdx.config as config_module
 import mootdx.quotes as quotes_module
@@ -35,6 +36,28 @@ def test_connect2_invalid_index_does_not_raise() -> None:
     result = server_module.connect2(proxy, index="GP")
 
     assert result["time"] is None
+
+
+@pytest.mark.parametrize("sync", [True, False])
+def test_server_orders_probe_results_and_applies_limit(monkeypatch, sync) -> None:
+    candidates = [
+        {"addr": "1.1.1.1", "port": 7709, "time": 0, "site": "slow"},
+        {"addr": "2.2.2.2", "port": 7709, "time": 0, "site": "fast"},
+        {"addr": "3.3.3.3", "port": 7709, "time": 0, "site": "medium"},
+    ]
+    latencies = {"1.1.1.1": 30.0, "2.2.2.2": 10.0, "3.3.3.3": 20.0}
+
+    monkeypatch.setitem(server_module.hosts, "HQ", candidates)
+    monkeypatch.setattr(
+        server_module,
+        "connect2",
+        lambda proxy, index="HQ": {**proxy, "time": latencies[proxy["addr"]]},
+    )
+
+    assert server_module.server(index="HQ", limit=2, console=False, sync=sync) == [
+        ("2.2.2.2", 7709),
+        ("3.3.3.3", 7709),
+    ]
 
 
 def test_check_empty_is_safe_before_any_instance_exists(monkeypatch) -> None:
