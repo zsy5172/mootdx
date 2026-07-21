@@ -32,6 +32,8 @@ from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 BLOCK_CHUNK_SIZE = 0x7530
+TRANSACTION_MAX_OFFSET = 1800
+HISTORY_TRANSACTION_MAX_OFFSET = 2000
 
 
 def _default_servers() -> list[ServerEndpoint]:
@@ -225,8 +227,8 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
         if start < 0:
             raise ValueError("start must be >= 0")
-        if offset <= 0 or offset > 800:
-            raise ValueError("offset must be between 1 and 800")
+        if offset <= 0 or offset > TRANSACTION_MAX_OFFSET:
+            raise ValueError(f"offset must be between 1 and {TRANSACTION_MAX_OFFSET}")
         if not is_trading_session():
             raise OutsideTradingSessionError("transaction is only available during the trading session")
 
@@ -255,8 +257,8 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
         if start < 0:
             raise ValueError("start must be >= 0")
-        if offset <= 0 or offset > 800:
-            raise ValueError("offset must be between 1 and 800")
+        if offset <= 0 or offset > HISTORY_TRANSACTION_MAX_OFFSET:
+            raise ValueError(f"offset must be between 1 and {HISTORY_TRANSACTION_MAX_OFFSET}")
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))

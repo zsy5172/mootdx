@@ -123,6 +123,7 @@ client.transaction("600036", start=0, offset=100)
 ```
 
 `transaction()` 在非交易时段会抛出明确的交易时段异常；历史接口 `transactions()` 不受当前交易时间限制。
+即时逐笔的单次 `offset` 范围为 1～1800，历史逐笔为 1～2000；更多数据请递增 `start` 分页读取。
 
 ### 财务、除权除息与 F10
 

@@ -13,7 +13,8 @@ It fails when a public method is added without updating the matrix and covers:
 - every `NextStdQuotes` compatibility method;
 - every Pandas adapter and the report-file client loop;
 - all 12 wire frequency values and every string alias;
-- request window boundaries (`start=0/20`, `offset=1/15/800`);
+- request window boundaries, including the 800-bar, 1800-live-transaction,
+  and 2000-historical-transaction limits;
 - compact integer, dashed string, and plain string dates;
 - SH, SZ, BJ, and explicit market prefixes;
 - invalid type, invalid range, invalid market, and session-state classes.

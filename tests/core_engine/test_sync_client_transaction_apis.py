@@ -68,6 +68,8 @@ def test_sync_client_transaction_rejects_invalid_params(monkeypatch: pytest.Monk
         client.transaction(symbol="600036", start=-1)
     with pytest.raises(ValueError):
         client.transaction(symbol="600036", offset=0)
+    with pytest.raises(ValueError, match="offset must be between 1 and 1800"):
+        client.transaction(symbol="600036", offset=1801)
     with pytest.raises(OutsideTradingSessionError):
         monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: False)
         client.transaction(symbol="600036")
@@ -81,7 +83,9 @@ def test_sync_client_transactions_reject_invalid_params() -> None:
     with pytest.raises(ValueError):
         client.transactions(symbol="600036", date="20170209", start=-1)
     with pytest.raises(ValueError):
-        client.transactions(symbol="600036", date="20170209", offset=801)
+        client.transactions(symbol="600036", date="20170209", offset=0)
+    with pytest.raises(ValueError, match="offset must be between 1 and 2000"):
+        client.transactions(symbol="600036", date="20170209", offset=2001)
     with pytest.raises(InvalidDateError):
         client.transactions(symbol="600036", date="2017/02/09")
 

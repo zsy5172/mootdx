@@ -238,9 +238,9 @@ def test_frequency_matrix_covers_all_wire_values() -> None:
         ("index_bars", {"symbol": "000001", "frequency": 9, "start": 0, "offset": 1}),
         ("index_bars", {"symbol": "399001", "frequency": 9, "start": 20, "offset": 800}),
         ("transaction", {"symbol": "600036", "start": 0, "offset": 1}),
-        ("transaction", {"symbol": "600036", "start": 20, "offset": 800}),
+        ("transaction", {"symbol": "600036", "start": 20, "offset": 1800}),
         ("transactions", {"symbol": "600036", "date": "20170209", "start": 0, "offset": 1}),
-        ("transactions", {"symbol": "600036", "date": "20170209", "start": 20, "offset": 800}),
+        ("transactions", {"symbol": "600036", "date": "20170209", "start": 20, "offset": 2000}),
     ],
 )
 def test_window_boundary_matrix(method: str, kwargs: dict[str, object], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -305,7 +305,9 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
         ("minutes", ("600036", "2017/10/10"), {}, InvalidDateError),
         ("minutes", ("430090", "20171010"), {}, UnsupportedMarketError),
         ("transaction", ("600036",), {"offset": 0}, ValueError),
-        ("transactions", ("600036", "20170209"), {"offset": 801}, ValueError),
+        ("transaction", ("600036",), {"offset": 1801}, ValueError),
+        ("transactions", ("600036", "20170209"), {"offset": 0}, ValueError),
+        ("transactions", ("600036", "20170209"), {"offset": 2001}, ValueError),
         ("transactions", ("430090", "20170209"), {}, UnsupportedMarketError),
         ("finance", ("430090",), {}, UnsupportedMarketError),
         ("xdxr", ("430090",), {}, UnsupportedMarketError),
