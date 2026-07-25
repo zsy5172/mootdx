@@ -8,6 +8,7 @@ from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import NextStdQuotes
 from mootdx.quotes import Quotes
 from mootdx.server import server
+from mootdx_next.affair import Affair as NextAffair
 
 
 class DummyNextClient:
@@ -34,9 +35,8 @@ def test_ext_market_is_explicitly_unsupported() -> None:
         Quotes.factory(market="ext")
 
 
-def test_gp_remote_entrypoints_are_explicitly_unsupported() -> None:
+def test_gp_socket_probe_is_unsupported_but_affair_routes_to_next_https() -> None:
     with pytest.raises(MootdxValidationException, match="GP 财务下载线路已经废弃且不再支持"):
         server(index="GP")
 
-    with pytest.raises(MootdxValidationException, match="GP 财务下载线路已经废弃且不再支持"):
-        Affair.files()
+    assert Affair is NextAffair
