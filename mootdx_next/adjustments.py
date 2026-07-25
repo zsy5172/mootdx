@@ -8,8 +8,8 @@ from typing import Protocol
 
 import pandas as pd
 
-from mootdx.consts import MARKET_SH
-from mootdx.consts import MARKET_SZ
+from mootdx_next.constants import MARKET_SH
+from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import AdjustmentError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.symbols import get_stock_market

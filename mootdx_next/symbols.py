@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from mootdx.consts import MARKET_BJ
-from mootdx.consts import MARKET_SH
-from mootdx.consts import MARKET_SZ
+from mootdx_next.constants import MARKET_BJ
+from mootdx_next.constants import MARKET_SH
+from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import InvalidSymbolError
 
 

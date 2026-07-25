@@ -6,7 +6,9 @@ import struct
 import threading
 from typing import Any
 
-from mootdx.consts import HQ_HOSTS
+from mootdx_next.constants import HQ_HOSTS
+from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
+from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import PoolExhaustedError
@@ -32,8 +34,8 @@ from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 BLOCK_CHUNK_SIZE = 0x7530
-TRANSACTION_MAX_OFFSET = 1800
-HISTORY_TRANSACTION_MAX_OFFSET = 2000
+TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
+HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 
 
 def _default_servers() -> list[ServerEndpoint]:
