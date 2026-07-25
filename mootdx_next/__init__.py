@@ -1,5 +1,7 @@
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
+from mootdx_next.api.pandas import AsyncPandasClient
+from mootdx_next.api.pandas import PandasClient
 from mootdx_next.candidates import CandidateRegistry
 from mootdx_next.candidates import get_hq_candidates
 from mootdx_next.candidates import hq_candidate_snapshot
@@ -50,6 +52,7 @@ from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 __all__ = [
     "AsyncClient",
+    "AsyncPandasClient",
     "AdjustmentError",
     "bars_to_frame",
     "block_to_frame",
@@ -71,6 +74,7 @@ __all__ = [
     "NoHealthyServerError",
     "OutsideTradingSessionError",
     "PayloadDecompressionError",
+    "PandasClient",
     "PoolExhaustedError",
     "ProtocolDecodeError",
     "ProtocolError",

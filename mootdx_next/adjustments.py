@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import threading
 import time
@@ -39,6 +40,18 @@ class AdjustmentClient(Protocol):
     ) -> list[dict[str, object]]: ...
 
     def xdxr(self, symbol: str) -> list[dict[str, object]]: ...
+
+
+class AsyncAdjustmentClient(Protocol):
+    async def bars(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        start: int = 0,
+        offset: int = 800,
+    ) -> list[dict[str, object]]: ...
+
+    async def xdxr(self, symbol: str) -> list[dict[str, object]]: ...
 
 
 @dataclass(frozen=True)
@@ -438,3 +451,127 @@ class AdjustmentService:
             raise UnsupportedMarketError('price adjustment only supports sh/sz securities')
         prefix = 'sh' if market == MARKET_SH else 'sz'
         return f'{prefix}{normalize_symbol(raw)}'
+
+
+class AsyncAdjustmentService:
+    """Async adjustment service with an independent cache and awaited raw I/O."""
+
+    def __init__(
+        self,
+        client: AsyncAdjustmentClient,
+        *,
+        cache_ttl: float = 3600,
+        page_size: int = 800,
+        max_pages: int = 100,
+    ) -> None:
+        self._client = client
+        self._cache_ttl = float(cache_ttl)
+        self._page_size = int(page_size)
+        self._max_pages = int(max_pages)
+        self._cache: dict[str, _AdjustmentSnapshot] = {}
+        self._lock = asyncio.Lock()
+
+    async def invalidate(self, symbol: str | None = None) -> None:
+        async with self._lock:
+            if symbol is None:
+                self._cache.clear()
+                return
+            self._cache.pop(AdjustmentService._canonical_symbol(symbol), None)
+
+    async def adjusted_daily(self, symbol: str, adjust: str) -> pd.DataFrame:
+        method = AdjustmentService._require_adjustment(adjust)
+        snapshot = await self._snapshot(symbol)
+        return AdjustmentService._apply_snapshot(snapshot.daily, snapshot, method)
+
+    async def adjusted_bars(
+        self,
+        symbol: str,
+        adjust: str,
+        *,
+        frequency: int,
+        start: int,
+        offset: int,
+    ) -> pd.DataFrame:
+        if start < 0:
+            raise ValueError('start must be >= 0')
+        if offset <= 0 or offset > self._page_size:
+            raise ValueError(f'offset must be between 1 and {self._page_size}')
+        if frequency not in AGGREGATED_FREQUENCIES | {DAILY_FREQUENCY}:
+            raise AdjustmentError(f'frequency {frequency} must be adjusted from the requested bars')
+
+        adjusted = await self.adjusted_daily(symbol, adjust)
+        if frequency in AGGREGATED_FREQUENCIES:
+            adjusted = AdjustmentService._aggregate(adjusted, frequency)
+        return AdjustmentService._slice_latest(adjusted, start=start, offset=offset)
+
+    async def apply(self, frame: pd.DataFrame, symbol: str, adjust: str) -> pd.DataFrame:
+        method = AdjustmentService._require_adjustment(adjust)
+        if frame.empty:
+            return frame.copy()
+        snapshot = await self._snapshot(symbol)
+        return AdjustmentService._apply_snapshot(frame, snapshot, method)
+
+    async def _snapshot(self, symbol: str) -> _AdjustmentSnapshot:
+        canonical = AdjustmentService._canonical_symbol(symbol)
+        now = time.monotonic()
+        cached = self._cache.get(canonical)
+        if cached is not None and now - cached.loaded_at < self._cache_ttl:
+            return cached
+
+        async with self._lock:
+            now = time.monotonic()
+            cached = self._cache.get(canonical)
+            if cached is not None and now - cached.loaded_at < self._cache_ttl:
+                return cached
+
+            daily = await self._load_daily(canonical)
+            rows = await self._client.xdxr(canonical)
+            events, actions, uses_affine_adjustment, unresolved = AdjustmentService._build_events(daily, rows)
+            snapshot = _AdjustmentSnapshot(
+                daily=daily,
+                events=events,
+                actions=actions,
+                uses_affine_adjustment=uses_affine_adjustment,
+                unresolved_events=unresolved,
+                loaded_at=time.monotonic(),
+            )
+            self._cache[canonical] = snapshot
+            return snapshot
+
+    async def _load_daily(self, symbol: str) -> pd.DataFrame:
+        pages: list[pd.DataFrame] = []
+        previous_oldest: pd.Timestamp | None = None
+
+        for page_number in range(self._max_pages):
+            rows = await self._client.bars(
+                symbol=symbol,
+                frequency=DAILY_FREQUENCY,
+                start=page_number * self._page_size,
+                offset=self._page_size,
+            )
+            if not rows:
+                break
+
+            page = AdjustmentService._to_datetime_frame(pd.DataFrame.from_records(rows))
+            if page.empty:
+                break
+            pages.append(page)
+
+            oldest = page.index.min()
+            if len(rows) < self._page_size:
+                break
+            if previous_oldest is not None and oldest >= previous_oldest:
+                break
+            previous_oldest = oldest
+
+        if not pages:
+            raise AdjustmentError(f'cannot adjust {symbol}: daily bars are empty')
+
+        daily = pd.concat(pages, axis=0, sort=False)
+        daily = daily.loc[~daily.index.duplicated(keep='last')].sort_index()
+        missing = [column for column in PRICE_COLUMNS if column not in daily.columns]
+        if missing:
+            raise AdjustmentError(f'cannot adjust {symbol}: daily bars are missing {", ".join(missing)}')
+        if 'vol' in daily.columns and 'volume' not in daily.columns:
+            daily['volume'] = daily['vol'].to_numpy(copy=False)
+        return daily
