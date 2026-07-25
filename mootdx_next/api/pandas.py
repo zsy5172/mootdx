@@ -38,6 +38,7 @@ from mootdx_next.symbols import get_stock_market
 
 KLINE_PAGE_SIZE = 800
 KLINE_MAX_PAGES = 100
+KLINE_VALUE_COLUMNS = ["open", "close", "high", "low", "vol", "amount"]
 
 ErrorMapper = Callable[[Exception], Exception]
 VALIDATION_ERRORS = (
@@ -102,6 +103,22 @@ def _history_frame(
     )
     data.set_index("date", inplace=True)
     return data.loc[(data.index >= start) & (data.index <= end)].sort_index()
+
+
+def _get_k_data_shape(data: pd.DataFrame) -> pd.DataFrame:
+    result = data.drop(columns=["volume"], errors="ignore").copy()
+    base = [column for column in KLINE_VALUE_COLUMNS if column in result.columns]
+    extras = [column for column in result.columns if column not in {*base, "code"}]
+    trailing = ["code"] if "code" in result.columns else []
+    return result[base + extras + trailing]
+
+
+def _k_shape(data: pd.DataFrame) -> pd.DataFrame:
+    result = _get_k_data_shape(data)
+    if "vol" in result.columns:
+        result = result.copy()
+        result["volume"] = result["vol"].to_numpy(copy=False)
+    return result
 
 
 class PandasClient:
@@ -361,7 +378,9 @@ class PandasClient:
         normalized_adjustment = normalize_adjustment(adjust)
         if normalized_adjustment:
             try:
-                return self._adjusted_k_data(code, start_date, end_date, normalized_adjustment)
+                return _get_k_data_shape(
+                    self._adjusted_k_data(code, start_date, end_date, normalized_adjustment)
+                )
             except VALIDATION_ERRORS as exc:
                 self._raise_mapped(exc)
 
@@ -391,11 +410,11 @@ class PandasClient:
             if previous_oldest is not None and oldest >= previous_oldest:
                 break
             previous_oldest = oldest
-        return _history_frame(str(code), start, end, frames)
+        return _get_k_data_shape(_history_frame(str(code), start, end, frames))
 
     def k(self, symbol="", begin=None, end=None, **kwargs) -> pd.DataFrame:
         adjust = kwargs.pop("adjust", None)
-        return self.get_k_data(symbol, begin, end, adjust=adjust)
+        return _k_shape(self.get_k_data(symbol, begin, end, adjust=adjust))
 
     def ohlc(self, **kwargs) -> pd.DataFrame:
         return self.k(**kwargs)
@@ -691,7 +710,9 @@ class AsyncPandasClient:
                     inplace=True,
                 )
                 data.set_index("date", inplace=True)
-                return data.loc[(data.index >= start) & (data.index <= end)].sort_index()
+                return _get_k_data_shape(
+                    data.loc[(data.index >= start) & (data.index <= end)].sort_index()
+                )
             except VALIDATION_ERRORS as exc:
                 self._raise_mapped(exc)
 
@@ -721,11 +742,11 @@ class AsyncPandasClient:
             if previous_oldest is not None and oldest >= previous_oldest:
                 break
             previous_oldest = oldest
-        return _history_frame(str(code), start, end, frames)
+        return _get_k_data_shape(_history_frame(str(code), start, end, frames))
 
     async def k(self, symbol="", begin=None, end=None, **kwargs) -> pd.DataFrame:
         adjust = kwargs.pop("adjust", None)
-        return await self.get_k_data(symbol, begin, end, adjust=adjust)
+        return _k_shape(await self.get_k_data(symbol, begin, end, adjust=adjust))
 
     async def ohlc(self, **kwargs) -> pd.DataFrame:
         return await self.k(**kwargs)

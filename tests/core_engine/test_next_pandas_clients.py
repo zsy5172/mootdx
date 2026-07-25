@@ -135,8 +135,10 @@ def test_history_entrypoints_share_results_without_becoming_aliases() -> None:
     k_data = client.k("600036", "2024-01-02", "2024-01-03")
     ohlc = client.ohlc(symbol="600036", begin="2024-01-02", end="2024-01-03")
 
-    pdt.assert_frame_equal(get_k_data, k_data)
     pdt.assert_frame_equal(k_data, ohlc)
+    pdt.assert_frame_equal(get_k_data, k_data.drop(columns=["volume"]))
+    assert "volume" not in get_k_data.columns
+    assert k_data["volume"].equals(k_data["vol"])
     assert "code" in get_k_data.columns
     assert "datetime" not in get_k_data.columns
 
