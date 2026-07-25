@@ -74,7 +74,10 @@
       "next_behavior": "Daily prices are adjusted before period aggregation, ETF affine actions are applied once, and symbol forms share one canonical factor snapshot.",
       "rationale": "The corrected transformations follow the corporate-action formula and preserve OHLC aggregation invariants.",
       "evidence": ["TDX xdxr fields, ex-date formulas, and fixture-based OHLC invariants."],
-      "regression_tests": ["tests/core_engine/test_next_adjustments.py"],
+      "regression_tests": [
+        "tests/core_engine/test_next_adjustments.py",
+        "tests/compat/test_adjustment_event_matrix.py"
+      ],
       "allowed_paths": ["result"],
       "status": "accepted"
     },

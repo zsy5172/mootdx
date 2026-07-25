@@ -118,6 +118,22 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
     ),
     MatrixCase(
         api="bars",
+        case_id="daily_sh_600036_last60_adjustment_window",
+        comparator="table_exact",
+        kwargs={"symbol": "600036", "frequency": 9, "start": 0, "offset": 60},
+        dimensions={"market": "sh", "frequency": "daily", "window": "adjustment_event"},
+        tags=("systematic", "history", "adjustment"),
+    ),
+    MatrixCase(
+        api="bars",
+        case_id="daily_sh_510500_last60_adjustment_window",
+        comparator="table_exact",
+        kwargs={"symbol": "510500", "frequency": 9, "start": 0, "offset": 60},
+        dimensions={"market": "sh", "frequency": "daily", "window": "etf_adjustment_event"},
+        tags=("systematic", "history", "adjustment", "etf"),
+    ),
+    MatrixCase(
+        api="bars",
         case_id="daily_sz_000001_last10",
         comparator="table_exact",
         kwargs={"symbol": "000001", "frequency": 9, "start": 0, "offset": 10},
@@ -243,6 +259,14 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         kwargs={"symbol": "600036"},
         dimensions={"market": "sh"},
         tags=("systematic", "info"),
+    ),
+    MatrixCase(
+        api="xdxr",
+        case_id="sh_510500",
+        comparator="table_exact",
+        kwargs={"symbol": "510500"},
+        dimensions={"market": "sh", "security_type": "etf"},
+        tags=("systematic", "info", "adjustment", "etf"),
     ),
     MatrixCase(
         api="xdxr",

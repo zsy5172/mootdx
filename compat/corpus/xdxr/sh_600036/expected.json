@@ -1211,6 +1211,24 @@
         "houzongguben": NaN,
         "fenshu": NaN,
         "xingquanjia": NaN
+      },
+      {
+        "year": 2026,
+        "month": 7,
+        "day": 10,
+        "category": 1,
+        "name": "除权除息",
+        "fenhong": 10.029999732971191,
+        "peigujia": 0.0,
+        "songzhuangu": 0.0,
+        "peigu": 0.0,
+        "suogu": null,
+        "panqianliutong": NaN,
+        "panhouliutong": NaN,
+        "qianzongguben": NaN,
+        "houzongguben": NaN,
+        "fenshu": NaN,
+        "xingquanjia": NaN
       }
     ]
   },
