@@ -1,0 +1,21 @@
+{
+  "case_id": "sh_600036_20260720_20260725_populated",
+  "api": "ohlc",
+  "comparator": "table_exact",
+  "steps": [
+    {
+      "id": "01_bars_00000",
+      "parser": "GetSecurityBarsCmd",
+      "kwargs": {
+        "symbol": "600036",
+        "market": 1,
+        "frequency": 9,
+        "start": 0,
+        "offset": 5
+      },
+      "request_path": "steps/01_bars_00000/request.bin",
+      "response_body_path": "steps/01_bars_00000/response.body.bin"
+    }
+  ],
+  "expected_path": "expected.json"
+}

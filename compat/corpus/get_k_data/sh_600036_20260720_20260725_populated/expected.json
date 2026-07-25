@@ -1,0 +1,66 @@
+{
+  "case_id": "sh_600036_20260720_20260725_populated",
+  "api": "get_k_data",
+  "comparator": "table_exact",
+  "status": "ok",
+  "result_type": "dataframe",
+  "result": {
+    "columns": [
+      "open",
+      "close",
+      "high",
+      "low",
+      "vol",
+      "amount",
+      "code"
+    ],
+    "records": [
+      {
+        "open": 37.95,
+        "close": 38.91,
+        "high": 38.91,
+        "low": 37.89,
+        "vol": 1433610.0,
+        "amount": 5534176256.0,
+        "code": "600036"
+      },
+      {
+        "open": 39.18,
+        "close": 37.99,
+        "high": 39.4,
+        "low": 37.9,
+        "vol": 1560127.0,
+        "amount": 6018519040.0,
+        "code": "600036"
+      },
+      {
+        "open": 37.85,
+        "close": 38.71,
+        "high": 38.71,
+        "low": 37.63,
+        "vol": 1084546.0,
+        "amount": 4146124544.0,
+        "code": "600036"
+      },
+      {
+        "open": 38.68,
+        "close": 38.91,
+        "high": 38.99,
+        "low": 38.45,
+        "vol": 794938.0,
+        "amount": 3087846400.0,
+        "code": "600036"
+      },
+      {
+        "open": 39.18,
+        "close": 39.2,
+        "high": 39.25,
+        "low": 38.9,
+        "vol": 982960.0,
+        "amount": 3846185728.0,
+        "code": "600036"
+      }
+    ]
+  },
+  "error": null
+}

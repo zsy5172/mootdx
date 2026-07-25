@@ -1,5 +1,5 @@
 {
-  "case_id": "sh_600036_20190703_20190710_empty",
+  "case_id": "sh_600036_20260720_20260725_populated",
   "api": "get_k_data",
   "comparator": "table_exact",
   "client": {
@@ -17,20 +17,20 @@
   "call": {
     "kwargs": {
       "code": "600036",
-      "start_date": "2019-07-03",
-      "end_date": "2019-07-10"
+      "start_date": "2026-07-20",
+      "end_date": "2026-07-25"
     }
   },
   "matrix": {
     "dimensions": {
       "market": "sh",
-      "result_shape": "empty",
+      "result_shape": "populated",
       "wrapper": "get_k_data"
     },
     "tags": [
       "systematic",
       "compat",
-      "empty_ok"
+      "history"
     ]
   }
 }

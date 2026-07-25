@@ -36,7 +36,9 @@ def test_matrix_coverage_summary_has_required_dimensions() -> None:
     assert summary["f10_categories"]["result_shape"] == ["empty", "populated"]
     assert summary["index_bars"]["frequency"] == ["5m", "daily"]
     assert summary["block"]["block_file"] == ["block.dat", "block_zs.dat"]
-    assert summary["get_k_data"]["result_shape"] == ["empty"]
+    assert summary["get_k_data"]["result_shape"] == ["empty", "populated"]
+    assert summary["k"]["result_shape"] == ["empty", "populated"]
+    assert summary["ohlc"]["result_shape"] == ["empty", "populated"]
 
 
 def test_matrix_inventory_import_does_not_require_legacy_extra() -> None:

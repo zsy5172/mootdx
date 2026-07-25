@@ -17,7 +17,6 @@ from compat.common import normalize_value
 from compat.common import write_json
 from compat.matrix import iter_cases
 from mootdx.quotes import Quotes
-from mootdx.quotes import count_weekdays
 from mootdx.utils import get_frequency
 from mootdx.utils import get_stock_market
 from mootdx.utils import get_stock_markets
@@ -80,6 +79,11 @@ def list_spec_paths(spec_root: str | Path) -> list[Path]:
 def generated_spec_paths(spec_root: str | Path) -> list[Path]:
     root = Path(spec_root)
     return sorted(root / case.api / f"{case.case_id}.json" for case in iter_cases())
+
+
+def _count_weekdays(start: pandas.Timestamp, end: pandas.Timestamp) -> int:
+    days = pandas.date_range(start=start, end=end - pandas.Timedelta(days=1), freq="D")
+    return int((days.weekday < 5).sum())
 
 
 def corpus_case_dir(corpus_root: str | Path, spec: dict[str, Any]) -> Path:
@@ -653,7 +657,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
 
         today = pandas.to_datetime(pandas.Timestamp.now().date())
         market = int(get_stock_market(code))
-        workday_count = count_weekdays(start_date, end_date)
+        workday_count = _count_weekdays(start_date, end_date)
         if workday_count <= 0:
             return [], pandas.DataFrame()
 
@@ -682,7 +686,8 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
             if not frame.empty:
                 frames.append(frame)
 
-        return steps, _aggregate_k_data_frames(frames, code, start_date, end_date)
+        result = _aggregate_k_data_frames(frames, code, start_date, end_date)
+        return steps, _history_wrapper_shape(api, result)
 
     raise ValueError(f"unsupported api for capture: {api}")
 
@@ -850,7 +855,8 @@ def _aggregate_case(spec: dict[str, Any], steps: list[dict[str, Any]]) -> Any:
             frame = to_data(step["parsed"], symbol=code)
             if not frame.empty:
                 frames.append(frame)
-        return _aggregate_k_data_frames(frames, code, start_date, end_date)
+        result = _aggregate_k_data_frames(frames, code, start_date, end_date)
+        return _history_wrapper_shape(api, result)
 
     raise ValueError(f"unsupported api for replay aggregation: {api}")
 
@@ -947,7 +953,8 @@ def _result_from_captured_steps_next(spec: dict[str, Any], steps: list[StepCaptu
             rows = protocol.decode_bars(step.response_body, 9)
             if rows:
                 frames.append(bars_to_frame(rows))
-        return _aggregate_k_data_frames(frames, code, start_date, end_date)
+        result = _aggregate_k_data_frames(frames, code, start_date, end_date)
+        return _history_wrapper_shape(api, result)
 
     raise ValueError(f"unsupported api for next replay: {api}")
 
@@ -1042,3 +1049,14 @@ def _aggregate_k_data_frames(
     data.drop(columns=["year", "month", "day", "hour", "minute", "datetime"], inplace=True)
     data.set_index("date", inplace=True)
     return data.loc[(data.index >= start_date) & (data.index <= end_date)].sort_index()
+
+
+def _history_wrapper_shape(api: str, data: pandas.DataFrame) -> pandas.DataFrame:
+    result = data.drop(columns=["volume"], errors="ignore").copy()
+    base = [column for column in ["open", "close", "high", "low", "vol", "amount"] if column in result.columns]
+    extras = [column for column in result.columns if column not in {*base, "code"}]
+    trailing = ["code"] if "code" in result.columns else []
+    result = result[base + extras + trailing]
+    if api in {"k", "ohlc"} and "vol" in result.columns:
+        result["volume"] = result["vol"].to_numpy(copy=False)
+    return result

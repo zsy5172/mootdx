@@ -333,7 +333,15 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         comparator="table_exact",
         kwargs={"code": "600036", "start_date": "2019-07-03", "end_date": "2019-07-10"},
         dimensions={"market": "sh", "result_shape": "empty", "wrapper": "get_k_data"},
-        tags=("systematic", "compat", "alias", "empty_ok"),
+        tags=("systematic", "compat", "empty_ok"),
+    ),
+    MatrixCase(
+        api="get_k_data",
+        case_id="sh_600036_20260720_20260725_populated",
+        comparator="table_exact",
+        kwargs={"code": "600036", "start_date": "2026-07-20", "end_date": "2026-07-25"},
+        dimensions={"market": "sh", "result_shape": "populated", "wrapper": "get_k_data"},
+        tags=("systematic", "compat", "history"),
     ),
     MatrixCase(
         api="k",
@@ -341,7 +349,15 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         comparator="table_exact",
         kwargs={"symbol": "600036", "begin": "2019-07-03", "end": "2019-07-10"},
         dimensions={"market": "sh", "result_shape": "empty", "wrapper": "k"},
-        tags=("systematic", "compat", "alias", "empty_ok"),
+        tags=("systematic", "compat", "empty_ok"),
+    ),
+    MatrixCase(
+        api="k",
+        case_id="sh_600036_20260720_20260725_populated",
+        comparator="table_exact",
+        kwargs={"symbol": "600036", "begin": "2026-07-20", "end": "2026-07-25"},
+        dimensions={"market": "sh", "result_shape": "populated", "wrapper": "k"},
+        tags=("systematic", "compat", "history"),
     ),
     MatrixCase(
         api="ohlc",
@@ -349,7 +365,15 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         comparator="table_exact",
         kwargs={"symbol": "600036", "begin": "2019-07-03", "end": "2019-07-10"},
         dimensions={"market": "sh", "result_shape": "empty", "wrapper": "ohlc"},
-        tags=("systematic", "compat", "alias", "empty_ok"),
+        tags=("systematic", "compat", "empty_ok"),
+    ),
+    MatrixCase(
+        api="ohlc",
+        case_id="sh_600036_20260720_20260725_populated",
+        comparator="table_exact",
+        kwargs={"symbol": "600036", "begin": "2026-07-20", "end": "2026-07-25"},
+        dimensions={"market": "sh", "result_shape": "populated", "wrapper": "ohlc"},
+        tags=("systematic", "compat", "history"),
     ),
 )
 
@@ -382,4 +406,3 @@ def coverage_summary() -> dict[str, dict[str, list[Any]]]:
         api: {dimension: sorted(values) for dimension, values in dimensions.items()}
         for api, dimensions in summary.items()
     }
-
