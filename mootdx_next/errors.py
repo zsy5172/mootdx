@@ -72,3 +72,27 @@ class UnknownF10CategoryError(MootdxNextError):
 
 class AdjustmentError(MootdxNextError):
     """Raised when price adjustment data cannot be calculated safely."""
+
+
+class FinancialError(MootdxNextError):
+    """Base exception for TDX financial-file operations."""
+
+
+class FinancialCatalogError(FinancialError):
+    """Raised when the financial catalog is missing or malformed."""
+
+
+class FinancialDownloadError(FinancialError):
+    """Raised when every permitted financial download source fails."""
+
+
+class FinancialIntegrityError(FinancialError):
+    """Raised when a downloaded financial file fails size or MD5 validation."""
+
+
+class FinancialFileFormatError(FinancialError):
+    """Raised when a TDX financial DAT or ZIP payload is malformed."""
+
+
+class UnsafeArchiveError(FinancialFileFormatError):
+    """Raised when a financial ZIP contains an unsafe member path."""

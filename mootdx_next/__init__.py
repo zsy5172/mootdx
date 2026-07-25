@@ -20,6 +20,11 @@ from mootdx_next.adapters import transaction_to_frame
 from mootdx_next.adapters import transactions_to_frame
 from mootdx_next.adapters import xdxr_to_frame
 from mootdx_next.errors import AdjustmentError
+from mootdx_next.errors import FinancialCatalogError
+from mootdx_next.errors import FinancialDownloadError
+from mootdx_next.errors import FinancialError
+from mootdx_next.errors import FinancialFileFormatError
+from mootdx_next.errors import FinancialIntegrityError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import EmptyResponseError
 from mootdx_next.errors import InvalidDateError
@@ -38,6 +43,11 @@ from mootdx_next.errors import TransportConnectionError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.errors import UnsafeArchiveError
+from mootdx_next.financial import AsyncFinancialFileClient
+from mootdx_next.financial import FinancialFile
+from mootdx_next.financial import FinancialFileClient
+from mootdx_next.financial import FinancialReader
 from mootdx_next.models import ConnectionLease
 from mootdx_next.models import ConnectionPoolSnapshot
 from mootdx_next.models import RequestContext
@@ -65,6 +75,7 @@ from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 __all__ = [
     "AsyncClient",
+    "AsyncFinancialFileClient",
     "AsyncPandasClient",
     "AdjustmentError",
     "bars_to_frame",
@@ -73,6 +84,14 @@ __all__ = [
     "block_to_frame",
     "CandidateRegistry",
     "f10_categories_to_frame",
+    "FinancialCatalogError",
+    "FinancialDownloadError",
+    "FinancialError",
+    "FinancialFile",
+    "FinancialFileClient",
+    "FinancialFileFormatError",
+    "FinancialIntegrityError",
+    "FinancialReader",
     "finance_to_frame",
     "get_hq_candidates",
     "hq_candidate_snapshot",
@@ -122,6 +141,7 @@ __all__ = [
     "TransportTimeoutError",
     "UnknownF10CategoryError",
     "UnsupportedMarketError",
+    "UnsafeArchiveError",
     "minutes_to_frame",
     "quotes_to_frame",
     "stocks_to_frame",
