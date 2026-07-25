@@ -22,16 +22,24 @@ class FinancialReader:
     @classmethod
     def read(cls, filename: str | Path, header: str = "zh") -> pd.DataFrame:
         path = cls._resolve_path(filename)
-        payload = path.read_bytes()
-        if path.suffix.lower() == ".zip":
-            payload = cls._read_zip(payload)
-        elif path.suffix.lower() != ".dat":
-            raise FinancialFileFormatError(f"unsupported financial file type: {path.suffix}")
-        return cls.to_frame(cls.parse_bytes(payload), header=header)
+        return cls.from_bytes(path.read_bytes(), file_type=path.suffix, header=header)
 
     @classmethod
     def to_data(cls, filename: str | Path, **kwargs) -> pd.DataFrame:
         return cls.read(filename, header=kwargs.get("header", "zh"))
+
+    @classmethod
+    def from_bytes(cls, payload: bytes, *, file_type: str, header: str = "zh") -> pd.DataFrame:
+        return cls.to_frame(cls.parse_payload(payload, file_type=file_type), header=header)
+
+    @classmethod
+    def parse_payload(cls, payload: bytes, *, file_type: str) -> list[tuple[object, ...]]:
+        suffix = file_type.lower()
+        if suffix == ".zip":
+            payload = cls._read_zip(payload)
+        elif suffix != ".dat":
+            raise FinancialFileFormatError(f"unsupported financial file type: {file_type}")
+        return cls.parse_bytes(payload)
 
     @staticmethod
     def parse_bytes(payload: bytes) -> list[tuple[object, ...]]:

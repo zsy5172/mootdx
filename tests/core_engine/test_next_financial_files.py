@@ -20,6 +20,9 @@ from mootdx_next import FinancialReader
 from mootdx_next import ServerEndpoint
 from mootdx_next import UnsafeArchiveError
 from mootdx_next.financial.client import parse_catalog
+from mootdx.financial.financial import Financial
+from mootdx.financial.financial import FinancialList
+from mootdx.financial.financial import FinancialReader as LegacyFinancialReader
 
 
 def _dat_payload() -> bytes:
@@ -57,6 +60,42 @@ def test_financial_reader_parses_dat_zip_and_suffixless_paths(tmp_path: Path) ->
     assert list(dat_frame.index) == ["600036"]
     assert dat_frame.loc["600036", "report_date"] == 20231231
     assert dat_frame.loc["600036", "基本每股收益"] == pytest.approx(1.25)
+
+
+def test_legacy_financial_reader_is_the_next_reader() -> None:
+    assert LegacyFinancialReader is FinancialReader
+
+
+@pytest.mark.parametrize(("suffix", "payload"), [(".dat", _dat_payload()), (".zip", _zip_payload())])
+def test_legacy_raw_financial_facade_uses_next_in_memory_parser(
+    tmp_path: Path,
+    suffix: str,
+    payload: bytes,
+) -> None:
+    path = tmp_path / f"gpcw20231231{suffix}"
+    path.write_bytes(payload)
+
+    with path.open("rb") as stream:
+        rows = Financial().parse(stream)
+
+    pdt.assert_frame_equal(Financial.to_df(rows), FinancialReader.from_bytes(payload, file_type=suffix))
+
+
+def test_legacy_catalog_facade_uses_next_catalog_validation(tmp_path: Path) -> None:
+    payload = _zip_payload()
+    path = tmp_path / "gpcw.txt"
+    path.write_bytes(_catalog(payload))
+
+    with path.open("rb") as stream:
+        files = FinancialList().parse(stream)
+
+    assert files == [
+        {
+            "filename": "gpcw20231231.zip",
+            "hash": hashlib.md5(payload).hexdigest(),
+            "filesize": len(payload),
+        }
+    ]
 
 
 def test_financial_reader_rejects_unsafe_zip_member(tmp_path: Path) -> None:

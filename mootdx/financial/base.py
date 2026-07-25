@@ -1,6 +1,5 @@
 import struct
 
-from .. import config
 from ..exceptions import MootdxValidationException
 
 
@@ -37,20 +36,7 @@ class BaseReader(object):
 class BaseFinancial:
     def __init__(self, mode='content'):
         self.mode = mode
-
-        config.setup()
-
-        server_cfg = config.get('SERVER') or {}
-        gp_hosts = server_cfg.get('GP') or []
-        default = tuple(gp_hosts[0][1:]) if gp_hosts else None
-
-        bestip_cfg = config.get('BESTIP') or {}
-        bestip = bestip_cfg.get('GP')
-
-        if isinstance(bestip, (list, tuple)) and len(bestip) >= 2:
-            self.bestip = (bestip[0], int(bestip[1]))
-        else:
-            self.bestip = default
+        self.bestip = None
 
     @staticmethod
     def unsupported_gp():
