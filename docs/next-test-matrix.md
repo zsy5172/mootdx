@@ -37,21 +37,42 @@ pytest \
   tests/compat/test_matrix.py -q
 ```
 
-## 2. Corpus replay
+## 2. Legacy corpus, real adjustment events, and Reader baselines
 
 The committed corpus under `compat/corpus/` verifies request bytes, response
-decoding, result shapes, aliases, empty responses, and legacy equivalence.
+decoding, result shapes, aliases, empty responses, and legacy equivalence. The
+history corpus includes populated `get_k_data`, `k`, and `ohlc` artifacts plus
+the real 2026 adjustment windows for `600036` and `510500`.
+
+`tests/compat/test_adjustment_event_matrix.py` uses the captured TDX bars and
+`xdxr` packets to verify:
+
+- the 2026-07-10 `600036` cash event;
+- both `510500` split/consolidation events and all four cash events;
+- qfq/hfq affine ETF handling;
+- weekly, monthly, quarterly, and yearly OHLC aggregation after daily
+  adjustment;
+- populated adjusted `get_k_data`, `k`, and `ohlc` result shapes.
 
 ```bash
 nox -s compat_replay
 ```
 
-## 3. Opt-in exhaustive live matrix
+Local Reader behavior is compared against committed artifacts captured in a
+Python 3.11 Docker image containing `mootdx==0.11.7` and `tdxpy==0.2.7`:
+
+```bash
+nox -s reader_baseline_capture
+pytest tests/compat/test_reader_baseline.py -q
+```
+
+## 3. Opt-in exhaustive historical/live matrix
 
 `tests/core_engine/test_next_full_live_matrix.py` exercises all server-backed
 interfaces, all 12 bar frequencies, market/date/window variants, async calls,
-F10 with `600036`, block data, and the legacy-compatible facade. It is skipped
-by default. Real-time `transaction()` is additionally skipped outside the
+F10 with `600036`, block data, real `600036`/`510500` adjustment combinations,
+populated history wrappers, and the legacy-compatible facade. It is skipped by
+default. Real-time `transaction()` is additionally skipped outside a weekday
 trading session; historical `transactions()` is not.
 
 ```bash
@@ -62,6 +83,36 @@ or:
 
 ```bash
 nox -s next_live_matrix
+```
+
+## 4. Trading-session matrix
+
+`tests/core_engine/test_trading_session_live_matrix.py` is reserved for a live
+A-share session and requires populated data. It covers:
+
+- `minute()` and `minutes(today)` with stable-row equivalence;
+- `transaction()` at `start=0/10` and `offset=1/10/800/1800`;
+- raw, async, Pandas, and `Quotes.factory(engine="next")` entry points;
+- legacy and next decoding of the same minute/transaction response;
+- normalized high-level artifacts under `compat/artifacts/`.
+
+The scheduled workflow `.github/workflows/trading-session-live.yml` runs at
+10:00 Asia/Shanghai on weekdays (`02:00 UTC`). It uses a strict session guard:
+starting outside a weekday trading session is a failure, not a skipped success.
+The resulting raw and high-level artifacts are uploaded by the workflow.
+
+For a manual trading-session run:
+
+```bash
+MOOTDX_RUN_TRADING_SESSION_LIVE=1 \
+MOOTDX_REQUIRE_TRADING_SESSION=1 \
+pytest tests/core_engine/test_trading_session_live_matrix.py -q
+```
+
+or:
+
+```bash
+nox -s trading_session_live
 ```
 
 Live failures must be classified as transport availability, empty upstream
