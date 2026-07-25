@@ -379,3 +379,19 @@ def next_live_matrix(session: nox.Session) -> None:
         "-q",
         env={"MOOTDX_RUN_LIVE_MATRIX": "1"},
     )
+
+
+@nox.session(python=["3.13"])
+def trading_session_live(session: nox.Session) -> None:
+    session.install("-e", LEGACY_INSTALL, "pytest~=9.0.3")
+    session.run(
+        "pytest",
+        "tests/core_engine/test_trading_session_live_matrix.py",
+        "tests/core_engine/test_next_full_live_matrix.py",
+        "-q",
+        env={
+            "MOOTDX_REQUIRE_TRADING_SESSION": "1",
+            "MOOTDX_RUN_LIVE_MATRIX": "1",
+            "MOOTDX_RUN_TRADING_SESSION_LIVE": "1",
+        },
+    )

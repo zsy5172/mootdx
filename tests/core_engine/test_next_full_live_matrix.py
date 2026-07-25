@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -23,6 +24,11 @@ pytestmark = pytest.mark.skipif(
 
 def _servers() -> list[ServerEndpoint]:
     return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS[:5]]
+
+
+def _is_weekday_trading_session() -> bool:
+    now = datetime.now()
+    return now.weekday() < 5 and is_trading_session(now)
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +79,9 @@ def test_live_minute_date_matrix(live_client: SyncClient, date: str | int) -> No
     assert isinstance(live_client.minutes("000001", date), list)
 
 
-@pytest.mark.skipif(not is_trading_session(), reason="实时逐笔成交仅在交易时段验证")
+@pytest.mark.skipif(
+    not _is_weekday_trading_session(), reason="实时逐笔成交仅在工作日交易时段验证"
+)
 def test_live_transaction_session_matrix(live_client: SyncClient) -> None:
     rows = live_client.transaction("600036", start=0, offset=2)
     assert isinstance(rows, list)
@@ -130,14 +138,79 @@ def test_live_async_matrix() -> None:
 def test_live_legacy_compatible_facade_matrix() -> None:
     client = Quotes.factory(engine="next")
     try:
-        assert isinstance(client.quotes("600036"), pd.DataFrame)
-        assert isinstance(client.bars("600036", frequency="day", offset=2), pd.DataFrame)
-        assert isinstance(client.index("000001", frequency="day", offset=2), pd.DataFrame)
-        assert isinstance(client.finance("600036"), pd.DataFrame)
-        assert client.F10C("600036")
-        assert isinstance(
-            client.get_k_data("600036", start_date="2019-07-03", end_date="2019-07-10"),
-            pd.DataFrame,
+        quotes = client.quotes("600036")
+        bars = client.bars("600036", frequency="day", offset=2)
+        index = client.index("000001", frequency="day", offset=2)
+        finance = client.finance("600036")
+        get_k_data = client.get_k_data(
+            "600036",
+            start_date="2026-07-20",
+            end_date="2026-07-25",
         )
+        k_data = client.k("600036", begin="2026-07-20", end="2026-07-25")
+        ohlc = client.ohlc(symbol="600036", begin="2026-07-20", end="2026-07-25")
+
+        assert isinstance(quotes, pd.DataFrame) and not quotes.empty
+        assert isinstance(bars, pd.DataFrame) and not bars.empty
+        assert isinstance(index, pd.DataFrame) and not index.empty
+        assert isinstance(finance, pd.DataFrame) and not finance.empty
+        assert client.F10C("600036")
+        assert isinstance(get_k_data, pd.DataFrame) and len(get_k_data) == 5
+        assert isinstance(k_data, pd.DataFrame) and len(k_data) == 5
+        assert isinstance(ohlc, pd.DataFrame) and len(ohlc) == 5
+        assert "volume" not in get_k_data.columns
+        assert "volume" in k_data.columns
+        assert "volume" in ohlc.columns
+    finally:
+        client.close()
+
+
+def test_live_real_adjustment_and_history_wrapper_matrix() -> None:
+    client = Quotes.factory(engine="next", servers=_servers(), timeout=5)
+    try:
+        for symbol in ["600036", "510500"]:
+            for adjust in ["qfq", "hfq"]:
+                latest_closes = []
+                for frequency in [9, 5, 6, 10, 11]:
+                    adjusted = client.bars(
+                        symbol,
+                        frequency=frequency,
+                        start=0,
+                        offset=30,
+                        adjust=adjust,
+                    )
+                    assert not adjusted.empty
+                    assert {"open", "high", "low", "close", "factor"} <= set(
+                        adjusted.columns
+                    )
+                    latest_closes.append(adjusted["close"].iloc[-1])
+                assert latest_closes == pytest.approx(
+                    [latest_closes[0]] * len(latest_closes)
+                )
+
+        for adjust in ["qfq", "hfq"]:
+            get_k_data = client.get_k_data(
+                "510500",
+                start_date="2026-07-08",
+                end_date="2026-07-17",
+                adjust=adjust,
+            )
+            k_data = client.k(
+                "510500",
+                begin="2026-07-08",
+                end="2026-07-17",
+                adjust=adjust,
+            )
+            ohlc = client.ohlc(
+                symbol="510500",
+                begin="2026-07-08",
+                end="2026-07-17",
+                adjust=adjust,
+            )
+            assert len(get_k_data) == len(k_data) == len(ohlc) == 8
+            assert "volume" not in get_k_data.columns
+            assert "volume" in k_data.columns
+            assert "volume" in ohlc.columns
+            assert "factor" in get_k_data.columns
     finally:
         client.close()
