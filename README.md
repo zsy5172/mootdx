@@ -110,12 +110,15 @@ client.get_k_data(
     adjust="qfq",
 )
 
-# 兼容别名
+# 保留原签名的一等 API
 client.k(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="qfq")
 client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="hfq")
 ```
 
 常用频率别名包括：`5m`、`15m`、`30m`、`1h`、`1m`、`day`、`week`、`mon`、`3mon`、`year`。底层同时接受 `0` 到 `11` 的通达信频率编号。
+
+`get_k_data(code, start_date, end_date, adjust=None)`、`k(symbol="", begin=None, end=None, **kwargs)` 和
+`ohlc(**kwargs)` 分别保留原版公开名字与签名，不是互相替换的迁移别名。它们只在内部共享历史 K 线分页实现，下游代码无需调换方法名。
 
 next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务。普通股票按除权参考价生成比例因子；ETF 同时处理扩缩股比例和现金分配偏移。`week`、`mon`、`3mon`、`year` 会先逐日复权，再生成周期 OHLC，避免一个周期跨越除权日时开盘、最高和最低价失真。证券代码会先去除首尾空白并统一市场前缀大小写；复权目前明确支持上海和深圳证券。
 
@@ -200,7 +203,22 @@ client = Quotes.factory(server=("110.41.147.114", 7709))
 
 ## 直接使用 next API
 
-兼容层适合原有 mootdx 用户；如果希望直接得到 Python `list`/`dict`，可以使用 `mootdx_next`。
+兼容层适合原有 mootdx 用户。`mootdx_next` 本身也是完整 SDK：生产代码不会导入 `mootdx`，可以直接选择返回
+`list`/`dict` 的 Raw 客户端，或者返回 `DataFrame` 的 Pandas 客户端。两个包仍由同一个 `mootdx` wheel 发布，
+依赖方向只允许旧入口单向调用 next。
+
+### Pandas 客户端
+
+```python
+from mootdx_next import PandasClient
+
+client = PandasClient(bestip=True)
+try:
+    bars = client.bars("600036", frequency="day", offset=100, adjust="qfq")
+    history = client.get_k_data("600036", "2019-07-03", "2019-07-10")
+finally:
+    client.close()
+```
 
 ### 同步客户端
 
@@ -244,7 +262,24 @@ async def main():
 asyncio.run(main())
 ```
 
-`AsyncClient` 与 `SyncClient` 的业务方法保持一致。客户端查找和实际调用都在线程池工作线程内完成，不会在线程之间共享非线程安全的连接池状态。
+`AsyncClient` 与 `SyncClient` 的业务方法保持一致，`AsyncPandasClient` 与 `PandasClient` 同样保持业务方法对称。
+异步客户端查找和实际调用都在线程池工作线程内完成，不会在线程之间共享非线程安全的连接池状态。
+
+### 财务文件 SDK
+
+```python
+from mootdx_next import FinancialFileClient
+from mootdx_next import FinancialReader
+
+with FinancialFileClient() as client:
+    files = client.files()
+    path = client.fetch("output", filename=files[-1]["filename"])
+
+frame = FinancialReader.read(path)
+```
+
+财务目录和文件默认从通达信官方 HTTPS 地址读取，并校验目录中的文件大小与 MD5。`AsyncFinancialFileClient`
+提供对称的 `catalog`、`files`、`fetch`、`parse` 和 `fetch_and_parse` 方法。
 
 ## 本地通达信文件
 
@@ -279,9 +314,10 @@ client = Quotes.factory(engine="legacy")
 以下远程功能已经明确废弃：
 
 - 在线扩展市场行情，即 `Quotes.factory(market="ext")`
-- GP 财务文件列表与远程下载，即 `Affair.files()`、`Affair.fetch()`
+- 旧 GP socket 财务下载线路
 
-已经下载到本地的通达信财务文件仍可使用本地解析能力。
+`Affair.files()` 和 `Affair.fetch()` 仍受支持，但已经改为通达信官方 HTTPS 财务服务；本地 `ExtReader`
+也仍完整支持扩展市场文件。废弃的是在线 EX 行情和旧 GP socket，不是本地 Reader。
 
 ## 开发与测试
 

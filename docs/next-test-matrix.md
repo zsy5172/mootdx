@@ -11,7 +11,10 @@ It fails when a public method is added without updating the matrix and covers:
 - every `SyncClient` business API;
 - every currently supported `AsyncClient` forwarding API;
 - every `NextStdQuotes` compatibility method;
-- every Pandas adapter and the report-file client loop;
+- every Pandas adapter;
+- the synchronous and asynchronous financial-file APIs, including
+  `fetch_and_parse`;
+- the standard and extension local Reader public inventories;
 - all 12 wire frequency values and every string alias;
 - request window boundaries, including the 800-bar, 1800-live-transaction,
   and 2000-historical-transaction limits;
@@ -21,7 +24,8 @@ It fails when a public method is added without updating the matrix and covers:
 
 `AsyncClient` has typed wrappers for every `SyncClient` business API. The
 inventory test requires exact parity and fails if either facade changes without
-updating the matrix.
+updating the matrix. `AsyncPandasClient`/`PandasClient` and
+`AsyncFinancialFileClient`/`FinancialFileClient` are checked by the same rule.
 
 Run the deterministic matrix with:
 
@@ -46,7 +50,9 @@ nox -s compat_replay
 
 `tests/core_engine/test_next_full_live_matrix.py` exercises all server-backed
 interfaces, all 12 bar frequencies, market/date/window variants, async calls,
-F10, block data, and the legacy-compatible facade. It is skipped by default.
+F10 with `600036`, block data, and the legacy-compatible facade. It is skipped
+by default. Real-time `transaction()` is additionally skipped outside the
+trading session; historical `transactions()` is not.
 
 ```bash
 MOOTDX_RUN_LIVE_MATRIX=1 pytest tests/core_engine/test_next_full_live_matrix.py -q

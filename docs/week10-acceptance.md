@@ -1,76 +1,52 @@
-# Week 10 阶段验收报告
+# Next SDK 当前验收结论
+
+> 本页替代早期 Week 10 的阶段性 No-Go 结论；周级名称仅为保留原文档链接。
 
 ## 结论
 
-- 标准市场 next engine 兼容层 MVP：`Go`
-- 标准市场默认切换到 next engine：`No-Go`
-- 扩展市场 next engine：`No-Go`
+- 独立 `mootdx_next` SDK：`Go`
+- 标准市场 `Quotes.factory()` 默认切换到 next：`Go`
+- 旧标准市场 API 薄适配：`Go`
+- 本地标准/扩展 Reader：`Go`
+- 在线扩展市场 EX：`Unsupported`
+- 旧 GP socket 财务下载：`Unsupported`
 
-当前建议：
+## 已验收范围
 
-- 继续保持 `Quotes.factory()` 默认走 legacy
-- 只允许通过 `Quotes.factory(market="std", engine="next")` 显式试运行新兼容层
+- Raw：`SyncClient`、`AsyncClient`
+- Pandas：`PandasClient`、`AsyncPandasClient`
+- 标准市场行情、K 线、指数、分时、逐笔、财务、除权除息、F10 和板块接口
+- `get_k_data`、`k`、`ohlc` 各自保留原公开名字和签名
+- 本地日线、分钟线、扩展市场、板块和自定义板块 Reader
+- 官方 HTTPS 财务目录、下载、完整性校验和 DAT/ZIP 内存解析
+- 进程级、线程安全、10 分钟 TTL 的候选 IP 注册表
 
-## 当前覆盖范围
+## 解耦门禁
 
-### 已覆盖的旧标准接口
+`mootdx_next` 生产树不得静态或动态导入 `mootdx`。测试同时使用 AST 扫描和屏蔽旧命名空间的子进程
+全模块导入，确保 next-only 安装不依赖 `tdxpy`。旧 `mootdx`、CLI 和兼容门面可以单向调用 next。
 
-- `quotes`
-- `bars`
-- `stock_count`
-- `stocks`
-- `stock_all`
-- `minute`
-- `minutes`
-- `transaction`
-- `transactions`
-- `F10C`
-- `F10`
-- `xdxr`
-- `finance`
-- `index_bars`
-- `index`
-- `block`
-- `k`
-- `ohlc`
-- `get_k_data`
-- `close`
-- `reconnect`
-- `closed`
+两个命名空间继续由同一个 `mootdx` wheel 发布，因此已有用户不需要安装第二个发行包。
 
-### 尚未接管的旧标准接口
+## 兼容性判定
 
-- 当前标准市场旧接口已全部接入 `engine="next"` 兼容层。
-- 尚未覆盖的范围主要在扩展市场和后续 breaking change 修正项，不在本节列出。
+固定基线为：
 
-### 扩展市场
+- Python 3.11
+- `mootdx==0.11.7`
+- `tdxpy==0.2.7`
 
-- `market="ext"` 继续只支持 legacy
-- `market="ext", engine="next"` 会显式失败
+测试默认要求 next 与固定原版 artifact 精确一致。只有同时满足以下条件的差异才允许：
 
-## 验收依据
+1. 已确认是原版缺陷；
+2. 有确定性回归测试；
+3. API、case 和结果路径已经登记到 deviation registry。
 
-关键门禁：
+## 验证分层
 
-- `unit`
-- `compat_replay`
-- `compat_live_smoke`
-- 旧入口兼容层单测
-- 旧入口兼容层 live smoke
+- 普通 CI：单元测试、公共 API/参数矩阵、依赖边界和 corpus replay
+- next-only：不安装 legacy extra 的独立安装验证
+- opt-in live：真实行情、F10、财务和节点能力矩阵
 
-辅助依据：
-
-- [Week 9 性能记录](perf-week9.md)
-- `compat_nightly` 会话与对应 nightly workflow
-
-## 为什么现在不能默认切换
-
-- 仓库内还没有连续 7 次 `compat_nightly` 通过记录
-- 扩展市场完全未纳入 next engine
-- Week 9 的性能结论已经说明 adapter 层 DataFrame 物化仍是主要热点，默认切换前还应继续压缩兼容层开销
-
-## 下一阶段建议
-
-- 先累计 nightly 历史记录，再重新评估默认切换
-- 优先继续扩参数矩阵、live 样本和 breaking change 待办清单
-- 如果继续做性能优化，优先看兼容层 DataFrame 物化和 `xdxr` parser
+实时 `transaction()` 只在交易时段运行；历史 `transactions()` 不受当前交易时段限制。F10/F10C 使用
+`600036`，指数使用明确市场参数或 `sh000001`，避免 `000001` 的市场歧义。

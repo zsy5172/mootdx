@@ -22,7 +22,7 @@ from mootdx.quotes import Quotes
 client = Quotes.factory(market='std', multithread=True, heartbeat=True, bestip=False, timeout=15)
 # multithread 多线程
 # heartbeat 开启心跳包
-# bestip 重新测试最快服务器
+# bestip=True 触发进程内测速并缓存 10 分钟，不写旧版配置
 # server 自行设置服务器IP, 格式 `server=('127.0.0.1', 7727)`
 # timeout 设置超时时间
 # quiet 日志静默方式, 默认False, 设置为 True 则不打印日志信息
@@ -84,6 +84,9 @@ client.bars(symbol='600036', adjust='qfq')
 # 后复权
 client.bars(symbol='600036', adjust='hfq')
 ```
+
+`get_k_data`、`k` 和 `ohlc` 都是保留原版名字与签名的一等公共 API，仅在内部共享历史 K 线实现，
+迁移时不需要调换方法名。
 
 ## 03. 查询股票数量
 

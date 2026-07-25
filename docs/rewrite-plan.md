@@ -13,15 +13,21 @@
 
 ## 当前状态
 
-第一阶段底座已经到位：
+本计划的 SDK 解耦和兼容层目标已经实现：
 
-- 开发工具链切换为 `uv + nox + hatchling`。
-- 已冻结 legacy baseline：`Python 3.11 + mootdx 0.11.7 + tdxpy 0.2.7`。
-- `compat/` 已具备最小 smoke 级别的双轨对比骨架。
-- `compat_live_smoke` 已验证本地运行时与 Docker baseline 在 `stock_count` smoke case 上可产出一致 artifact。
-- Week 1 已建立 `mootdx_next/` 核心骨架、标准错误模型、标准数据结构和占位客户端接口。
+- `mootdx_next` 是独立生产代码树，AST 门禁和屏蔽旧命名空间的子进程导入测试禁止任何
+  `mootdx_next → mootdx` 依赖。
+- 同一个 `mootdx` wheel 同时发布 `mootdx` 与 `mootdx_next`；旧 API、CLI 和兼容入口只允许单向调用 next。
+- `SyncClient`/`AsyncClient` 提供 Raw 结果，`PandasClient`/`AsyncPandasClient` 提供 DataFrame 结果，
+  同步与异步业务接口由库存测试强制保持对称。
+- 标准市场 `Quotes.factory()` 已默认使用 next；`get_k_data`、`k`、`ohlc` 各自保留原公开签名。
+- 本地标准/扩展 Reader、板块、自定义板块和财务文件解析已经迁入 next，旧模块仅为 re-export 或薄包装。
+- `bestip=True` 使用进程级线程安全候选注册表，懒测速、缓存不可变快照 10 分钟，不写旧版配置。
+- legacy baseline 固定为 `Python 3.11 + mootdx 0.11.7 + tdxpy 0.2.7`；默认 exact，
+  只有登记到 deviation registry 的原版缺陷修复可以偏离。
 
-当前阶段仍然**没有**开始协议重写，`mootdx/` 内现有运行时行为保持不变。
+下文的周级阶段保留为设计与实施历史；当前验证命令和覆盖范围以
+[Next engine test matrix](next-test-matrix.md) 为准。
 
 ## 设计原则
 
@@ -303,16 +309,13 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 
 必须遵循“先双轨、后替换、最后删除”的策略，避免直接把新核心硬切进旧运行时。
 
-## 下一步执行清单
+## 后续维护清单
 
-紧接着的实现顺序固定如下：
-
-1. 抽出 transport 和 scheduler 基础模块骨架
-2. 定义标准化异常和结果对象
-3. 录制第一批 replay corpus
-4. 先实现 `stock_count`、`stocks`、`quotes`
-5. 为这三个接口建立完整 spec 与对比门禁
-6. 再进入 `bars/minute/minutes`
+1. 默认 CI 持续运行单元测试、依赖边界门禁和确定性 corpus replay。
+2. 新增或修改公共方法时同步更新 Raw、Pandas、同步、异步和参数库存矩阵。
+3. 原版差异默认视为回归；只有具备证据、回归用例并登记 deviation registry 后才可接受。
+4. 人工或 nightly 执行真实行情矩阵；实时逐笔只在交易时段验证，F10/F10C 固定使用 `600036`。
+5. 在线 EX 保持 unsupported，本地 `ExtReader` 继续维护；旧 GP socket 不恢复，财务文件使用官方 HTTPS。
 
 每一步都应以“小批次可提交”为单位推进，不接受“大重写后统一验证”的方式。
 
@@ -554,7 +557,8 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 
 - 已实现 `finance`、`xdxr`、`f10_categories`、`f10_content` 的 `StdQuoteProtocol` 编解码，并补齐 SH/SZ 限制、未知 F10 栏目异常和 typed API。
 - 已为 `finance`、`xdxr`、`f10_categories`、`f10_content` 新增 replay spec 与 corpus，`compat_replay` 已覆盖这些接口的 next parity。
-- `compat_live_smoke` 已新增 `finance` 与 `xdxr` 的同包 live 双解码校验；F10 保持 replay-only，不进入 live 门禁。
+- `compat_live_smoke` 已新增 `finance` 与 `xdxr` 的同包 live 双解码校验；F10 在普通 CI 使用 replay，
+  在 opt-in 完整 live matrix 中固定使用 `600036`。
 - 已新增 `scripts/benchmark_info_apis.py` 与 `scripts/profile_replay_decoders.py`，并形成 [Week 9 性能记录](perf-week9.md)。
 - 当前性能分析结论已收敛：多数 workload 的主要热点在 adapter 层 DataFrame 物化，`xdxr` parser 本身是少数仍需继续盯的协议热点。
 
@@ -580,10 +584,10 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 
 当前进度：
 
-- 已实现 `Quotes.factory(market="std", engine="next")` 的标准市场兼容层 MVP，默认 factory 路径仍保持 legacy。
+- 已实现 `Quotes.factory(market="std", engine="next")` 的标准市场兼容层，标准市场默认 factory 路径已经切到 next。
 - 已通过兼容层接管 `quotes`、`bars`、`stock_count`、`stocks`、`stock_all`、`minute`、`minutes`、`transaction`、`transactions`、`F10C`、`F10`、`xdxr`、`finance`、`index`、`index_bars`、`block`、`k`、`ohlc`、`get_k_data`。
 - 标准市场旧接口当前已全部进入 next engine 兼容层，未覆盖范围主要剩余扩展市场和后续 breaking change 修正项。
-- 已补充兼容层单测、旧入口 live smoke、阶段验收报告与 nightly workflow，当前结论为“允许 opt-in 试运行，不允许默认切换”。
+- 已补充兼容层单测、旧入口 live smoke、阶段验收报告与 nightly workflow；后续解耦、矩阵和默认切换验收均已通过。
 
 ## 周级执行规则
 

@@ -4,6 +4,8 @@
 
 实现了历史财务数据列表的读取，使用方式
 
+目录和文件默认来自通达信官方 HTTPS 服务；旧 GP socket 下载线路已经废弃。
+
 ```python
 from mootdx.affair import Affair
 

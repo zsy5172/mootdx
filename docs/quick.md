@@ -6,6 +6,8 @@
 python -m mootdx bestip -vv
 ```
 
+该命令主动刷新当前进程的 next 候选 IP 注册表，结果缓存 10 分钟，不会写入旧版 `BESTIP` 配置。
+
 ## 离线数据读取
 
 ```python
@@ -39,7 +41,7 @@ client = Quotes.factory(market='std', multithread=True, heartbeat=True, bestip=T
 client.bars(symbol='600036', frequency=9, offset=10)
 
 # 指数
-client.index(symbol='000001', frequency=9)
+client.index(symbol='000001', market=1, frequency=9)
 
 # 分钟
 client.minute(symbol='000001')
@@ -61,3 +63,5 @@ Affair.fetch(downdir='tmp', filename='gpcw19960630.zip')
 # 下载全部
 Affair.fetch(downdir='tmp')
 ```
+
+财务目录和文件由 next 财务客户端通过通达信官方 HTTPS 服务读取，并校验文件大小与 MD5。

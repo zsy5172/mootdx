@@ -1,5 +1,5 @@
 site_name: MOOTDX
-site_description: 基于 Pytdx 数据接口的二次封装
+site_description: 通达信标准市场 next SDK 与本地数据读取工具
 
 theme: readthedocs
 
@@ -12,6 +12,7 @@ nav:
 
   - 开发计划:
     - 核心重构计划: rewrite-plan.md
+    - Next 测试矩阵: next-test-matrix.md
     - 旧版行为缺陷: legacy-bugs.md
     - F10 接口现状: f10-status.md
     - Week 9 性能记录: perf-week9.md
