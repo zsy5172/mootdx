@@ -16,11 +16,14 @@ XDXR_SMOKE_SPEC_PATH = ROOT / "compat" / "specs" / "xdxr" / "sh_600036.json"
 SPEC_ROOT = ROOT / "compat" / "specs"
 CORPUS_ROOT = ROOT / "compat" / "corpus"
 ARTIFACTS_DIR = ROOT / "compat" / "artifacts"
+READER_BASELINE_DIR = ROOT / "compat" / "reader_baselines" / "v1"
 DOCKERFILE = ROOT / "compat" / "docker" / "legacy-baseline.Dockerfile"
 LEGACY_IMAGE = "mootdx-legacy-baseline:py311"
 CONTAINER_SPEC_ROOT = Path("/workspace/compat/specs")
 CONTAINER_CORPUS_ROOT = Path("/workspace/compat/corpus")
 CONTAINER_ARTIFACTS_DIR = Path("/workspace/compat/artifacts")
+CONTAINER_READER_BASELINE_DIR = Path("/workspace/compat/reader_baselines/v1")
+CONTAINER_READER_FIXTURES = Path("/workspace/tests/fixtures")
 NEXT_INSTALL = "."
 LEGACY_INSTALL = ".[legacy]"
 
@@ -137,6 +140,45 @@ def baseline_capture(session: nox.Session) -> None:
         str(CONTAINER_ARTIFACTS_DIR),
         external=True,
     )
+
+
+@nox.session(python=["3.13"])
+def reader_baseline_capture(session: nox.Session) -> None:
+    if not _docker_available():
+        session.skip("docker is required for the legacy reader baseline")
+
+    session.run(
+        "docker",
+        "build",
+        "-f",
+        str(DOCKERFILE),
+        "-t",
+        LEGACY_IMAGE,
+        ".",
+        external=True,
+    )
+    session.run(
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{ROOT}:/workspace",
+        "-w",
+        "/tmp",
+        "--entrypoint",
+        "python",
+        LEGACY_IMAGE,
+        "-m",
+        "compat.runners.run_reader_capture",
+        "--runtime",
+        "legacy",
+        "--tdxdir",
+        str(CONTAINER_READER_FIXTURES),
+        "--output-dir",
+        str(CONTAINER_READER_BASELINE_DIR),
+        external=True,
+    )
+    session.log(f"reader baselines written to {READER_BASELINE_DIR}")
 
 
 @nox.session(python=["3.13"])
@@ -323,6 +365,7 @@ def next_matrix(session: nox.Session) -> None:
         "tests/core_engine/test_next_adapter_matrix.py",
         "tests/core_engine/test_report_file_client.py",
         "tests/compat/test_matrix.py",
+        "tests/compat/test_reader_baseline.py",
         "-q",
     )
 

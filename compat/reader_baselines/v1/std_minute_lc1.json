@@ -1,0 +1,98 @@
+{
+  "case_id": "std_minute_lc1",
+  "api": "reader.minute",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "dict",
+  "result": {
+    "columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "amount",
+      "volume"
+    ],
+    "index_name": "date",
+    "index_type": "DatetimeIndex",
+    "row_count": 2880,
+    "first_index": [
+      "2021-04-23T09:31:00",
+      "2021-04-23T09:32:00",
+      "2021-04-23T09:33:00"
+    ],
+    "last_index": [
+      "2021-06-03T14:58:00",
+      "2021-06-03T14:59:00",
+      "2021-06-03T15:00:00"
+    ],
+    "first_records": [
+      {
+        "open": 36.709999084472656,
+        "high": 37.02000045776367,
+        "low": 36.709999084472656,
+        "close": 36.79999923706055,
+        "amount": 256647.0,
+        "volume": 7000
+      },
+      {
+        "open": 36.79999923706055,
+        "high": 36.79999923706055,
+        "low": 36.75,
+        "close": 36.75,
+        "amount": 40737.0,
+        "volume": 1100
+      },
+      {
+        "open": 36.75,
+        "high": 36.75,
+        "low": 36.709999084472656,
+        "close": 36.720001220703125,
+        "amount": 194798.0,
+        "volume": 5300
+      }
+    ],
+    "last_records": [
+      {
+        "open": 36.70000076293945,
+        "high": 36.70000076293945,
+        "low": 36.70000076293945,
+        "close": 36.70000076293945,
+        "amount": 0.0,
+        "volume": 0
+      },
+      {
+        "open": 36.70000076293945,
+        "high": 36.70000076293945,
+        "low": 36.70000076293945,
+        "close": 36.70000076293945,
+        "amount": 0.0,
+        "volume": 0
+      },
+      {
+        "open": 36.650001525878906,
+        "high": 36.650001525878906,
+        "low": 36.650001525878906,
+        "close": 36.650001525878906,
+        "amount": 167088.0,
+        "volume": 4500
+      }
+    ],
+    "sha256": "ca5bbb68ba055e4f13ac579cb3c5d58c2af5217c4abdc1d746b48d75b79530a7"
+  },
+  "error": null,
+  "reader_case": {
+    "market": "std",
+    "method": "minute",
+    "kwargs": {
+      "symbol": "688001",
+      "suffix": "1"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}

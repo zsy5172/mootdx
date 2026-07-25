@@ -1,0 +1,111 @@
+{
+  "case_id": "ext_daily",
+  "api": "reader.daily",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "dict",
+  "result": {
+    "columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "amount",
+      "volume",
+      "jiesuan",
+      "hk_stock_amount"
+    ],
+    "index_name": "date",
+    "index_type": "DatetimeIndex",
+    "row_count": 3,
+    "first_index": [
+      "2021-06-01T00:00:00",
+      "2021-06-02T00:00:00",
+      "2021-06-03T00:00:00"
+    ],
+    "last_index": [
+      "2021-06-01T00:00:00",
+      "2021-06-02T00:00:00",
+      "2021-06-03T00:00:00"
+    ],
+    "first_records": [
+      {
+        "open": 206.0,
+        "high": 213.0,
+        "low": 200.0,
+        "close": 200.0,
+        "amount": 266,
+        "volume": 45,
+        "jiesuan": 210.0,
+        "hk_stock_amount": 3.7274539151040134e-43
+      },
+      {
+        "open": 184.0,
+        "high": 190.0,
+        "low": 176.0,
+        "close": 176.0,
+        "amount": 294,
+        "volume": 68,
+        "jiesuan": 182.0,
+        "hk_stock_amount": 4.119817485114962e-43
+      },
+      {
+        "open": 151.0,
+        "high": 151.0,
+        "low": 151.0,
+        "close": 151.0,
+        "amount": 284,
+        "volume": 2,
+        "jiesuan": 151.0,
+        "hk_stock_amount": 3.9796876386824805e-43
+      }
+    ],
+    "last_records": [
+      {
+        "open": 206.0,
+        "high": 213.0,
+        "low": 200.0,
+        "close": 200.0,
+        "amount": 266,
+        "volume": 45,
+        "jiesuan": 210.0,
+        "hk_stock_amount": 3.7274539151040134e-43
+      },
+      {
+        "open": 184.0,
+        "high": 190.0,
+        "low": 176.0,
+        "close": 176.0,
+        "amount": 294,
+        "volume": 68,
+        "jiesuan": 182.0,
+        "hk_stock_amount": 4.119817485114962e-43
+      },
+      {
+        "open": 151.0,
+        "high": 151.0,
+        "low": 151.0,
+        "close": 151.0,
+        "amount": 284,
+        "volume": 2,
+        "jiesuan": 151.0,
+        "hk_stock_amount": 3.9796876386824805e-43
+      }
+    ],
+    "sha256": "3901b46fac1f4be1c493c50b48be20ac1d832a3870fd7279b9882bc6a0305015"
+  },
+  "error": null,
+  "reader_case": {
+    "market": "ext",
+    "method": "daily",
+    "kwargs": {
+      "symbol": "4#CF7D0LAO"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}

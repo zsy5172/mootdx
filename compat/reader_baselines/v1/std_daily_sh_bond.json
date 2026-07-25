@@ -1,0 +1,97 @@
+{
+  "case_id": "std_daily_sh_bond",
+  "api": "reader.daily",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "dict",
+  "result": {
+    "columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "amount",
+      "volume"
+    ],
+    "index_name": "date",
+    "index_type": "DatetimeIndex",
+    "row_count": 4995,
+    "first_index": [
+      "2000-02-14T00:00:00",
+      "2000-02-15T00:00:00",
+      "2000-02-16T00:00:00"
+    ],
+    "last_index": [
+      "2021-05-12T00:00:00",
+      "2021-05-13T00:00:00",
+      "2021-05-14T00:00:00"
+    ],
+    "first_records": [
+      {
+        "open": 1.92,
+        "high": 2.0380000000000003,
+        "low": 1.87,
+        "close": 2.037,
+        "amount": 460704992.0,
+        "volume": 233709.0
+      },
+      {
+        "open": 2.05,
+        "high": 2.101,
+        "low": 1.9100000000000001,
+        "close": 1.944,
+        "amount": 703966016.0,
+        "volume": 350732.0
+      },
+      {
+        "open": 1.93,
+        "high": 1.93,
+        "low": 1.856,
+        "close": 1.883,
+        "amount": 404820000.0,
+        "volume": 215392.0
+      }
+    ],
+    "last_records": [
+      {
+        "open": 2.329,
+        "high": 2.364,
+        "low": 2.2880000000000003,
+        "close": 2.355,
+        "amount": 1245517696.0,
+        "volume": 533265.26
+      },
+      {
+        "open": 2.352,
+        "high": 2.359,
+        "low": 2.2840000000000003,
+        "close": 2.307,
+        "amount": 1271946240.0,
+        "volume": 549652.5
+      },
+      {
+        "open": 2.314,
+        "high": 2.343,
+        "low": 2.2600000000000002,
+        "close": 2.332,
+        "amount": 1300250880.0,
+        "volume": 563785.36
+      }
+    ],
+    "sha256": "55537c27f7932d73e06bb7991883ef78a1dc514fa0adea672e27db026601a492"
+  },
+  "error": null,
+  "reader_case": {
+    "market": "std",
+    "method": "daily",
+    "kwargs": {
+      "symbol": "127021"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}

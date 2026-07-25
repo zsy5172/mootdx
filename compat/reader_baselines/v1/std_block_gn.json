@@ -1,0 +1,83 @@
+{
+  "case_id": "std_block_gn",
+  "api": "reader.block",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "dict",
+  "result": {
+    "columns": [
+      "blockname",
+      "block_type",
+      "code_index",
+      "code"
+    ],
+    "index_name": null,
+    "index_type": "RangeIndex",
+    "row_count": 18859,
+    "first_index": [
+      0,
+      1,
+      2
+    ],
+    "last_index": [
+      18856,
+      18857,
+      18858
+    ],
+    "first_records": [
+      {
+        "blockname": "通达信88",
+        "block_type": 2,
+        "code_index": 0,
+        "code": "000002"
+      },
+      {
+        "blockname": "通达信88",
+        "block_type": 2,
+        "code_index": 1,
+        "code": "000021"
+      },
+      {
+        "blockname": "通达信88",
+        "block_type": 2,
+        "code_index": 2,
+        "code": "000062"
+      }
+    ],
+    "last_records": [
+      {
+        "blockname": "肝炎概念",
+        "block_type": 2,
+        "code_index": 42,
+        "code": "688687"
+      },
+      {
+        "blockname": "肝炎概念",
+        "block_type": 2,
+        "code_index": 43,
+        "code": "688767"
+      },
+      {
+        "blockname": "肝炎概念",
+        "block_type": 2,
+        "code_index": 44,
+        "code": "688799"
+      }
+    ],
+    "sha256": "ede166d638544ce034b864fe422f2c5365189aa900ea2a5c4d963fb96998cd1f"
+  },
+  "error": null,
+  "reader_case": {
+    "market": "std",
+    "method": "block",
+    "kwargs": {
+      "symbol": "block_gn.dat"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}

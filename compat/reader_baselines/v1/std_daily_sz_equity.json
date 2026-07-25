@@ -1,0 +1,97 @@
+{
+  "case_id": "std_daily_sz_equity",
+  "api": "reader.daily",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "dict",
+  "result": {
+    "columns": [
+      "open",
+      "high",
+      "low",
+      "close",
+      "amount",
+      "volume"
+    ],
+    "index_name": "date",
+    "index_type": "DatetimeIndex",
+    "row_count": 4995,
+    "first_index": [
+      "2000-02-14T00:00:00",
+      "2000-02-15T00:00:00",
+      "2000-02-16T00:00:00"
+    ],
+    "last_index": [
+      "2021-05-12T00:00:00",
+      "2021-05-13T00:00:00",
+      "2021-05-14T00:00:00"
+    ],
+    "first_records": [
+      {
+        "open": 19.2,
+        "high": 20.38,
+        "low": 18.7,
+        "close": 20.37,
+        "amount": 460704992.0,
+        "volume": 233709.0
+      },
+      {
+        "open": 20.5,
+        "high": 21.01,
+        "low": 19.1,
+        "close": 19.44,
+        "amount": 703966016.0,
+        "volume": 350732.0
+      },
+      {
+        "open": 19.3,
+        "high": 19.3,
+        "low": 18.56,
+        "close": 18.830000000000002,
+        "amount": 404820000.0,
+        "volume": 215392.0
+      }
+    ],
+    "last_records": [
+      {
+        "open": 23.29,
+        "high": 23.64,
+        "low": 22.88,
+        "close": 23.55,
+        "amount": 1245517696.0,
+        "volume": 533265.26
+      },
+      {
+        "open": 23.52,
+        "high": 23.59,
+        "low": 22.84,
+        "close": 23.07,
+        "amount": 1271946240.0,
+        "volume": 549652.5
+      },
+      {
+        "open": 23.14,
+        "high": 23.43,
+        "low": 22.6,
+        "close": 23.32,
+        "amount": 1300250880.0,
+        "volume": 563785.36
+      }
+    ],
+    "sha256": "6550ca57faab6f94da350325e6e41ea8196b8733e28d5e4c7e226b766576046a"
+  },
+  "error": null,
+  "reader_case": {
+    "market": "std",
+    "method": "daily",
+    "kwargs": {
+      "symbol": "000001"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}

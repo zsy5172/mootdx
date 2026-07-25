@@ -1,0 +1,22 @@
+{
+  "case_id": "ext_minute_missing",
+  "api": "reader.minute",
+  "comparator": "scalar_exact",
+  "status": "ok",
+  "result_type": "null",
+  "result": null,
+  "error": null,
+  "reader_case": {
+    "market": "ext",
+    "method": "minute",
+    "kwargs": {
+      "symbol": "4#CF7D0LAO"
+    }
+  },
+  "backend": "mootdx-legacy-reader",
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  }
+}
