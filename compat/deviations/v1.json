@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "baseline": {
+    "python": "3.11",
+    "mootdx": "0.11.7",
+    "tdxpy": "0.2.7"
+  },
+  "deviations": [
+    {
+      "id": "empty-minute-file-frame",
+      "apis": ["reader.minute"],
+      "case_ids": ["empty_std_minute", "empty_lc_minute"],
+      "legacy_behavior": "A zero-length minute file raises while trying to access a missing date column.",
+      "next_behavior": "A zero-length minute file returns an empty DataFrame with the normal minute schema and DatetimeIndex.",
+      "rationale": "An empty but valid local dataset is not a malformed file.",
+      "evidence": ["The record count is exactly zero and the binary format permits zero records."],
+      "regression_tests": ["tests/core_engine/test_next_local_readers.py"],
+      "allowed_paths": ["status", "result_type", "result", "error"],
+      "status": "accepted"
+    },
+    {
+      "id": "historical-kline-date-pagination",
+      "apis": ["get_k_data", "k", "ohlc"],
+      "case_ids": ["historical_date_window"],
+      "legacy_behavior": "Date windows can be translated into an incorrect server offset and return the wrong or empty period.",
+      "next_behavior": "The client pages backward from the newest data and filters the requested inclusive date interval.",
+      "rationale": "Server offsets are record offsets, not calendar-day offsets.",
+      "evidence": ["Captured TDX bar pages and their decoded trading dates."],
+      "regression_tests": ["tests/core_engine/test_quotes_compat.py"],
+      "allowed_paths": ["result"],
+      "status": "accepted"
+    },
+    {
+      "id": "transaction-window-limits",
+      "apis": ["transaction", "transactions"],
+      "case_ids": ["window_boundary"],
+      "legacy_behavior": "The compatibility layer clamps or applies a shared page limit.",
+      "next_behavior": "Realtime transaction accepts 1-1800 and historical transactions accepts 1-2000; values outside the ranges raise.",
+      "rationale": "The two TDX commands have different protocol limits.",
+      "evidence": ["Live command probes at the accepted and rejected boundaries."],
+      "regression_tests": ["tests/core_engine/test_sync_client_transaction_apis.py"],
+      "allowed_paths": ["status", "result", "error"],
+      "status": "accepted"
+    },
+    {
+      "id": "transaction-session-boundaries",
+      "apis": ["transaction", "transactions"],
+      "case_ids": ["session_boundary"],
+      "legacy_behavior": "09:30 and 13:00 are rejected, and historical transactions can be blocked by the current local time.",
+      "next_behavior": "Session starts are included and historical transactions are never gated by the current session.",
+      "rationale": "Historical data is independent of the current session and official sessions include their opening instant.",
+      "evidence": ["Shanghai and Shenzhen exchange trading-session definitions."],
+      "regression_tests": ["tests/core_engine/test_session.py", "tests/core_engine/test_sync_client_transaction_apis.py"],
+      "allowed_paths": ["status", "result", "error"],
+      "status": "accepted"
+    },
+    {
+      "id": "hq-legacy-identity-payload",
+      "apis": ["quotes", "bars"],
+      "case_ids": ["server_capability_probe"],
+      "legacy_behavior": "Advertising the obsolete 42-byte identity payload causes most current HQ nodes to downgrade quotes and bars to empty status packets.",
+      "next_behavior": "The obsolete payload is not sent and only nodes returning decodable quote and bar data enter the default candidate list.",
+      "rationale": "Current TDX nodes accept the two setup packets and return real data without the obsolete identity payload.",
+      "evidence": ["2026-07-20 multi-node live audit and captured response packet sizes."],
+      "regression_tests": ["tests/core_engine/test_transport_setup.py", "tests/core_engine/test_candidate_registry.py"],
+      "allowed_paths": ["status", "result", "error"],
+      "status": "accepted"
+    },
+    {
+      "id": "next-adjustment-corrections",
+      "apis": ["bars", "minutes", "get_k_data", "k", "ohlc"],
+      "case_ids": ["adjustment_matrix"],
+      "legacy_behavior": "ETF affine actions, period aggregation, symbol normalization and some Pandas joins produce incorrect adjusted prices.",
+      "next_behavior": "Daily prices are adjusted before period aggregation, ETF affine actions are applied once, and symbol forms share one canonical factor snapshot.",
+      "rationale": "The corrected transformations follow the corporate-action formula and preserve OHLC aggregation invariants.",
+      "evidence": ["TDX xdxr fields, ex-date formulas, and fixture-based OHLC invariants."],
+      "regression_tests": ["tests/core_engine/test_next_adjustments.py"],
+      "allowed_paths": ["result"],
+      "status": "accepted"
+    },
+    {
+      "id": "financial-https-recovery",
+      "apis": ["affair.files", "affair.fetch"],
+      "case_ids": ["financial_catalog", "financial_download"],
+      "legacy_behavior": "The retired GP socket route raises an unsupported-service error.",
+      "next_behavior": "The official TDX HTTPS catalog and files are downloaded with size and MD5 verification.",
+      "rationale": "TDX continues to publish the financial files over its official HTTPS endpoint.",
+      "evidence": ["https://data.tdx.com.cn/tdxfin/gpcw.txt"],
+      "regression_tests": ["tests/core_engine/test_next_financial_files.py"],
+      "allowed_paths": ["status", "result_type", "result", "error"],
+      "status": "accepted"
+    }
+  ]
+}

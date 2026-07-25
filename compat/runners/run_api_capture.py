@@ -55,7 +55,12 @@ def _compare_live_decode(args: argparse.Namespace) -> int:
     if args.right_output:
         write_json(args.right_output, right)
 
-    diffs = compare_payloads(left, right, spec["comparator"])
+    diffs = compare_payloads(
+        left,
+        right,
+        spec["comparator"],
+        deviation_id=spec.get("deviation"),
+    )
     if diffs:
         print(f"[FAIL] {spec['api']}/{spec['case_id']}")
         for diff in diffs:
@@ -83,7 +88,11 @@ def _replay(args: argparse.Namespace) -> int:
             actual_path = Path(args.corpus_root) / spec["api"] / spec["case_id"] / ".tmp_actual.json"
             write_json(actual_path, artifact)
 
-        diffs = compare_artifact_files(actual_path, expected)
+        diffs = compare_artifact_files(
+            actual_path,
+            expected,
+            deviation_id=spec.get("deviation"),
+        )
         if actual_path.name == ".tmp_actual.json":
             actual_path.unlink(missing_ok=True)
 

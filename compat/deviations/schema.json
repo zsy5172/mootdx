@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mootdx compatibility deviations",
+  "type": "object",
+  "required": ["version", "baseline", "deviations"],
+  "properties": {
+    "version": {"const": 1},
+    "baseline": {
+      "type": "object",
+      "required": ["python", "mootdx", "tdxpy"],
+      "properties": {
+        "python": {"const": "3.11"},
+        "mootdx": {"const": "0.11.7"},
+        "tdxpy": {"const": "0.2.7"}
+      },
+      "additionalProperties": false
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "apis",
+          "case_ids",
+          "legacy_behavior",
+          "next_behavior",
+          "rationale",
+          "evidence",
+          "regression_tests",
+          "allowed_paths",
+          "status"
+        ],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "apis": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "case_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "legacy_behavior": {"type": "string", "minLength": 1},
+          "next_behavior": {"type": "string", "minLength": 1},
+          "rationale": {"type": "string", "minLength": 1},
+          "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "regression_tests": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "allowed_paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "status": {"enum": ["accepted", "retired"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -10,9 +10,15 @@ def main() -> int:
     parser.add_argument("--left", required=True)
     parser.add_argument("--right", required=True)
     parser.add_argument("--profile")
+    parser.add_argument("--deviation")
     args = parser.parse_args()
 
-    diffs = compare_artifact_files(args.left, args.right, profile=args.profile)
+    diffs = compare_artifact_files(
+        args.left,
+        args.right,
+        profile=args.profile,
+        deviation_id=args.deviation,
+    )
 
     if diffs:
         print("Artifacts differ")

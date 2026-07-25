@@ -20,19 +20,6 @@ from mootdx.utils import get_frequency
 from mootdx.utils import get_stock_market
 from mootdx.utils import get_stock_markets
 from mootdx.utils import to_data
-from mootdx_next import bars_to_frame
-from mootdx_next import block_to_frame
-from mootdx_next import f10_categories_to_frame
-from mootdx_next import finance_to_frame
-from mootdx_next import minutes_to_frame
-from mootdx_next import ServerEndpoint
-from mootdx_next import StdQuoteProtocol
-from mootdx_next import SyncClient
-from mootdx_next import quotes_to_frame
-from mootdx_next import stocks_to_frame
-from mootdx_next import transaction_to_frame
-from mootdx_next import transactions_to_frame
-from mootdx_next import xdxr_to_frame
 from tdxpy.parser.std.get_block_info import GetBlockInfo
 from tdxpy.parser.std.get_block_info import GetBlockInfoMeta
 from tdxpy.parser.std.get_company_info_category import GetCompanyInfoCategory
@@ -234,7 +221,10 @@ def _build_client(spec: dict[str, Any], runtime: str = "legacy") -> Any:
     return Quotes.factory(**factory_kwargs)
 
 
-def _build_next_client(spec: dict[str, Any]) -> SyncClient:
+def _build_next_client(spec: dict[str, Any]) -> Any:
+    from mootdx_next import ServerEndpoint
+    from mootdx_next import SyncClient
+
     if spec["api"] not in {
         "stock_count",
         "stocks",
@@ -878,6 +868,18 @@ def _aggregate_case(spec: dict[str, Any], steps: list[dict[str, Any]]) -> Any:
 
 
 def _result_from_captured_steps_next(spec: dict[str, Any], steps: list[StepCapture]) -> Any:
+    from mootdx_next import bars_to_frame
+    from mootdx_next import block_to_frame
+    from mootdx_next import f10_categories_to_frame
+    from mootdx_next import finance_to_frame
+    from mootdx_next import minutes_to_frame
+    from mootdx_next import quotes_to_frame
+    from mootdx_next import stocks_to_frame
+    from mootdx_next import StdQuoteProtocol
+    from mootdx_next import transaction_to_frame
+    from mootdx_next import transactions_to_frame
+    from mootdx_next import xdxr_to_frame
+
     protocol = StdQuoteProtocol()
     api = spec["api"]
 
@@ -965,6 +967,17 @@ def _result_from_captured_steps_next(spec: dict[str, Any], steps: list[StepCaptu
 def _normalize_next_result_for_artifact(spec: dict[str, Any], result: Any, runtime: str) -> Any:
     if runtime != "next":
         return result
+
+    from mootdx_next import bars_to_frame
+    from mootdx_next import block_to_frame
+    from mootdx_next import f10_categories_to_frame
+    from mootdx_next import finance_to_frame
+    from mootdx_next import minutes_to_frame
+    from mootdx_next import quotes_to_frame
+    from mootdx_next import stocks_to_frame
+    from mootdx_next import transaction_to_frame
+    from mootdx_next import transactions_to_frame
+    from mootdx_next import xdxr_to_frame
 
     if spec["api"] == "stocks":
         return stocks_to_frame(result)

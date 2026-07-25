@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from compat.common import load_json
+from compat.deviation_registry import DeviationRegistry
 
 
 def _is_nan_like(value: Any) -> bool:
@@ -54,6 +55,9 @@ def compare_payloads(
     left: dict[str, Any],
     right: dict[str, Any],
     profile: str,
+    *,
+    deviation_id: str | None = None,
+    registry: DeviationRegistry | None = None,
 ) -> list[str]:
     if profile not in {"scalar_exact", "table_exact", "quotes_snapshot_exact"}:
         return [f"unsupported comparator profile: {profile}"]
@@ -64,18 +68,54 @@ def compare_payloads(
 
     if left.get("status") == "error" or right.get("status") == "error":
         diffs.extend(_diff_values(left.get("error"), right.get("error"), "error"))
-        return diffs
+        return _filter_declared_diffs(
+            diffs,
+            left,
+            right,
+            deviation_id=deviation_id,
+            registry=registry,
+        )
 
     diffs.extend(_diff_values(left.get("result"), right.get("result"), "result"))
-    return diffs
+    return _filter_declared_diffs(
+        diffs,
+        left,
+        right,
+        deviation_id=deviation_id,
+        registry=registry,
+    )
+
+
+def _filter_declared_diffs(
+    diffs: list[str],
+    left: dict[str, Any],
+    right: dict[str, Any],
+    *,
+    deviation_id: str | None,
+    registry: DeviationRegistry | None,
+) -> list[str]:
+    if deviation_id is None:
+        return diffs
+
+    active_registry = registry or DeviationRegistry.load()
+    api = str(left.get("api") or right.get("api") or "")
+    case_id = str(left.get("case_id") or right.get("case_id") or "")
+    return active_registry.filter_diffs(
+        diffs,
+        deviation_id=deviation_id,
+        api=api,
+        case_id=case_id,
+    )
 
 
 def compare_artifact_files(
     left_path: str | Path,
     right_path: str | Path,
     profile: str | None = None,
+    *,
+    deviation_id: str | None = None,
 ) -> list[str]:
     left = load_json(left_path)
     right = load_json(right_path)
     comparator = profile or left.get("comparator") or right.get("comparator") or "scalar_exact"
-    return compare_payloads(left, right, comparator)
+    return compare_payloads(left, right, comparator, deviation_id=deviation_id)
