@@ -6,13 +6,17 @@ import pandas as pd
 import pytest
 
 import mootdx.quotes as quotes_module
-import mootdx.server as server_module
+import mootdx_next.api.pandas as pandas_api_module
+import mootdx_next.candidates as candidates_module
 from mootdx.consts import HQ_HOSTS
 from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import NextStdQuotes
 from mootdx.quotes import Quotes
+from mootdx_next import CandidateRegistry
 from mootdx_next import invalidate_hq_candidates
 from mootdx_next import refresh_hq_candidates
+from mootdx_next import ServerCandidate
+from mootdx_next import ServerEndpoint
 
 
 class DummyNextClient:
@@ -159,21 +163,27 @@ def test_next_factory_bestip_probes_without_writing_legacy_config(monkeypatch) -
     calls = []
     original_config = quotes_module.config.clone()
     responses = [
-        [(HQ_HOSTS[1][1], HQ_HOSTS[1][2]), (HQ_HOSTS[0][1], HQ_HOSTS[0][2])],
-        [(HQ_HOSTS[2][1], HQ_HOSTS[2][2]), (HQ_HOSTS[0][1], HQ_HOSTS[0][2])],
+        [
+            ServerCandidate(HQ_HOSTS[1][1], HQ_HOSTS[1][2], HQ_HOSTS[1][0]),
+            ServerCandidate(HQ_HOSTS[0][1], HQ_HOSTS[0][2], HQ_HOSTS[0][0]),
+        ],
+        [
+            ServerCandidate(HQ_HOSTS[2][1], HQ_HOSTS[2][2], HQ_HOSTS[2][0]),
+            ServerCandidate(HQ_HOSTS[0][1], HQ_HOSTS[0][2], HQ_HOSTS[0][0]),
+        ],
     ]
 
-    def probe(index=None, limit=5, console=False, sync=False):
-        calls.append({"index": index, "limit": limit, "console": console, "sync": sync})
+    def probe():
+        calls.append(len(calls) + 1)
         return responses[len(calls) - 1]
 
-    monkeypatch.setattr(server_module, "server", probe)
-    invalidate_hq_candidates()
+    registry = CandidateRegistry(probe)
+    monkeypatch.setattr(candidates_module, "_hq_candidate_registry", registry)
 
     first = Quotes.factory(market="std", engine="next", bestip=True)
     second = Quotes.factory(market="std", engine="next", bestip=True)
     try:
-        assert calls == [{"index": "HQ", "limit": 5, "console": False, "sync": False}]
+        assert calls == [1]
         assert first.bestip == (HQ_HOSTS[1][1], HQ_HOSTS[1][2])
         assert second.bestip == first.bestip
         assert [(server.host, server.port) for server in first.client.scheduler.servers] == [
@@ -204,13 +214,13 @@ def test_next_factory_respects_explicit_server(monkeypatch) -> None:
     def fail_probe(*args, **kwargs) -> None:
         pytest.fail("an explicit server must take precedence over bestip probing")
 
-    monkeypatch.setattr(server_module, "server", fail_probe)
+    monkeypatch.setattr(pandas_api_module, "get_hq_candidates", fail_probe)
     client = Quotes.factory(market="std", engine="next", server=("127.0.0.1", 7709), bestip=True)
     try:
         assert client.server == ("127.0.0.1", 7709)
         assert client.bestip == ("127.0.0.1", 7709)
         assert client.client.scheduler.servers == [
-            quotes_module.ServerEndpoint(host="127.0.0.1", port=7709, label="std-next")
+            ServerEndpoint(host="127.0.0.1", port=7709, label="std-next")
         ]
     finally:
         client.close()
@@ -321,7 +331,7 @@ def test_next_get_k_data_pages_back_until_requested_history(monkeypatch) -> None
                 for value in pages.get(start, [])
             ]
 
-    monkeypatch.setattr(quotes_module, "_KLINE_PAGE_SIZE", 2)
+    monkeypatch.setattr(pandas_api_module, "KLINE_PAGE_SIZE", 2)
     engine_client = PagedBarsClient()
     client = NextStdQuotes(server=("127.0.0.1", 7709), engine_client=engine_client)
 

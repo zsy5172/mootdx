@@ -10,6 +10,8 @@ import pytest
 import mootdx_next.api.clients as clients_module
 from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import NextStdQuotes
+from mootdx_next.api.pandas import AsyncPandasClient
+from mootdx_next.api.pandas import PandasClient
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import InvalidDateError
@@ -69,10 +71,12 @@ ASYNC_PUBLIC_API = {
     "f10_content",
 }
 
-NEXT_FACADE_PUBLIC_API = {
+PANDAS_PUBLIC_API = {
     "closed",
+    "raw_client",
     "close",
     "reconnect",
+    "metrics",
     "traffic",
     "quotes",
     "bars",
@@ -83,6 +87,8 @@ NEXT_FACADE_PUBLIC_API = {
     "minutes",
     "transaction",
     "transactions",
+    "f10_categories",
+    "f10_content",
     "F10C",
     "F10",
     "xdxr",
@@ -106,7 +112,10 @@ def _public_api(owner: type) -> set[str]:
 def test_public_api_inventory_requires_matrix_updates_for_new_methods() -> None:
     assert _public_api(SyncClient) == SYNC_PUBLIC_API
     assert _public_api(AsyncClient) == ASYNC_PUBLIC_API
-    assert _public_api(NextStdQuotes) == NEXT_FACADE_PUBLIC_API
+    assert _public_api(PandasClient) == PANDAS_PUBLIC_API
+    assert _public_api(AsyncPandasClient) == PANDAS_PUBLIC_API
+    assert _public_api(NextStdQuotes) == set()
+    assert issubclass(NextStdQuotes, PandasClient)
 
 
 def test_async_business_api_has_full_sync_parity() -> None:
