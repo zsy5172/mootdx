@@ -4,10 +4,21 @@ import threading
 import time
 from collections.abc import Callable
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from dataclasses import dataclass
+
+from mootdx_next.constants import HQ_HOSTS
+from mootdx_next.models import RequestContext
+from mootdx_next.models import ServerEndpoint
+from mootdx_next.protocol.std_quotes import StdQuoteProtocol
+from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 HQ_CANDIDATE_TTL_SECONDS = 10 * 60
 HQ_CANDIDATE_LIMIT = 5
+HQ_PROBE_TIMEOUT_MS = 1200
+HQ_PROBE_WORKERS = 12
+HQ_PROBE_SYMBOL = "600036"
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +26,7 @@ class ServerCandidate:
     host: str
     port: int
     label: str | None = None
+    latency_ms: float | None = None
 
 
 CandidateSnapshot = tuple[ServerCandidate, ...]
@@ -96,6 +108,7 @@ class CandidateRegistry:
                 host=str(candidate.host),
                 port=int(candidate.port),
                 label=candidate.label,
+                latency_ms=None if candidate.latency_ms is None else float(candidate.latency_ms),
             )
             key = (item.host, item.port)
             if key in seen:
@@ -107,14 +120,67 @@ class CandidateRegistry:
 
 
 def _probe_hq_candidates() -> CandidateSnapshot:
-    from mootdx.consts import HQ_HOSTS
-    from mootdx.server import server as probe_servers
+    candidates: list[ServerCandidate] = []
+    worker_count = min(HQ_PROBE_WORKERS, len(HQ_HOSTS))
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="mootdx-next-probe") as executor:
+        futures = {
+            executor.submit(_probe_one_hq_candidate, label, host, port): (label, host, port)
+            for label, host, port in HQ_HOSTS
+        }
+        for future in as_completed(futures):
+            try:
+                candidate = future.result()
+            except Exception:
+                continue
+            if candidate is not None:
+                candidates.append(candidate)
 
-    addresses = probe_servers(index="HQ", limit=HQ_CANDIDATE_LIMIT, console=False, sync=False)
-    labels = {(host, int(port)): label for label, host, port in HQ_HOSTS}
-    return tuple(
-        ServerCandidate(host=host, port=int(port), label=labels.get((host, int(port)), "std-next"))
-        for host, port in addresses
+    candidates.sort(key=lambda item: item.latency_ms if item.latency_ms is not None else float("inf"))
+    return tuple(candidates[:HQ_CANDIDATE_LIMIT])
+
+
+def _probe_one_hq_candidate(label: str, host: str, port: int) -> ServerCandidate | None:
+    protocol = StdQuoteProtocol()
+    transport = SyncSocketTransport()
+    endpoint = ServerEndpoint(host=host, port=int(port), label=label)
+    started = time.perf_counter()
+    try:
+        quote_context = RequestContext(
+            api="candidate_quotes",
+            params={"symbol": HQ_PROBE_SYMBOL},
+            timeout_ms=HQ_PROBE_TIMEOUT_MS,
+        )
+        quote_payload = protocol.encode("quotes", symbols=[(1, HQ_PROBE_SYMBOL)])
+        quote_envelope = transport.send(quote_context, quote_payload, endpoint)
+        quotes = protocol.decode("quotes", quote_envelope)
+        if not quotes:
+            return None
+
+        bars_context = RequestContext(
+            api="candidate_bars",
+            params={"symbol": HQ_PROBE_SYMBOL, "frequency": 9},
+            timeout_ms=HQ_PROBE_TIMEOUT_MS,
+        )
+        bars_payload = protocol.encode(
+            "bars",
+            frequency=9,
+            market=1,
+            code=HQ_PROBE_SYMBOL,
+            start=0,
+            count=1,
+        )
+        bars_envelope = transport.send(bars_context, bars_payload, endpoint)
+        bars = protocol.decode("bars", bars_envelope, frequency=9)
+        if not bars:
+            return None
+    finally:
+        transport.close()
+
+    return ServerCandidate(
+        host=host,
+        port=int(port),
+        label=label,
+        latency_ms=(time.perf_counter() - started) * 1000,
     )
 
 

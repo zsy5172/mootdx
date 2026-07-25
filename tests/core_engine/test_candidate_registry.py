@@ -7,6 +7,7 @@ import pytest
 
 from mootdx_next.candidates import CandidateRegistry
 from mootdx_next.candidates import ServerCandidate
+import mootdx_next.candidates as candidates_module
 
 
 class Clock:
@@ -99,3 +100,25 @@ def test_registry_allows_only_one_concurrent_initial_load() -> None:
 def test_registry_rejects_non_positive_ttl() -> None:
     with pytest.raises(ValueError, match="ttl_seconds"):
         CandidateRegistry(lambda: (), ttl_seconds=0)
+
+
+def test_native_probe_filters_failed_capabilities_and_sorts_latency(monkeypatch: pytest.MonkeyPatch) -> None:
+    hosts = (
+        ("slow", "1.1.1.1", 7709),
+        ("failed", "2.2.2.2", 7709),
+        ("fast", "3.3.3.3", 7709),
+    )
+
+    def probe(label: str, host: str, port: int):
+        if label == "failed":
+            return None
+        latency = 30.0 if label == "slow" else 10.0
+        return ServerCandidate(host=host, port=port, label=label, latency_ms=latency)
+
+    monkeypatch.setattr(candidates_module, "HQ_HOSTS", hosts)
+    monkeypatch.setattr(candidates_module, "_probe_one_hq_candidate", probe)
+
+    assert candidates_module._probe_hq_candidates() == (
+        ServerCandidate(host="3.3.3.3", port=7709, label="fast", latency_ms=10.0),
+        ServerCandidate(host="1.1.1.1", port=7709, label="slow", latency_ms=30.0),
+    )
