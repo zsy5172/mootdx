@@ -140,6 +140,12 @@ def _probe_hq_candidates() -> CandidateSnapshot:
 
 
 def _probe_one_hq_candidate(label: str, host: str, port: int) -> ServerCandidate | None:
+    return probe_hq_candidate(label, host, port)
+
+
+def probe_hq_candidate(label: str, host: str, port: int) -> ServerCandidate | None:
+    """Probe one standard-market endpoint for both quote and bar capabilities."""
+
     protocol = StdQuoteProtocol()
     transport = SyncSocketTransport()
     endpoint = ServerEndpoint(host=host, port=int(port), label=label)

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 import pandas as pd
 import pytest
 
@@ -12,23 +10,36 @@ from mootdx.consts import HQ_HOSTS
 from mootdx.financial.base import BaseFinancial
 from mootdx.quotes import _resolve_bestip_server
 from mootdx.quotes import check_empty
+from mootdx_next.candidates import ServerCandidate
 
 
-def test_bestip_writes_when_config_conf_is_str(tmp_path, monkeypatch) -> None:
+def test_bestip_refreshes_process_registry_without_writing_config(tmp_path, monkeypatch) -> None:
     output = tmp_path / "config.json"
     monkeypatch.setattr(config_module, "CONF", str(output))
     monkeypatch.setattr(
         server_module,
-        "server",
-        lambda index=None, limit=5, console=False, sync=False: [("1.1.1.1", 7709)] if index == "HQ" else [("2.2.2.2", 7727)],
+        "refresh_hq_candidates",
+        lambda: (
+            ServerCandidate(
+                host="1.1.1.1",
+                port=7709,
+                label="fast",
+                latency_ms=10.0,
+            ),
+        ),
     )
 
     server_module.bestip(sync=True, limit=1, console=False)
 
-    assert output.exists()
-    saved = json.loads(output.read_text(encoding="utf-8"))
-    assert saved["BESTIP"]["HQ"] == ["1.1.1.1", 7709]
-    assert saved["BESTIP"]["EX"] == ["2.2.2.2", 7727]
+    assert output.exists() is False
+    assert server_module.results["HQ"] == [
+        {
+            "addr": "1.1.1.1",
+            "port": 7709,
+            "time": 10.0,
+            "site": "fast",
+        }
+    ]
 
 
 def test_connect2_invalid_index_does_not_raise() -> None:

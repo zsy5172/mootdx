@@ -7,7 +7,7 @@ import pandas as pd
 
 from mootdx import __version__
 from mootdx.logger import logger
-from mootdx.utils import get_config_path, to_file
+from mootdx.utils import to_file
 
 
 try:
@@ -95,9 +95,7 @@ def server(limit, verbose):
         logger.setLevel(logging.DEBUG)
 
     bestip(limit=limit, console=True, sync=False)
-
-    config = get_config_path('config.json')
-    logger.info(f'[√] 已经将最优服务器IP写入配置文件 {config}')
+    logger.info('[√] 测速结果已缓存到当前进程，不写入旧版 BESTIP 配置。')
 
 
 @entry.command(help='财务文件下载&解析.')

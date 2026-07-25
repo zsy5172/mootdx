@@ -1,22 +1,19 @@
 import asyncio
 import functools
-import json
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from pathlib import Path
 
-from mootdx import config
-from mootdx.consts import CONFIG
 from mootdx.consts import EX_HOSTS
 from mootdx.consts import HQ_HOSTS
 from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
+from mootdx_next.candidates import probe_hq_candidate
+from mootdx_next.candidates import refresh_hq_candidates
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.protocol.report_files import decode_ex_instrument_count
-from mootdx_next.protocol.std_quotes import StdQuoteProtocol
 from mootdx_next.transport.constants import EX_INSTRUMENT_COUNT_PAYLOAD
 from mootdx_next.transport.constants import EX_SETUP_PAYLOADS
 from mootdx_next.transport.socket_transport import SyncSocketTransport
@@ -28,7 +25,6 @@ hosts = {
 }
 
 results = {k: [] for k in hosts}
-_std_protocol = StdQuoteProtocol()
 
 
 def callback(res, key):
@@ -115,17 +111,14 @@ def _build_server_endpoint(proxy: dict) -> ServerEndpoint:
 
 
 def _probe_hq(proxy: dict) -> bool:
-    transport = SyncSocketTransport()
-    server = _build_server_endpoint(proxy)
-    try:
-        envelope = transport.send(
-            RequestContext(api='stock_count', params={'market': 0}, timeout_ms=700),
-            _std_protocol.encode('stock_count', market=0),
-            server,
+    return (
+        probe_hq_candidate(
+            str(proxy.get('site') or proxy.get('addr')),
+            str(proxy.get('addr')),
+            int(proxy.get('port')),
         )
-        return int(_std_protocol.decode('stock_count', envelope)) > 0
-    finally:
-        transport.close()
+        is not None
+    )
 
 
 def _probe_ex(proxy: dict) -> bool:
@@ -203,27 +196,45 @@ def check_server(console=False, limit=5, sync=False) -> None:
 
 
 def bestip(console=False, limit=5, sync=False) -> None:
-    default = dict(CONFIG)
-
     logger.info('[-] 选择最快的服务器...')
     logger.debug(f'sync => {sync}')
+    candidates = refresh_hq_candidates()
+    selected = candidates[:limit] if limit else candidates
+    results['HQ'] = [
+        {
+            'addr': item.host,
+            'port': item.port,
+            'time': item.latency_ms,
+            'site': item.label or item.host,
+        }
+        for item in selected
+    ]
 
-    for index in ['HQ', 'EX']:
-        try:
-            data = server(index=index, limit=limit, console=console, sync=sync)
+    if console:
+        from prettytable import PrettyTable
 
-            if data:
-                default['BESTIP'][index] = data[0]
-        except RuntimeError:
-            logger.error('请手动运行`python -m mootdx bestip`')
-            break
+        table = PrettyTable(['Name', 'Addr', 'Port', 'Time'])
+        table.align['Name'] = 'l'
+        table.align['Addr'] = 'l'
+        table.align['Port'] = 'l'
+        table.align['Time'] = 'r'
+        table.padding_width = 1
+        for item in results['HQ']:
+            latency = item['time']
+            table.add_row(
+                [
+                    item['site'],
+                    item['addr'],
+                    item['port'],
+                    'n/a' if latency is None else f'{latency:5.2f} ms',
+                ]
+            )
+        logger.debug('\n' + str(table))
 
-    config_path = Path(config.CONF)
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        json.dumps(default, indent=2, ensure_ascii=False),
-        encoding='utf-8',
-    )
+    if candidates:
+        logger.info('[√] 最优服务器已缓存到当前进程，10 分钟内复用。')
+    else:
+        logger.warning('[×] 没有探测到同时支持行情与 K 线的服务器。')
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ from mootdx_next.candidates import CandidateRegistry
 from mootdx_next.candidates import get_hq_candidates
 from mootdx_next.candidates import hq_candidate_snapshot
 from mootdx_next.candidates import invalidate_hq_candidates
+from mootdx_next.candidates import probe_hq_candidate
 from mootdx_next.candidates import refresh_hq_candidates
 from mootdx_next.candidates import ServerCandidate
 from mootdx_next.customize import Customize
@@ -116,6 +117,7 @@ __all__ = [
     "PayloadDecompressionError",
     "PandasClient",
     "PoolExhaustedError",
+    "probe_hq_candidate",
     "ProtocolDecodeError",
     "ProtocolError",
     "RequestContext",
