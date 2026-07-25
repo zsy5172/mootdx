@@ -4,6 +4,8 @@ import math
 import struct
 import zlib
 from dataclasses import dataclass
+from functools import cache
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -20,23 +22,24 @@ from mootdx.utils import get_frequency
 from mootdx.utils import get_stock_market
 from mootdx.utils import get_stock_markets
 from mootdx.utils import to_data
-from tdxpy.parser.std.get_block_info import GetBlockInfo
-from tdxpy.parser.std.get_block_info import GetBlockInfoMeta
-from tdxpy.parser.std.get_company_info_category import GetCompanyInfoCategory
-from tdxpy.parser.std.get_company_info_content import GetCompanyInfoContent
-from tdxpy.parser.std.get_finance_info import GetFinanceInfo
-from tdxpy.parser.std.get_index_bars import GetIndexBarsCmd
-from tdxpy.parser.std.get_security_count import GetSecurityCountCmd
-from tdxpy.parser.std.get_history_minute_time_data import GetHistoryMinuteTimeData
-from tdxpy.parser.std.get_history_transaction_data import GetHistoryTransactionData
-from tdxpy.parser.std.get_security_list import GetSecurityList
-from tdxpy.parser.std.get_security_bars import GetSecurityBarsCmd
-from tdxpy.parser.std.get_security_quotes import GetSecurityQuotesCmd
-from tdxpy.parser.std.get_transaction_data import GetTransactionData
-from tdxpy.parser.std.get_xdxr_info import GetXdXrInfo
-
 RSP_HEADER_LEN = 0x10
 DEFAULT_CAPTURE_SERVER = ("110.41.174.169", 7709)
+LEGACY_PARSER_MODULES = {
+    "GetBlockInfo": "tdxpy.parser.std.get_block_info",
+    "GetBlockInfoMeta": "tdxpy.parser.std.get_block_info",
+    "GetCompanyInfoCategory": "tdxpy.parser.std.get_company_info_category",
+    "GetCompanyInfoContent": "tdxpy.parser.std.get_company_info_content",
+    "GetFinanceInfo": "tdxpy.parser.std.get_finance_info",
+    "GetHistoryMinuteTimeData": "tdxpy.parser.std.get_history_minute_time_data",
+    "GetHistoryTransactionData": "tdxpy.parser.std.get_history_transaction_data",
+    "GetIndexBarsCmd": "tdxpy.parser.std.get_index_bars",
+    "GetSecurityBarsCmd": "tdxpy.parser.std.get_security_bars",
+    "GetSecurityCountCmd": "tdxpy.parser.std.get_security_count",
+    "GetSecurityList": "tdxpy.parser.std.get_security_list",
+    "GetSecurityQuotesCmd": "tdxpy.parser.std.get_security_quotes",
+    "GetTransactionData": "tdxpy.parser.std.get_transaction_data",
+    "GetXdXrInfo": "tdxpy.parser.std.get_xdxr_info",
+}
 
 
 @dataclass(slots=True)
@@ -47,6 +50,19 @@ class StepCapture:
     request: bytes
     response_body: bytes
     parsed: Any
+
+
+@cache
+def _legacy_parser(name: str):
+    try:
+        module_name = LEGACY_PARSER_MODULES[name]
+    except KeyError as exc:
+        raise ValueError(f"unsupported parser for replay: {name}") from exc
+    try:
+        module = import_module(module_name)
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError("legacy replay requires the mootdx[legacy] extra") from exc
+    return getattr(module, name)
 
 
 def load_spec(path: str | Path) -> dict[str, Any]:
@@ -310,7 +326,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
     api = spec["api"]
     if api == "stock_count":
         market = int(spec["call"]["kwargs"]["market"])
-        cmd = GetSecurityCountCmd(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetSecurityCountCmd")(socket_client, lock=api_client.lock)
         cmd.setParams(market)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -325,7 +341,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
 
     if api == "stocks":
         market = int(spec["call"]["kwargs"]["market"])
-        stock_count_cmd = GetSecurityCountCmd(socket_client, lock=api_client.lock)
+        stock_count_cmd = _legacy_parser("GetSecurityCountCmd")(socket_client, lock=api_client.lock)
         stock_count_cmd.setParams(market)
         request, response_body, parsed_count = _execute_command(stock_count_cmd)
         steps = [
@@ -342,7 +358,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         stocks = None
         step_index = 2
         for start in range(0, parsed_count, 1000):
-            list_cmd = GetSecurityList(socket_client, lock=api_client.lock)
+            list_cmd = _legacy_parser("GetSecurityList")(socket_client, lock=api_client.lock)
             list_cmd.setParams(market, start)
             request, response_body, parsed_page = _execute_command(list_cmd)
             step_id = f"{step_index:02d}_list_{start:05d}"
@@ -366,7 +382,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         symbol = spec["call"]["kwargs"]["symbol"]
         symbols = [symbol] if isinstance(symbol, str) else list(symbol)
         all_stock = get_stock_markets(symbols)
-        cmd = GetSecurityQuotesCmd(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetSecurityQuotesCmd")(socket_client, lock=api_client.lock)
         cmd.setParams(all_stock)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -386,7 +402,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         start = int(kwargs.get("start", 0))
         offset = int(kwargs.get("offset", 800))
         market = int(get_stock_market(symbol))
-        cmd = GetSecurityBarsCmd(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetSecurityBarsCmd")(socket_client, lock=api_client.lock)
         cmd.setParams(frequency, market, symbol, start, offset)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -412,7 +428,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         start = int(kwargs.get("start", 0))
         offset = min(int(kwargs.get("offset", 800)), 800)
         market = _get_index_market(symbol, kwargs.get("market"))
-        cmd = GetIndexBarsCmd(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetIndexBarsCmd")(socket_client, lock=api_client.lock)
         cmd.setParams(frequency, market, symbol, start, offset)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -442,7 +458,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
             market = 1
         else:
             market = int(get_stock_market(symbol))
-        cmd = GetHistoryMinuteTimeData(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetHistoryMinuteTimeData")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol, date)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -461,7 +477,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         start = int(kwargs.get("start", 0))
         offset = int(kwargs.get("offset", 800))
         market = int(get_stock_market(symbol))
-        cmd = GetTransactionData(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetTransactionData")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol, start, offset)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -481,7 +497,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         offset = int(kwargs.get("offset", 800))
         date = int(kwargs["date"])
         market = int(get_stock_market(symbol))
-        cmd = GetHistoryTransactionData(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetHistoryTransactionData")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol, start, offset, date)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -497,7 +513,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
     if api == "finance":
         symbol = str(spec["call"]["kwargs"]["symbol"])
         market = int(get_stock_market(symbol))
-        cmd = GetFinanceInfo(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetFinanceInfo")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -513,7 +529,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
     if api == "xdxr":
         symbol = str(spec["call"]["kwargs"]["symbol"])
         market = int(get_stock_market(symbol))
-        cmd = GetXdXrInfo(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetXdXrInfo")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -529,7 +545,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
     if api == "f10_categories":
         symbol = str(spec["call"]["kwargs"]["symbol"])
         market = int(get_stock_market(symbol))
-        cmd = GetCompanyInfoCategory(socket_client, lock=api_client.lock)
+        cmd = _legacy_parser("GetCompanyInfoCategory")(socket_client, lock=api_client.lock)
         cmd.setParams(market, symbol)
         request, response_body, parsed = _execute_command(cmd)
         step = StepCapture(
@@ -546,13 +562,13 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         symbol = str(spec["call"]["kwargs"]["symbol"])
         name = str(spec["call"]["kwargs"]["name"])
         market = int(get_stock_market(symbol))
-        categories_cmd = GetCompanyInfoCategory(socket_client, lock=api_client.lock)
+        categories_cmd = _legacy_parser("GetCompanyInfoCategory")(socket_client, lock=api_client.lock)
         categories_cmd.setParams(market, symbol)
         categories_request, categories_body, categories = _execute_command(categories_cmd)
         matched = next((item for item in categories if item["name"] == name), None)
         if matched is None:
             raise ValueError(f"unable to capture f10 content for {symbol}: unknown category {name}")
-        content_cmd = GetCompanyInfoContent(socket_client, lock=api_client.lock)
+        content_cmd = _legacy_parser("GetCompanyInfoContent")(socket_client, lock=api_client.lock)
         content_cmd.setParams(market, symbol, matched["filename"], matched["start"], matched["length"])
         content_request, content_body, content = _execute_command(content_cmd)
         return (
@@ -586,7 +602,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
 
     if api == "block":
         block_file = str(spec["call"]["kwargs"].get("tofile", "block.dat"))
-        meta_cmd = GetBlockInfoMeta(socket_client, lock=api_client.lock)
+        meta_cmd = _legacy_parser("GetBlockInfoMeta")(socket_client, lock=api_client.lock)
         meta_cmd.setParams(block_file)
         meta_request, meta_body, meta = _execute_command(meta_cmd)
         steps = [
@@ -604,7 +620,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         chunk_size = 0x7530
         content = bytearray()
         for chunk_index, start in enumerate(range(0, size, chunk_size), start=2):
-            piece_cmd = GetBlockInfo(socket_client, lock=api_client.lock)
+            piece_cmd = _legacy_parser("GetBlockInfo")(socket_client, lock=api_client.lock)
             piece_cmd.setParams(block_file, start, size)
             request, response_body, parsed = _execute_command(piece_cmd)
             steps.append(
@@ -649,7 +665,7 @@ def _capture_case(client: Any, spec: dict[str, Any]) -> tuple[list[StepCapture],
         for page_index in range(page_num):
             offset = offset_end + page_index * chunk_size
             count = min(chunk_size, workday_count - page_index * chunk_size)
-            cmd = GetSecurityBarsCmd(socket_client, lock=api_client.lock)
+            cmd = _legacy_parser("GetSecurityBarsCmd")(socket_client, lock=api_client.lock)
             cmd.setParams(9, market, code, offset, count)
             request, response_body, parsed = _execute_command(cmd)
             steps.append(
@@ -693,35 +709,7 @@ def _replay_case_next(spec: dict[str, Any], case_dir: Path, manifest: dict[str, 
 
 
 def _make_parser(name: str):
-    if name == "GetSecurityCountCmd":
-        return GetSecurityCountCmd(None)
-    if name == "GetSecurityList":
-        return GetSecurityList(None)
-    if name == "GetSecurityQuotesCmd":
-        return GetSecurityQuotesCmd(None)
-    if name == "GetSecurityBarsCmd":
-        return GetSecurityBarsCmd(None)
-    if name == "GetIndexBarsCmd":
-        return GetIndexBarsCmd(None)
-    if name == "GetBlockInfoMeta":
-        return GetBlockInfoMeta(None)
-    if name == "GetBlockInfo":
-        return GetBlockInfo(None)
-    if name == "GetHistoryMinuteTimeData":
-        return GetHistoryMinuteTimeData(None)
-    if name == "GetTransactionData":
-        return GetTransactionData(None)
-    if name == "GetHistoryTransactionData":
-        return GetHistoryTransactionData(None)
-    if name == "GetFinanceInfo":
-        return GetFinanceInfo(None)
-    if name == "GetXdXrInfo":
-        return GetXdXrInfo(None)
-    if name == "GetCompanyInfoCategory":
-        return GetCompanyInfoCategory(None)
-    if name == "GetCompanyInfoContent":
-        return GetCompanyInfoContent(None)
-    raise ValueError(f"unsupported parser for replay: {name}")
+    return _legacy_parser(name)(None)
 
 
 def _prime_parser_for_replay(parser: Any, step: dict[str, Any]) -> None:

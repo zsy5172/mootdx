@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 from compat.common import load_json
@@ -35,3 +37,29 @@ def test_matrix_coverage_summary_has_required_dimensions() -> None:
     assert summary["index_bars"]["frequency"] == ["5m", "daily"]
     assert summary["block"]["block_file"] == ["block.dat", "block_zs.dat"]
     assert summary["get_k_data"]["result_shape"] == ["empty"]
+
+
+def test_matrix_inventory_import_does_not_require_legacy_extra() -> None:
+    root = Path(__file__).resolve().parents[2]
+    script = f"""
+import sys
+sys.path.insert(0, {str(root)!r})
+
+class BlockTdxpy:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "tdxpy" or fullname.startswith("tdxpy."):
+            raise ImportError("tdxpy is blocked")
+        return None
+
+sys.meta_path.insert(0, BlockTdxpy())
+from compat.registry import generated_spec_paths
+assert generated_spec_paths({str(root / "compat" / "specs")!r})
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
