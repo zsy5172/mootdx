@@ -16,6 +16,7 @@ from mootdx_next.adapters import stocks_to_frame
 from mootdx_next.adapters import transaction_to_frame
 from mootdx_next.adapters import transactions_to_frame
 from mootdx_next.adapters import xdxr_to_frame
+from mootdx_next.errors import AdjustmentError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import EmptyResponseError
 from mootdx_next.errors import InvalidDateError
@@ -49,6 +50,7 @@ from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 __all__ = [
     "AsyncClient",
+    "AdjustmentError",
     "bars_to_frame",
     "block_to_frame",
     "CandidateRegistry",

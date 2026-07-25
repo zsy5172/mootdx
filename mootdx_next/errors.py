@@ -68,3 +68,7 @@ class OutsideTradingSessionError(MootdxNextError):
 
 class UnknownF10CategoryError(MootdxNextError):
     """Raised when an F10 content lookup cannot find the requested category."""
+
+
+class AdjustmentError(MootdxNextError):
+    """Raised when price adjustment data cannot be calculated safely."""

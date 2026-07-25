@@ -86,6 +86,16 @@ client.stock_all()
 # 日 K 线
 client.bars("600036", frequency="day", start=0, offset=100)
 
+# 前复权 / 后复权
+client.bars("600036", frequency="day", offset=100, adjust="qfq")
+client.bars("600036", frequency="day", offset=100, adjust="hfq")
+
+# ETF 复权
+client.bars("510500", frequency="day", offset=100, adjust="qfq")
+
+# 周、月、季、年 K 线会先复权日线，再聚合 OHLC
+client.bars("600036", frequency="week", offset=100, adjust="qfq")
+
 # 5 分钟 K 线
 client.bars("600036", frequency="5m", start=0, offset=100)
 
@@ -97,14 +107,17 @@ client.get_k_data(
     code="600036",
     start_date="2019-07-03",
     end_date="2019-07-10",
+    adjust="qfq",
 )
 
 # 兼容别名
-client.k(symbol="600036", begin="2019-07-03", end="2019-07-10")
-client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10")
+client.k(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="qfq")
+client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="hfq")
 ```
 
 常用频率别名包括：`5m`、`15m`、`30m`、`1h`、`1m`、`day`、`week`、`mon`、`3mon`、`year`。底层同时接受 `0` 到 `11` 的通达信频率编号。
+
+next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务。普通股票按除权参考价生成比例因子；ETF 同时处理扩缩股比例和现金分配偏移。`week`、`mon`、`3mon`、`year` 会先逐日复权，再生成周期 OHLC，避免一个周期跨越除权日时开盘、最高和最低价失真。证券代码会先去除首尾空白并统一市场前缀大小写；复权目前明确支持上海和深圳证券。
 
 ### 分时与逐笔成交
 

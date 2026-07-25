@@ -16,6 +16,10 @@ from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, to_
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient as NextSyncClient
 from mootdx_next import get_hq_candidates
+from mootdx_next.adjustments import AGGREGATED_FREQUENCIES
+from mootdx_next.adjustments import AdjustmentService
+from mootdx_next.adjustments import normalize_adjustment
+from mootdx_next.errors import AdjustmentError
 from mootdx_next.errors import InvalidDateError
 from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
@@ -641,6 +645,8 @@ class NextStdQuotes(BaseQuotes):
         else:
             self.client = NextSyncClient()
 
+        self._adjustments = AdjustmentService(self.client)
+
         global instance
         instance = self
 
@@ -675,13 +681,26 @@ class NextStdQuotes(BaseQuotes):
     def bars(self, symbol='000001', frequency=9, start=0, offset=800, **kwargs):
         frequency = get_frequency(frequency)
         offset = min(int(offset), 800)
+        adjust = normalize_adjustment(kwargs.pop('adjust', None))
 
         try:
+            if adjust and frequency in AGGREGATED_FREQUENCIES:
+                return self._adjustments.adjusted_bars(
+                    str(symbol),
+                    adjust,
+                    frequency=frequency,
+                    start=int(start),
+                    offset=offset,
+                )
+
             result = self.client.bars(symbol=str(symbol), frequency=frequency, start=int(start), offset=offset)
-        except (InvalidSymbolError, InvalidFrequencyError, UnsupportedMarketError) as exc:
+            data = to_data(result, symbol=symbol, client=self)
+            if adjust:
+                data = self._adjustments.apply(data, str(symbol), adjust)
+        except (AdjustmentError, InvalidSymbolError, InvalidFrequencyError, UnsupportedMarketError) as exc:
             raise _validation_exception(str(exc))
 
-        return to_data(result, symbol=symbol, client=self, **kwargs)
+        return to_data(data, symbol=symbol, client=self, **kwargs)
 
     def stock_count(self, market=MARKET_SH):
         if market not in [0, 1, 2]:
@@ -707,13 +726,17 @@ class NextStdQuotes(BaseQuotes):
         market = get_stock_market(symbol)
         if market not in [0, 1]:
             raise _validation_exception('市场代码错误, 目前只支持沪深市场')
+        adjust = normalize_adjustment(kwargs.pop('adjust', None))
 
         try:
             result = self.client.minutes(symbol=str(symbol), date=date)
-        except (InvalidSymbolError, InvalidDateError, UnsupportedMarketError) as exc:
+            data = to_data(result, symbol=symbol, client=self)
+            if adjust:
+                data = self._adjustments.apply(data, str(symbol), adjust)
+        except (AdjustmentError, InvalidSymbolError, InvalidDateError, UnsupportedMarketError) as exc:
             raise _validation_exception(str(exc))
 
-        return to_data(result, symbol=symbol, client=self, **kwargs)
+        return to_data(data, symbol=symbol, client=self, **kwargs)
 
     def transaction(self, symbol='', start=0, offset=800, **kwargs):
         try:
@@ -784,6 +807,7 @@ class NextStdQuotes(BaseQuotes):
     def index_bars(self, symbol='000001', frequency=9, start=0, offset=800, market=None, **kwargs):
         frequency = get_frequency(frequency)
         offset = min(int(offset), 800)
+        kwargs.pop('adjust', None)
 
         try:
             result = self.client.index_bars(
@@ -812,7 +836,36 @@ class NextStdQuotes(BaseQuotes):
         result = self.client.block(str(tofile))
         return to_data(result, **kwargs)
 
-    def get_k_data(self, code: str, start_date: Union[str, datetime], end_date: Union[str, datetime]) -> pd.DataFrame:
+    def get_k_data(
+        self,
+        code: str,
+        start_date: Union[str, datetime],
+        end_date: Union[str, datetime],
+        adjust: str | None = None,
+    ) -> pd.DataFrame:
+        normalized_adjustment = normalize_adjustment(adjust)
+        if normalized_adjustment:
+            try:
+                start = pd.to_datetime(start_date)
+                end = pd.to_datetime(end_date)
+                if end <= start:
+                    return pd.DataFrame()
+
+                data = self._adjustments.adjusted_daily(str(code), normalized_adjustment)
+            except (AdjustmentError, InvalidSymbolError, UnsupportedMarketError) as exc:
+                raise _validation_exception(str(exc))
+
+            data = data.copy()
+            data['code'] = str(code)
+            data['date'] = data.index.normalize()
+            data.drop(
+                columns=['year', 'month', 'day', 'hour', 'minute', 'datetime'],
+                errors='ignore',
+                inplace=True,
+            )
+            data.set_index('date', inplace=True)
+            return data.loc[(data.index >= start) & (data.index <= end)].sort_index()
+
         def fetch_page(offset: int, count: int) -> pd.DataFrame:
             rows = self.client.bars(symbol=str(code), frequency=9, start=int(offset), offset=int(count))
             return to_data(rows, symbol=code, client=self)
@@ -820,7 +873,8 @@ class NextStdQuotes(BaseQuotes):
         return _get_k_data_by_pages(code, start_date, end_date, fetch_page)
 
     def k(self, symbol='', begin=None, end=None, **kwargs):
-        result = self.get_k_data(symbol, begin, end)
+        adjust = kwargs.pop('adjust', None)
+        result = self.get_k_data(symbol, begin, end, adjust=adjust)
         return to_data(result, symbol=symbol, **kwargs)
 
     def ohlc(self, **kwargs):
