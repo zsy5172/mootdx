@@ -3,11 +3,13 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from mootdx.localfiles import StdLCMinBarReader
-from mootdx.localfiles import StdMinBarReader
-from mootdx.parse import BaseParse
-from mootdx.reader import Reader
-from mootdx.tools.customize import Customize
+from mootdx_next import BaseParse
+from mootdx_next import Customize
+from mootdx_next import LocalFileFormatError
+from mootdx_next import Reader
+from mootdx_next import StdDailyBarReader
+from mootdx_next import StdLCMinBarReader
+from mootdx_next import StdMinBarReader
 
 FIXTURE_DIR = "tests/fixtures"
 
@@ -45,6 +47,22 @@ def test_std_minute_readers_return_empty_frame_for_empty_file(tmp_path, reader_c
     assert result.empty
     assert list(result.columns) == ["open", "high", "low", "close", "amount", "volume"]
     assert isinstance(result.index, pd.DatetimeIndex)
+
+
+@pytest.mark.parametrize(
+    ("reader", "filename"),
+    [
+        (StdDailyBarReader(), "sh600036.day"),
+        (StdMinBarReader(), "sh600036.1"),
+        (StdLCMinBarReader(), "sh600036.lc1"),
+    ],
+)
+def test_local_binary_readers_reject_truncated_records(tmp_path, reader, filename) -> None:
+    path = tmp_path / filename
+    path.write_bytes(b"\x00")
+
+    with pytest.raises(LocalFileFormatError, match="truncated binary record"):
+        reader.get_df(path)
 
 
 def test_block_parse_and_custom_block_reader_work_without_legacy_reader(tmp_path) -> None:
