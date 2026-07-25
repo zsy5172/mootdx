@@ -96,10 +96,11 @@ A-share session and requires populated data. It covers:
 - legacy and next decoding of the same minute/transaction response;
 - normalized high-level artifacts under `compat/artifacts/`.
 
-The scheduled workflow `.github/workflows/trading-session-live.yml` runs at
-10:00 Asia/Shanghai on weekdays (`02:00 UTC`). It uses a strict session guard:
-starting outside a weekday trading session is a failure, not a skipped success.
-The resulting raw and high-level artifacts are uploaded by the workflow.
+This suite is intentionally not scheduled in GitHub Actions because TDX quote
+nodes may be unreachable from runners outside China. Run it manually from a
+network that can connect to the configured TDX nodes after confirming that the
+A-share market is open. The strict session guard makes an out-of-session manual
+run fail rather than report a skipped success.
 
 For a manual trading-session run:
 
@@ -114,6 +115,9 @@ or:
 ```bash
 nox -s trading_session_live
 ```
+
+The normalized raw and high-level outputs are written to `compat/artifacts/`
+for inspection after the manual run.
 
 Live failures must be classified as transport availability, empty upstream
 data, protocol decode failure, or API contract failure before changing an

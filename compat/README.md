@@ -11,5 +11,5 @@ This directory contains the replay and baseline comparison harness for the rewri
 - `artifacts/` stores transient outputs from local, replay, or Docker-based runs.
 
 The new branch runtime uses offline replay and fixed Reader artifacts as the primary regression gates. Historical and
-adjustment live checks can run outside market hours; populated current-day minute/transaction checks run in the dedicated
-weekday 10:00 trading-session workflow.
+adjustment live checks can run outside market hours; populated current-day minute/transaction checks remain in a dedicated
+manual trading-session suite because TDX nodes may reject connections from CI runners outside China.
