@@ -389,6 +389,17 @@ class AsyncFinancialFileClient:
             path = await self.fetch(downdir=downdir, filename=filename)
         return await asyncio.to_thread(FinancialReader.read, path, header)
 
+    async def fetch_and_parse(
+        self,
+        filename: str,
+        *,
+        downdir: str | Path = ".",
+        header: str = "zh",
+        overwrite: bool = False,
+    ):
+        path = await self.fetch(downdir=downdir, filename=filename, overwrite=overwrite)
+        return await asyncio.to_thread(FinancialReader.read, path, header)
+
     async def _fetch_catalog_bytes(self) -> bytes:
         url = f"{self.base_url}/{FINANCIAL_CATALOG_FILE}"
         try:

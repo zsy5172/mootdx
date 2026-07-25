@@ -232,11 +232,16 @@ def test_async_financial_client_matches_sync_download_and_parse(tmp_path: Path) 
         try:
             path = await client.fetch(downdir=tmp_path, filename="gpcw20231231.zip")
             frame = await client.parse(downdir=tmp_path, filename="gpcw20231231.zip")
+            combined = await client.fetch_and_parse(
+                "gpcw20231231.zip",
+                downdir=tmp_path,
+            )
         finally:
             await http.aclose()
 
         assert path.read_bytes() == payload
         expected = FinancialReader.read(path)
         pdt.assert_frame_equal(frame, expected)
+        pdt.assert_frame_equal(combined, expected)
 
     asyncio.run(run())

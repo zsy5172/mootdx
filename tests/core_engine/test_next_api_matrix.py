@@ -20,11 +20,23 @@ from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.financial import AsyncFinancialFileClient
+from mootdx_next.financial import FinancialFileClient
+from mootdx_next.financial import FinancialReader
+from mootdx_next.localfiles import BlockReader
+from mootdx_next.localfiles import CustomerBlockReader
+from mootdx_next.localfiles import ExtBarReader
+from mootdx_next.localfiles import StdDailyBarReader
+from mootdx_next.localfiles import StdLCMinBarReader
+from mootdx_next.localfiles import StdMinBarReader
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ResponseEnvelope
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.models import TransportMetrics
 from mootdx_next.params import FREQUENCY_ALIASES
+from mootdx_next.reader import ExtReader
+from mootdx_next.reader import Reader
+from mootdx_next.reader import StdReader
 from tests.core_engine.test_sync_client_stock_apis import RecordingConnectionPool
 from tests.core_engine.test_sync_client_stock_apis import RecordingScheduler
 
@@ -101,12 +113,48 @@ PANDAS_PUBLIC_API = {
     "ohlc",
 }
 
+
+FINANCIAL_CLIENT_PUBLIC_API = {
+    "catalog",
+    "close",
+    "fetch",
+    "fetch_and_parse",
+    "files",
+    "parse",
+}
+
+FINANCIAL_READER_PUBLIC_API = {
+    "from_bytes",
+    "parse_bytes",
+    "parse_payload",
+    "read",
+    "to_data",
+    "to_frame",
+}
+
+READER_PUBLIC_API = {
+    Reader: {"factory"},
+    StdReader: {"block", "block_new", "daily", "find_path", "fzline", "minute"},
+    ExtReader: {"daily", "find_path", "fzline", "minute"},
+    StdDailyBarReader: {"get_df", "get_security_type", "parse_data_by_file", "parse_date", "parse_time", "unpack_records"},
+    StdMinBarReader: {"get_df", "parse_data_by_file", "parse_date", "parse_time", "unpack_records"},
+    StdLCMinBarReader: {"get_df", "parse_data_by_file", "parse_date", "parse_time", "unpack_records"},
+    ExtBarReader: {"get_df", "parse_data_by_file", "parse_date", "parse_time", "unpack_records"},
+    BlockReader: {"get_data", "get_df"},
+    CustomerBlockReader: {"get_data", "get_df"},
+}
+
+
 def _public_api(owner: type) -> set[str]:
     return {
         name
         for name, value in owner.__dict__.items()
         if not name.startswith("_") and (inspect.isroutine(value) or isinstance(value, property))
     }
+
+
+def _all_public_callables(owner: type) -> set[str]:
+    return {name for name in dir(owner) if not name.startswith("_") and callable(getattr(owner, name))}
 
 
 def test_public_api_inventory_requires_matrix_updates_for_new_methods() -> None:
@@ -116,6 +164,15 @@ def test_public_api_inventory_requires_matrix_updates_for_new_methods() -> None:
     assert _public_api(AsyncPandasClient) == PANDAS_PUBLIC_API
     assert _public_api(NextStdQuotes) == set()
     assert issubclass(NextStdQuotes, PandasClient)
+
+
+def test_financial_and_local_reader_public_api_inventory() -> None:
+    assert _all_public_callables(FinancialFileClient) == FINANCIAL_CLIENT_PUBLIC_API
+    assert _all_public_callables(AsyncFinancialFileClient) == FINANCIAL_CLIENT_PUBLIC_API
+    assert _all_public_callables(FinancialReader) == FINANCIAL_READER_PUBLIC_API
+
+    for owner, expected in READER_PUBLIC_API.items():
+        assert _all_public_callables(owner) == expected
 
 
 def test_async_business_api_has_full_sync_parity() -> None:
