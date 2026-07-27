@@ -11,24 +11,42 @@ from mootdx.utils import get_config_path
 from mootdx.utils import get_stock_market
 
 DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-_FACTOR_PAYLOAD = re.compile(r'^[^=]*=(?P<payload>.+?);?\s*$', re.DOTALL)
+_FACTOR_ASSIGNMENT = re.compile(r'^\s*(?:var\s+)?[A-Za-z_$][\w.$]*\s*=')
+_FACTOR_TRAILER = re.compile(r'^\s*;?\s*(?:/\*.*?\*/\s*)*$', re.DOTALL)
 
 
 def _parse_factor_payload(text: str, method: str) -> pd.DataFrame:
-    matched = _FACTOR_PAYLOAD.match(text.strip())
+    matched = _FACTOR_ASSIGNMENT.match(text)
     if matched is None:
         raise ValueError(f'新浪 {method} 复权因子响应格式无效')
 
     try:
-        payload = json.loads(matched.group('payload').rstrip(';'))
-    except (json.JSONDecodeError, TypeError) as exc:
+        payload_text = text[matched.end():].lstrip()
+        payload, end = json.JSONDecoder().raw_decode(payload_text)
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise ValueError(f'新浪 {method} 复权因子响应格式无效') from exc
+    if _FACTOR_TRAILER.fullmatch(payload_text[end:]) is None:
+        raise ValueError(f'新浪 {method} 复权因子响应格式无效')
 
     rows = payload.get('data') if isinstance(payload, dict) else None
     if not rows:
         raise ValueError(f'新浪 {method} 复权因子不可用')
 
-    result = pd.DataFrame(rows, columns=['date', 'factor'])
+    normalized_rows = []
+    for row in rows:
+        if isinstance(row, dict):
+            normalized_rows.append(
+                {
+                    'date': row.get('date', row.get('d')),
+                    'factor': row.get('factor', row.get('f')),
+                }
+            )
+        elif isinstance(row, (list, tuple)) and len(row) >= 2:
+            normalized_rows.append({'date': row[0], 'factor': row[1]})
+        else:
+            raise ValueError(f'新浪 {method} 复权因子响应格式无效')
+
+    result = pd.DataFrame.from_records(normalized_rows, columns=['date', 'factor'])
     result['date'] = pd.to_datetime(result['date'], errors='raise')
     result['factor'] = pd.to_numeric(result['factor'], errors='raise')
     return result.set_index('date').sort_index()

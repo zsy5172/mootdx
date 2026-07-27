@@ -13,10 +13,21 @@ from mootdx.utils.factor import _parse_factor_payload
 from mootdx.utils.factor import fq_factor
 
 PAYLOAD = 'var factor={"data":[["2024-01-03","1.25"],["2024-01-02","1.00"]]};'
+LIVE_STYLE_PAYLOAD = """
+var sh600036qfq={"total":2,"data":[{"d":"2024-01-03","f":"1.25"},{"d":"2024-01-02","f":"1.00"}]};
+/* published by Sina */
+"""
 
 
 def test_parse_factor_payload_uses_json_and_normalizes_types() -> None:
     result = _parse_factor_payload(PAYLOAD, 'qfq')
+
+    assert list(result.index) == [pd.Timestamp('2024-01-02'), pd.Timestamp('2024-01-03')]
+    assert result['factor'].tolist() == [1.0, 1.25]
+
+
+def test_parse_factor_payload_accepts_live_object_rows_and_trailing_comment() -> None:
+    result = _parse_factor_payload(LIVE_STYLE_PAYLOAD, 'qfq')
 
     assert list(result.index) == [pd.Timestamp('2024-01-02'), pd.Timestamp('2024-01-03')]
     assert result['factor'].tolist() == [1.0, 1.25]
@@ -28,6 +39,7 @@ def test_parse_factor_payload_uses_json_and_normalizes_types() -> None:
         'not an assignment',
         'var factor=__import__("os").system("false");',
         'var factor={"data":[]};',
+        'var factor={"data":[["2024-01-02","1.0"]]};alert("unexpected");',
     ],
 )
 def test_parse_factor_payload_rejects_invalid_or_executable_content(payload: str) -> None:
