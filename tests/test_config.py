@@ -14,6 +14,9 @@ def restore_config_state():
     original_settings = config.clone()
     original_conf = config.CONF
     original_loaded = config._loaded
+    config.settings.clear()
+    config.settings.update(json.loads(json.dumps(CONFIG)))
+    config._loaded = False
     try:
         yield
     finally:
