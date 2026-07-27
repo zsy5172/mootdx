@@ -15,16 +15,30 @@ from mootdx.consts import MARKET_SZ
 from mootdx.logger import logger
 
 
+def _split_stock_symbol(symbol: str) -> tuple[str | None, str]:
+    assert isinstance(symbol, str), 'stock code need str type'
+
+    normalized = symbol.strip()
+    assert normalized, 'stock code cannot be blank'
+
+    prefix = normalized[:2].lower()
+    if prefix not in {'sh', 'sz', 'bj'}:
+        return None, normalized
+
+    bare_symbol = normalized[2:]
+    if bare_symbol[:1] in {'.', '#'}:
+        bare_symbol = bare_symbol[1:]
+    assert bare_symbol, 'stock code cannot be blank'
+    return prefix, bare_symbol
+
+
+def normalize_stock_symbol(symbol: str) -> str:
+    return _split_stock_symbol(symbol)[1]
+
+
 def get_stock_markets(symbols=None):
-    results = []
-
-    assert isinstance(symbols, list), 'stock code need list type'
-
-    if isinstance(symbols, list):
-        for symbol in symbols:
-            results.append([get_stock_market(symbol, string=False), symbol.strip('sh').strip('sz')])
-
-    return results
+    assert isinstance(symbols, (list, tuple)), 'stock code need list or tuple type'
+    return [[get_stock_market(symbol, string=False), normalize_stock_symbol(symbol)] for symbol in symbols]
 
 
 def get_stock_market(symbol='', string=False):
@@ -39,25 +53,24 @@ def get_stock_market(symbol='', string=False):
     :return 'sh' or 'sz'
     """
 
-    assert isinstance(symbol, str), 'stock code need str type'
+    prefix, bare_symbol = _split_stock_symbol(symbol)
+    market = prefix or 'sh'
 
-    market = 'sh'
-
-    if symbol.startswith(('sh', 'sz', 'SH', 'SZ', 'bj', 'BJ')):
-        market = symbol[:2].lower()
+    if prefix is not None:
+        market = prefix
     # 51ETF基金
-    elif symbol.startswith(('50', '51', '58', '60', '68', '90', '110', '111', '113', '118', '240')):
+    elif bare_symbol.startswith(('50', '51', '58', '60', '68', '90', '110', '111', '113', '118', '240')):
         market = 'sh'
     # 15ETF  16 lof
-    elif symbol.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115')):
+    elif bare_symbol.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115')):
         market = 'sz'
 
     # 20 跟90 都是B股 88是指数 99上证指数
-    elif symbol.startswith(('5', '6', '7', '90', '88', '98', '99')):
+    elif bare_symbol.startswith(('5', '6', '7', '90', '88', '98', '99')):
         market = 'sh'
 
     # 83 87 92 都是北交所
-    elif symbol.startswith(('20', '4', '82', '83', '87', '92')):
+    elif bare_symbol.startswith(('20', '4', '82', '83', '87', '899', '92')):
         market = 'bj'
 
     # logger.debug(f"market => {market}")

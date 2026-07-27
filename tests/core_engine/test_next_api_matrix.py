@@ -334,10 +334,14 @@ def test_date_representation_matrix(method: str, value: str | int, expected: str
         ("600036", 1, "600036"),
         ("sh600036", 1, "600036"),
         ("SH600036", 1, "600036"),
+        ("SH.600036", 1, "600036"),
         ("000001", 0, "000001"),
         ("sz000001", 0, "000001"),
+        ("sz#000001", 0, "000001"),
         ("430090", 2, "430090"),
         ("bj430090", 2, "430090"),
+        ("BJ.430090", 2, "430090"),
+        ("920001", 2, "920001"),
     ],
 )
 def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> None:

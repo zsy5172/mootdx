@@ -6,20 +6,38 @@ from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import InvalidSymbolError
 
 
-def get_stock_market(symbol: str, string: bool = False) -> int | str:
+def _split_symbol(symbol: str) -> tuple[str | None, str]:
     if not isinstance(symbol, str):
         raise InvalidSymbolError("stock code need str type")
 
-    market = "sh"
-    if symbol.startswith(("sh", "sz", "SH", "SZ", "bj", "BJ")):
-        market = symbol[:2].lower()
-    elif symbol.startswith(("50", "51", "58", "60", "68", "90", "110", "111", "113", "118", "240")):
+    normalized = symbol.strip()
+    if not normalized:
+        raise InvalidSymbolError("symbol cannot be blank")
+
+    prefix = normalized[:2].lower()
+    if prefix not in {"sh", "sz", "bj"}:
+        return None, normalized
+
+    bare_symbol = normalized[2:]
+    if bare_symbol[:1] in {".", "#"}:
+        bare_symbol = bare_symbol[1:]
+    if not bare_symbol:
+        raise InvalidSymbolError("symbol cannot be blank")
+    return prefix, bare_symbol
+
+
+def get_stock_market(symbol: str, string: bool = False) -> int | str:
+    prefix, bare_symbol = _split_symbol(symbol)
+    market = prefix or "sh"
+    if prefix is not None:
+        market = prefix
+    elif bare_symbol.startswith(("50", "51", "58", "60", "68", "90", "110", "111", "113", "118", "240")):
         market = "sh"
-    elif symbol.startswith(("00", "12", "13", "18", "15", "16", "18", "20", "30", "39", "115")):
+    elif bare_symbol.startswith(("00", "12", "13", "18", "15", "16", "18", "20", "30", "39", "115")):
         market = "sz"
-    elif symbol.startswith(("5", "6", "7", "90", "88", "98", "99")):
+    elif bare_symbol.startswith(("5", "6", "7", "90", "88", "98", "99")):
         market = "sh"
-    elif symbol.startswith(("20", "4", "82", "83", "87", "92")):
+    elif bare_symbol.startswith(("20", "4", "82", "83", "87", "899", "92")):
         market = "bj"
 
     if string:
@@ -32,20 +50,7 @@ def get_stock_market(symbol: str, string: bool = False) -> int | str:
 
 
 def normalize_symbol(symbol: str) -> str:
-    if not isinstance(symbol, str):
-        raise InvalidSymbolError("stock code need str type")
-
-    normalized = symbol.strip()
-    if not normalized:
-        raise InvalidSymbolError("symbol cannot be blank")
-
-    if normalized[:2].lower() in {"sh", "sz", "bj"}:
-        normalized = normalized[2:]
-
-    if not normalized:
-        raise InvalidSymbolError("symbol cannot be blank")
-
-    return normalized
+    return _split_symbol(symbol)[1]
 
 
 def get_stock_markets(symbols: list[str]) -> list[tuple[int, str]]:

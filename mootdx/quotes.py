@@ -12,7 +12,7 @@ from mootdx._optional import import_legacy_attr
 from mootdx.consts import MARKET_SH, MARKET_SZ, return_last_value
 from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
-from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, to_data
+from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, normalize_stock_symbol, to_data
 from mootdx_next import PandasClient
 
 _KLINE_PAGE_SIZE = 800
@@ -299,6 +299,7 @@ class StdQuotes(BaseQuotes):
         """
         frequency = get_frequency(frequency)
         market = get_stock_market(symbol)
+        symbol = normalize_stock_symbol(symbol)
 
         offset = (offset, 800)[offset > 800]
         result = self.client.get_security_bars(int(frequency), int(market), str(symbol), int(start), int(offset))
@@ -362,7 +363,9 @@ class StdQuotes(BaseQuotes):
         frequency = get_frequency(frequency)
         offset = (offset, 800)[offset > 800]
 
-        market = (MARKET_SZ, MARKET_SH)[symbol[:2] in ['00', '88', '99']]
+        prefixed = symbol[:2].lower() in {'sh', 'sz', 'bj'}
+        market = get_stock_market(symbol) if prefixed else (MARKET_SZ, MARKET_SH)[symbol[:2] in ['00', '88', '99']]
+        symbol = normalize_stock_symbol(symbol)
         result = self.client.get_index_bars(int(frequency), int(market), str(symbol), int(start), int(offset))
 
         return to_data(result, symbol=symbol, client=self, **kwargs)
@@ -388,6 +391,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = get_stock_market(symbol)
+        symbol = normalize_stock_symbol(symbol)
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
@@ -407,6 +411,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = get_stock_market(symbol)
+        symbol = normalize_stock_symbol(symbol)
 
         result = self.client.get_transaction_data(int(market), symbol, start, offset)
 
@@ -424,6 +429,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = get_stock_market(symbol, string=False)
+        symbol = normalize_stock_symbol(symbol)
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
@@ -440,6 +446,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = int(get_stock_market(symbol, string=False)) if market is None else market
+        symbol = normalize_stock_symbol(symbol)
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
@@ -459,6 +466,7 @@ class StdQuotes(BaseQuotes):
 
         result = {}
         market = int(get_stock_market(symbol, string=False)) if market is None else market
+        symbol = normalize_stock_symbol(symbol)
 
         if market not in [0, 1]:
             raise MootdxValidationException('市场代码错误, 目前只支持沪深市场')
@@ -495,6 +503,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = get_stock_market(symbol)
+        symbol = normalize_stock_symbol(symbol)
         result = self.client.get_xdxr_info(int(market), symbol)
 
         return to_data(result, symbol=symbol, client=self, **kwargs)
@@ -508,6 +517,7 @@ class StdQuotes(BaseQuotes):
         """
 
         market = get_stock_market(symbol)
+        symbol = normalize_stock_symbol(symbol)
         result = self.client.get_finance_info(market=market, code=symbol)
 
         return to_data(result, symbol=symbol, client=self, **kwargs)
@@ -530,6 +540,7 @@ class StdQuotes(BaseQuotes):
 
     def get_k_data(self, code: str, start_date: Union[str, datetime], end_date: Union[str, datetime]) -> pd.DataFrame:
         market = get_stock_market(code)
+        code = normalize_stock_symbol(code)
 
         def fetch_page(offset: int, count: int) -> pd.DataFrame:
             bars = self.client.get_security_bars(9, market, code, offset, count)
@@ -565,7 +576,9 @@ class StdQuotes(BaseQuotes):
         frequency = get_frequency(frequency)
 
         offset = (offset, 800)[offset > 800]
-        market = (MARKET_SZ, MARKET_SH)[symbol[:2] in ['00', '88', '99']]
+        prefixed = symbol[:2].lower() in {'sh', 'sz', 'bj'}
+        market = get_stock_market(symbol) if prefixed else (MARKET_SZ, MARKET_SH)[symbol[:2] in ['00', '88', '99']]
+        symbol = normalize_stock_symbol(symbol)
         result = self.client.get_index_bars(int(frequency), int(market), str(symbol), int(start), int(offset))
 
         return to_data(result, symbol=symbol, client=self, **kwargs)

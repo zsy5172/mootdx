@@ -6,6 +6,7 @@ from mootdx_next.localfiles import StdDailyBarReader
 from mootdx_next.localfiles import StdLCMinBarReader
 from mootdx_next.localfiles import StdMinBarReader
 from mootdx_next.symbols import get_stock_market
+from mootdx_next.symbols import normalize_symbol
 
 
 class Reader(object):
@@ -60,7 +61,8 @@ class ReaderBase(ABC):
         raw_symbol = str(symbol).strip()
 
         # 判断市场, 带#扩展市场
-        if '#' in raw_symbol:
+        prefixed_standard = raw_symbol[:3].lower() in {'sh#', 'sz#', 'bj#'}
+        if '#' in raw_symbol and not prefixed_standard:
             market = 'ds'
             normalized_symbol = raw_symbol
         # 通达信特有的板块指数88****开头的日线数据放在 sh 文件夹下
@@ -74,11 +76,7 @@ class ReaderBase(ABC):
 
         # 判断前缀
         if market.lower() in ['sh', 'sz', 'bj']:
-            for prefix in ('sh', 'sz', 'bj'):
-                if normalized_symbol.startswith(prefix):
-                    normalized_symbol = normalized_symbol[len(prefix):]
-                    break
-            normalized_symbol = market + normalized_symbol
+            normalized_symbol = market + normalize_symbol(normalized_symbol).lower()
 
         # 判断后缀
         suffix = suffix if isinstance(suffix, list) else [suffix]

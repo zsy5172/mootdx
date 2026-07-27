@@ -40,6 +40,14 @@ class TestReaderBase(unittest.TestCase):
         result = reader.find_path(symbol='920001', subdir='lday', suffix='day', debug=True)
         assert ('bj', 'bj920001', ['day']) == result, result
 
+    def test_find_path_with_separator_prefix(self):
+        reader = ReaderBase('tests/fixtures')
+        dotted = reader.find_path(symbol='SH.000001', subdir='lday', suffix='day', debug=True)
+        hashed = reader.find_path(symbol='SH#000001', subdir='lday', suffix='day', debug=True)
+
+        assert ('sh', 'sh000001', ['day']) == dotted
+        assert ('sh', 'sh000001', ['day']) == hashed
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -42,6 +42,8 @@ def _qualified_symbol(symbol: str) -> str:
     for prefix in ('sh', 'sz', 'bj'):
         if bare_symbol.startswith(prefix):
             bare_symbol = bare_symbol[len(prefix):]
+            if bare_symbol[:1] in {'.', '#'}:
+                bare_symbol = bare_symbol[1:]
             break
     if not bare_symbol:
         raise ValueError('symbol cannot be empty')
