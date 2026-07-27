@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import pandas as pd
 import pytest
 
-import mootdx_next.api.clients as clients_module
 from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import NextStdQuotes
 from mootdx_next.api.pandas import AsyncPandasClient
@@ -17,7 +16,6 @@ from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import InvalidDateError
 from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
-from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.financial import AsyncFinancialFileClient
@@ -269,8 +267,7 @@ SYNC_CALL_CASES = (
 
 
 @pytest.mark.parametrize("case", SYNC_CALL_CASES, ids=lambda case: case.method)
-def test_sync_client_executes_every_business_api(case: SyncCallCase, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(clients_module, "is_trading_session", lambda: True)
+def test_sync_client_executes_every_business_api(case: SyncCallCase) -> None:
     client, protocol, _ = _matrix_client()
 
     getattr(client, case.method)(**case.kwargs)
@@ -309,8 +306,7 @@ def test_frequency_matrix_covers_all_wire_values() -> None:
         ("transactions", {"symbol": "600036", "date": "20170209", "start": 20, "offset": 2000}),
     ],
 )
-def test_window_boundary_matrix(method: str, kwargs: dict[str, object], monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(clients_module, "is_trading_session", lambda: True)
+def test_window_boundary_matrix(method: str, kwargs: dict[str, object]) -> None:
     client, protocol, _ = _matrix_client()
 
     getattr(client, method)(**kwargs)
@@ -386,21 +382,21 @@ def test_invalid_parameter_equivalence_matrix(
     args: tuple[object, ...],
     kwargs: dict[str, object],
     error: type[Exception],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(clients_module, "is_trading_session", lambda: True)
     client, _, _ = _matrix_client()
 
     with pytest.raises(error):
         getattr(client, method)(*args, **kwargs)
 
 
-def test_transaction_session_state_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_transaction_does_not_consult_session_utility(monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, _ = _matrix_client()
-    monkeypatch.setattr(clients_module, "is_trading_session", lambda: False)
+    monkeypatch.setattr(
+        "mootdx_next.session.is_trading_session",
+        lambda: pytest.fail("transaction must not consult the local session clock"),
+    )
 
-    with pytest.raises(OutsideTradingSessionError):
-        client.transaction("600036", offset=1)
+    assert client.transaction("600036", offset=1) == []
 
 
 class AsyncDispatchRecorder:

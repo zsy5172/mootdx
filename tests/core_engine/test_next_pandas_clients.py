@@ -103,6 +103,16 @@ class AsyncRaw:
         return call
 
 
+class EmptyTransactionRaw(SyncRaw):
+    def transaction(self, symbol: str, start=0, offset=800):
+        return []
+
+
+class AsyncEmptyTransactionRaw(AsyncRaw):
+    def __init__(self) -> None:
+        self.sync = EmptyTransactionRaw()
+
+
 def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     raw = SyncRaw()
     client = PandasClient(raw_client=raw)
@@ -114,6 +124,17 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     assert client.F10C("600036") == client.f10_categories("600036")
     assert client.F10("600036", "最新提示") == "最新提示内容"
     pdt.assert_frame_equal(client.index("000001", market=1), client.index_bars("000001", market=1))
+
+
+def test_empty_transaction_is_preserved_by_sync_and_async_pandas_clients() -> None:
+    async def run() -> None:
+        sync_client = PandasClient(raw_client=EmptyTransactionRaw())
+        async_client = AsyncPandasClient(raw_client=AsyncEmptyTransactionRaw())
+
+        assert sync_client.transaction("600036").empty
+        assert (await async_client.transaction("600036")).empty
+
+    asyncio.run(run())
 
 
 def test_history_entrypoints_keep_distinct_public_signatures() -> None:

@@ -131,6 +131,11 @@ class DummyNextClient:
         return [{"blockname": "测试板块", "block_type": 1, "code_index": 0, "code": "600036"}]
 
 
+class EmptyTransactionNextClient(DummyNextClient):
+    def transaction(self, symbol: str, start: int = 0, offset: int = 800):
+        return []
+
+
 def _client() -> NextStdQuotes:
     return NextStdQuotes(server=("127.0.0.1", 7709), engine_client=DummyNextClient())
 
@@ -143,6 +148,23 @@ def test_factory_returns_next_std_quotes() -> None:
 def test_factory_defaults_std_market_to_next_engine() -> None:
     client = Quotes.factory(market="std", server=("127.0.0.1", 7709), engine_client=DummyNextClient())
     assert isinstance(client, NextStdQuotes)
+
+
+def test_next_factory_transaction_preserves_empty_upstream_result() -> None:
+    client = Quotes.factory(
+        market="std",
+        engine="next",
+        server=("127.0.0.1", 7709),
+        engine_client=EmptyTransactionNextClient(),
+    )
+
+    try:
+        result = client.transaction(symbol="600036")
+    finally:
+        client.close()
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
 
 
 def test_next_factory_uses_full_server_pool_without_legacy_config(monkeypatch) -> None:

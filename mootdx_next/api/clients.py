@@ -10,7 +10,6 @@ from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import InvalidSymbolError
-from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import UnknownF10CategoryError
@@ -26,7 +25,6 @@ from mootdx_next.models import ServerEndpoint
 from mootdx_next.protocol import StdQuoteProtocol
 from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
-from mootdx_next.session import is_trading_session
 from mootdx_next.symbols import get_stock_market
 from mootdx_next.symbols import get_stock_markets
 from mootdx_next.symbols import normalize_symbol
@@ -231,9 +229,6 @@ class SyncClient:
             raise ValueError("start must be >= 0")
         if offset <= 0 or offset > TRANSACTION_MAX_OFFSET:
             raise ValueError(f"offset must be between 1 and {TRANSACTION_MAX_OFFSET}")
-        if not is_trading_session():
-            raise OutsideTradingSessionError("transaction is only available during the trading session")
-
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
         if market not in {0, 1}:

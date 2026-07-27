@@ -63,7 +63,7 @@ class InvalidDateError(MootdxNextError):
 
 
 class OutsideTradingSessionError(MootdxNextError):
-    """Raised when a real-time API is called outside the supported trading session."""
+    """Legacy public error retained for compatibility with external clients."""
 
 
 class UnknownF10CategoryError(MootdxNextError):

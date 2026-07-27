@@ -43,18 +43,6 @@
       "status": "accepted"
     },
     {
-      "id": "transaction-session-boundaries",
-      "apis": ["transaction", "transactions"],
-      "case_ids": ["session_boundary"],
-      "legacy_behavior": "09:30 and 13:00 are rejected, and historical transactions can be blocked by the current local time.",
-      "next_behavior": "Session starts are included and historical transactions are never gated by the current session.",
-      "rationale": "Historical data is independent of the current session and official sessions include their opening instant.",
-      "evidence": ["Shanghai and Shenzhen exchange trading-session definitions."],
-      "regression_tests": ["tests/core_engine/test_session.py", "tests/core_engine/test_sync_client_transaction_apis.py"],
-      "allowed_paths": ["status", "result", "error"],
-      "status": "accepted"
-    },
-    {
       "id": "hq-legacy-identity-payload",
       "apis": ["quotes", "bars"],
       "case_ids": ["server_capability_probe"],

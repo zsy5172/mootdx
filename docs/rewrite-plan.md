@@ -48,7 +48,7 @@
 - 协议解析失败
 - 空响应
 - 不支持市场
-- 交易时段限制
+- 参数校验失败
 
 禁止使用 `None` 作为网络失败的默认兜底。
 
@@ -222,7 +222,7 @@
 
 - 代表用例：常见参数组合
 - 边界用例：最小值、最大值、分页边界、空值、冷门市场
-- 非法用例：错误 market、错误 symbol、交易时段不支持等
+- 非法用例：错误 market、错误 symbol、窗口越界等
 - live-only 用例：不适合 replay 的真实链路校验
 
 不做全量笛卡尔积。参数组合采用“代表集 + 边界集 + pairwise 补充”。
@@ -314,7 +314,8 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 1. 默认 CI 持续运行单元测试、依赖边界门禁和确定性 corpus replay。
 2. 新增或修改公共方法时同步更新 Raw、Pandas、同步、异步和参数库存矩阵。
 3. 原版差异默认视为回归；只有具备证据、回归用例并登记 deviation registry 后才可接受。
-4. 人工或 nightly 执行真实行情矩阵；实时逐笔只在交易时段验证，F10/F10C 固定使用 `600036`。
+4. 人工或 nightly 执行真实行情矩阵；实时逐笔仅在交易时段断言结果非空，但生产 API 始终请求上游；
+   F10/F10C 固定使用 `600036`。
 5. 在线 EX 保持 unsupported，本地 `ExtReader` 继续维护；旧 GP socket 不恢复，财务文件使用官方 HTTPS。
 
 每一步都应以“小批次可提交”为单位推进，不接受“大重写后统一验证”的方式。
@@ -513,12 +514,12 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 目标：
 
 - 补齐分笔及历史分笔接口
-- 强化断线重连、时段限制和异常语义
+- 强化断线重连、空响应和异常语义
 
 交付物：
 
 - `transactions` 与 history transaction 新实现
-- 时段限制相关测试
+- 实时空响应与 live 测试时段分类
 - 更完整的 nightly compat-live 样本集
 
 退出条件：
@@ -530,9 +531,11 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 当前进度：
 
 - 已实现 `StdQuoteProtocol` 的 `transaction` 与 `transactions` 编解码，并接入新核心 typed API。
-- 已实现 `SyncClient.transaction()`、`SyncClient.transactions()`，补齐 SH/SZ 限制、BJ 显式拒绝、历史日期校验与实时分笔时段限制。
+- 已实现 `SyncClient.transaction()`、`SyncClient.transactions()`，补齐 SH/SZ 限制、BJ 显式拒绝与历史日期校验；
+  实时分笔始终请求上游，无数据时返回空结果。
 - 已为 transport/pool 级失败补上一轮自动重试，并支持在单次请求内排除已失败节点重新选服。
-- 已新增 transaction/history transaction 的 replay corpus，并接入 `compat_replay`、history live decode parity 与 session-aware realtime smoke。
+- 已新增 transaction/history transaction 的 replay corpus，并接入 `compat_replay`、history live decode parity
+  与只在交易时段要求结果非空的 realtime smoke。
 
 ### Week 9：扩展接口与性能调优
 

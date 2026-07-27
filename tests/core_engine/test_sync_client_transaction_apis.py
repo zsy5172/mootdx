@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
+from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import InvalidDateError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import NoHealthyServerError
-from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
@@ -32,8 +33,7 @@ def _transactions_body(case_id: str) -> bytes:
     return (ROOT / "compat" / "corpus" / "transactions" / case_id / "steps" / "01_transactions" / "response.body.bin").read_bytes()
 
 
-def test_sync_client_transaction_decodes_rows(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
+def test_sync_client_transaction_decodes_rows() -> None:
     transport = RecordingTransport(responses=[_transaction_body("live_sh_600036_last10")])
     pool = RecordingConnectionPool(transport)
     scheduler = RecordingScheduler(server=pool.server)
@@ -43,6 +43,29 @@ def test_sync_client_transaction_decodes_rows(monkeypatch: pytest.MonkeyPatch) -
 
     assert len(rows) == 10
     assert {"time", "price", "vol", "num", "buyorsell", "volume"} <= set(rows[0])
+
+
+def test_sync_client_transaction_returns_empty_upstream_result() -> None:
+    transport = RecordingTransport(responses=[b"\x00\x00"])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.transaction(symbol="600036", start=0, offset=10) == []
+    assert len(transport.sent_payloads) == 1
+
+
+def test_async_client_transaction_returns_empty_upstream_result() -> None:
+    transport = RecordingTransport(responses=[b"\x00\x00"])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    sync_client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+    client = AsyncClient(sync_client=sync_client)
+
+    try:
+        assert asyncio.run(client.transaction(symbol="600036", start=0, offset=10)) == []
+    finally:
+        client.close()
 
 
 def test_sync_client_transactions_decodes_rows() -> None:
@@ -58,9 +81,8 @@ def test_sync_client_transactions_decodes_rows() -> None:
     assert "num" not in rows[0]
 
 
-def test_sync_client_transaction_rejects_invalid_params(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sync_client_transaction_rejects_invalid_params() -> None:
     client = SyncClient()
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
 
     with pytest.raises(InvalidSymbolError):
         client.transaction(symbol="")
@@ -70,9 +92,6 @@ def test_sync_client_transaction_rejects_invalid_params(monkeypatch: pytest.Monk
         client.transaction(symbol="600036", offset=0)
     with pytest.raises(ValueError, match="offset must be between 1 and 1800"):
         client.transaction(symbol="600036", offset=1801)
-    with pytest.raises(OutsideTradingSessionError):
-        monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: False)
-        client.transaction(symbol="600036")
 
 
 def test_sync_client_transactions_reject_invalid_params() -> None:
@@ -90,9 +109,8 @@ def test_sync_client_transactions_reject_invalid_params() -> None:
         client.transactions(symbol="600036", date="2017/02/09")
 
 
-def test_sync_client_transaction_rejects_bj_symbol(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sync_client_transaction_rejects_bj_symbol() -> None:
     client = SyncClient()
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
 
     with pytest.raises(UnsupportedMarketError):
         client.transaction(symbol="430090")
@@ -101,8 +119,7 @@ def test_sync_client_transaction_rejects_bj_symbol(monkeypatch: pytest.MonkeyPat
         client.transactions(symbol="430090", date="20200101")
 
 
-def test_sync_client_transaction_propagates_scheduler_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
+def test_sync_client_transaction_propagates_scheduler_failure() -> None:
     transport = RecordingTransport()
     pool = RecordingConnectionPool(transport)
     scheduler = RecordingScheduler(server=pool.server, select_error=NoHealthyServerError("no server"))
@@ -166,8 +183,7 @@ class MultiTransportPool:
             transport.close()
 
 
-def test_sync_client_transaction_retries_on_transport_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
+def test_sync_client_transaction_retries_on_transport_failure() -> None:
     server_a = ServerEndpoint(host="127.0.0.1", port=7709, label="a")
     server_b = ServerEndpoint(host="127.0.0.2", port=7709, label="b")
     transport_a = RecordingTransport(send_error=TransportTimeoutError("timed out"))
@@ -190,8 +206,7 @@ def test_sync_client_transaction_retries_on_transport_failure(monkeypatch: pytes
     assert [call[0] for call in scheduler.success_calls] == [server_b]
 
 
-def test_sync_client_transaction_does_not_retry_decode_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
+def test_sync_client_transaction_does_not_retry_decode_error() -> None:
     server_a = ServerEndpoint(host="127.0.0.1", port=7709, label="a")
     server_b = ServerEndpoint(host="127.0.0.2", port=7709, label="b")
     transport_a = RecordingTransport(responses=[b"\x01\x00short"])
@@ -215,8 +230,7 @@ def test_sync_client_transaction_does_not_retry_decode_error(monkeypatch: pytest
     assert transport_b.sent_payloads == []
 
 
-def test_sync_client_default_scheduler_wires_transaction_servers(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mootdx_next.api.clients.is_trading_session", lambda: True)
+def test_sync_client_default_scheduler_wires_transaction_servers() -> None:
     client = SyncClient()
 
     assert client.scheduler.select_server(RequestContext(api="transaction")) is not None

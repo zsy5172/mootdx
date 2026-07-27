@@ -20,7 +20,7 @@ It fails when a public method is added without updating the matrix and covers:
   and 2000-historical-transaction limits;
 - compact integer, dashed string, and plain string dates;
 - SH, SZ, BJ, and explicit market prefixes;
-- invalid type, invalid range, invalid market, and session-state classes.
+- invalid type, invalid range, invalid market, and empty upstream responses.
 
 `AsyncClient` has typed wrappers for every `SyncClient` business API. The
 inventory test requires exact parity and fails if either facade changes without
@@ -72,8 +72,10 @@ pytest tests/compat/test_reader_baseline.py -q
 interfaces, all 12 bar frequencies, market/date/window variants, async calls,
 F10 with `600036`, block data, real `600036`/`510500` adjustment combinations,
 populated history wrappers, and the legacy-compatible facade. It is skipped by
-default. Real-time `transaction()` is additionally skipped outside a weekday
-trading session; historical `transactions()` is not.
+default. The production `transaction()` API always contacts the upstream
+server and preserves an empty response. The matrix only skips its populated
+real-time assertion outside a weekday trading session; historical
+`transactions()` is always exercised.
 
 ```bash
 MOOTDX_RUN_LIVE_MATRIX=1 pytest tests/core_engine/test_next_full_live_matrix.py -q
@@ -88,7 +90,8 @@ nox -s next_live_matrix
 ## 4. Trading-session matrix
 
 `tests/core_engine/test_trading_session_live_matrix.py` is reserved for a live
-A-share session and requires populated data. It covers:
+A-share session and requires populated data. This is a live-test precondition,
+not a production API gate. It covers:
 
 - `minute()` and `minutes(today)` with stable-row equivalence;
 - `transaction()` at `start=0/10` and `offset=1/10/800/1800`;
