@@ -171,9 +171,7 @@ class BaseQuotes(object):
 
 
 def _validation_exception(message: str) -> MootdxValidationException:
-    exc = MootdxValidationException()
-    exc.args = (message,)
-    return exc
+    return MootdxValidationException(message)
 
 
 instance: BaseQuotes | None = None

@@ -40,9 +40,7 @@ class BaseFinancial:
 
     @staticmethod
     def unsupported_gp():
-        exc = MootdxValidationException()
-        exc.args = ('GP 财务下载线路已经废弃且不再支持',)
-        return exc
+        return MootdxValidationException('GP 财务下载线路已经废弃且不再支持')
 
     def fetch_and_parse(self, report_hook=None, downdir=None, chunk_size=51200, *args, **kwargs):
         """

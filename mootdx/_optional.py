@@ -8,9 +8,7 @@ LEGACY_EXTRA = "mootdx[legacy]"
 
 
 def missing_legacy_dependency(feature: str) -> MootdxModuleNotFoundError:
-    exc = MootdxModuleNotFoundError()
-    exc.args = (f"{feature} 依赖 tdxpy, 请先安装 `{LEGACY_EXTRA}`",)
-    return exc
+    return MootdxModuleNotFoundError(f"{feature} 依赖 tdxpy, 请先安装 `{LEGACY_EXTRA}`")
 
 
 def import_legacy_module(module_name: str, feature: str):

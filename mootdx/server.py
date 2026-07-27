@@ -136,9 +136,7 @@ def _probe_ex(proxy: dict) -> bool:
 
 
 def _unsupported_gp():
-    exc = MootdxValidationException()
-    exc.args = ('GP 财务下载线路已经废弃且不再支持',)
-    return exc
+    return MootdxValidationException('GP 财务下载线路已经废弃且不再支持')
 
 
 def server(index=None, limit=5, console=False, sync=True):
