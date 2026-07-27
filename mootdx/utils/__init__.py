@@ -141,7 +141,7 @@ def to_data(v, **kwargs):
     """
 
     symbol = kwargs.get('symbol')
-    adjust = kwargs.get('adjust', '').lower()
+    adjust = str(kwargs.get('adjust') or '').lower()
 
     if adjust in ['01', 'qfq', 'before']:
         adjust = 'qfq'
@@ -151,15 +151,15 @@ def to_data(v, **kwargs):
         adjust = None
 
     if isinstance(v, DataFrame):
-        result = v
+        result = v.copy()
     else:
         result = _coerce_tabular(v)
 
     if 'datetime' in result.columns:
-        result.index = pd.to_datetime(result['datetime'])
+        result.index = pd.to_datetime(result['datetime'], errors='coerce')
 
-    if 'date' in result.columns:
-        result.index = pd.to_datetime(result['date'])
+    elif 'date' in result.columns:
+        result.index = pd.to_datetime(result['date'], errors='coerce')
 
     if 'vol' in result.columns and 'volume' not in result.columns:
         result['volume'] = result['vol'].to_numpy(copy=False)
@@ -167,7 +167,7 @@ def to_data(v, **kwargs):
     if adjust and adjust in ['qfq', 'hfq'] and symbol:
         from mootdx.utils.adjust import to_adjust
 
-        result = to_adjust(result, symbol=symbol, adjust=adjust)
+        result = to_adjust(result, symbol=symbol, adjust=adjust, xdxr=kwargs.get('xdxr'))
 
     # @file_cache(refresh_time=3600 * 24, filepath=get_config_path('cache/'))
     # def cache_data(data):
@@ -177,16 +177,19 @@ def to_data(v, **kwargs):
 
 
 def _coerce_tabular(value: Any) -> pd.DataFrame:
-    if not value:
+    if value is None:
         return pd.DataFrame()
 
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return pd.DataFrame.from_records(value)
 
     if isinstance(value, dict):
         return pd.DataFrame.from_records([value])
 
-    return pd.DataFrame()
+    try:
+        return pd.DataFrame(value)
+    except (TypeError, ValueError):
+        return pd.DataFrame()
 
 
 def to_file(df, filename=None):
