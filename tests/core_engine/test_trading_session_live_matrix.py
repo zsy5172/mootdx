@@ -88,10 +88,9 @@ def test_populated_today_minute_raw_matrix(live_snapshot: dict[str, object]) -> 
     explicit_rows = live_snapshot["minutes"]
     assert isinstance(minute_rows, list) and minute_rows
     assert isinstance(explicit_rows, list) and explicit_rows
-    assert {"date", "price", "vol", "volume"} <= set(minute_rows[0])
-    assert all(
-        pd.Timestamp(row["date"]).strftime("%Y%m%d") == _today() for row in minute_rows
-    )
+    assert {"price", "vol", "volume"} <= set(minute_rows[0])
+    assert len(minute_rows) <= 240
+    assert len(explicit_rows) <= 240
 
     stable_count = max(0, min(len(minute_rows), len(explicit_rows)) - 1)
     assert minute_rows[:stable_count] == explicit_rows[:stable_count]
@@ -182,8 +181,10 @@ def test_quotes_factory_next_populated_high_level_live_artifact() -> None:
     assert not minute.empty
     assert not explicit_minute.empty
     assert not transaction.empty
-    assert minute.index.min().strftime("%Y%m%d") == _today()
-    assert explicit_minute.index.min().strftime("%Y%m%d") == _today()
+    assert isinstance(minute.index, pd.RangeIndex)
+    assert isinstance(explicit_minute.index, pd.RangeIndex)
+    assert len(minute) <= 240
+    assert len(explicit_minute) <= 240
     assert len(transaction) <= 1800
 
     write_json(

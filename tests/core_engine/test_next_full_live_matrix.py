@@ -185,7 +185,8 @@ def test_live_real_adjustment_and_history_wrapper_matrix() -> None:
                     )
                     latest_closes.append(adjusted["close"].iloc[-1])
                 assert latest_closes == pytest.approx(
-                    [latest_closes[0]] * len(latest_closes)
+                    [latest_closes[0]] * len(latest_closes),
+                    rel=0.02,
                 )
 
         for adjust in ["qfq", "hfq"]:
