@@ -35,6 +35,11 @@ class TestReaderBase(unittest.TestCase):
         result = reader.find_path(symbol='sz000001', subdir='minline', suffix=['lc1', '1'], debug=True)
         assert ('sz', 'sz000001', ['lc1', '1']) == result, result
 
+    def test_find_path_bj(self):
+        reader = ReaderBase('tests/fixtures')
+        result = reader.find_path(symbol='920001', subdir='lday', suffix='day', debug=True)
+        assert ('bj', 'bj920001', ['day']) == result, result
+
 
 if __name__ == '__main__':
     unittest.main()

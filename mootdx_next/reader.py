@@ -36,11 +36,16 @@ class ReaderBase(ABC):
         :param tdxdir: 通达信安装目录
         """
 
-        tdxdir = tdxdir or self.tdxdir
-        if not Path(tdxdir).is_dir():
+        supplied = Path(tdxdir or self.tdxdir).expanduser()
+        if not supplied.is_dir():
             raise Exception('tdxdir 目录不存在')
 
-        self.tdxdir = tdxdir
+        if supplied.name.lower() == 'vipdoc':
+            self.vipdoc = supplied
+            self.tdxdir = str(supplied.parent)
+        else:
+            self.tdxdir = str(supplied)
+            self.vipdoc = supplied / 'vipdoc'
 
     def find_path(self, symbol=None, subdir='lday', suffix=None, **kwargs):
         """
@@ -52,31 +57,40 @@ class ReaderBase(ABC):
         :return: pd.dataFrame or None
         """
 
+        raw_symbol = str(symbol).strip()
+
         # 判断市场, 带#扩展市场
-        if '#' in symbol:
+        if '#' in raw_symbol:
             market = 'ds'
+            normalized_symbol = raw_symbol
         # 通达信特有的板块指数88****开头的日线数据放在 sh 文件夹下
-        elif symbol.startswith('88'):
+        elif raw_symbol.lower().startswith('88'):
             market = 'sh'
+            normalized_symbol = raw_symbol.lower()
         else:
             # 判断是sh还是sz
-            market = get_stock_market(symbol, True)
+            market = get_stock_market(raw_symbol, True)
+            normalized_symbol = raw_symbol.lower()
 
-        # 判断前缀(市场是sh和sz重置前缀)
-        if market.lower() in ['sh', 'sz']:
-            symbol = market + symbol.lower().replace(market, '')
+        # 判断前缀
+        if market.lower() in ['sh', 'sz', 'bj']:
+            for prefix in ('sh', 'sz', 'bj'):
+                if normalized_symbol.startswith(prefix):
+                    normalized_symbol = normalized_symbol[len(prefix):]
+                    break
+            normalized_symbol = market + normalized_symbol
 
         # 判断后缀
         suffix = suffix if isinstance(suffix, list) else [suffix]
 
         # 调试使用
         if kwargs.get('debug'):
-            return market, symbol, suffix
+            return market, normalized_symbol, suffix
 
         # 遍历扩展名
         for ex_ in suffix:
             ex_ = ex_.strip('.')
-            vipdoc = Path(self.tdxdir) / 'vipdoc' / market / subdir / f'{symbol}.{ex_}'
+            vipdoc = self.vipdoc / market / subdir / f'{normalized_symbol}.{ex_}'
 
             if Path(vipdoc).exists():
                 return vipdoc

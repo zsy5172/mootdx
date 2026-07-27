@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import struct
+
 import pandas as pd
 import pytest
 
@@ -35,6 +37,50 @@ def test_ext_reader_local_files_work_without_legacy_reader() -> None:
 
     minute = reader.minute(symbol="4#CF7D0LAO")
     assert minute is None
+
+
+def test_reader_accepts_tdx_root_or_vipdoc_path() -> None:
+    root_reader = Reader.factory(market="std", tdxdir=FIXTURE_DIR)
+    vipdoc_reader = Reader.factory(market="std", tdxdir=f"{FIXTURE_DIR}/vipdoc")
+
+    pd.testing.assert_frame_equal(
+        root_reader.daily(symbol="127021"),
+        vipdoc_reader.daily(symbol="127021"),
+    )
+
+
+def test_bj_daily_reader_resolves_920_path_and_coefficients(tmp_path) -> None:
+    daily_dir = tmp_path / "vipdoc" / "bj" / "lday"
+    daily_dir.mkdir(parents=True)
+    daily_file = daily_dir / "bj920001.day"
+    daily_file.write_bytes(
+        struct.pack(
+            "<IIIIIfII",
+            20260727,
+            1000,
+            1100,
+            900,
+            1050,
+            12345.0,
+            2000,
+            0,
+        )
+    )
+
+    reader = Reader.factory(market="std", tdxdir=tmp_path)
+    result = reader.daily(symbol="920001")
+
+    assert reader.find_path("920001", subdir="lday", suffix="day") == daily_file
+    assert result.loc[pd.Timestamp("2026-07-27"), "open"] == pytest.approx(10.0)
+    assert result.loc[pd.Timestamp("2026-07-27"), "close"] == pytest.approx(10.5)
+    assert result.loc[pd.Timestamp("2026-07-27"), "volume"] == pytest.approx(20.0)
+
+
+def test_bj_daily_reader_distinguishes_stock_and_index_types() -> None:
+    reader = StdDailyBarReader()
+
+    assert reader.get_security_type("bj920001.day") == "BJ_A_STOCK"
+    assert reader.get_security_type("bj899001.day") == "BJ_INDEX"
 
 
 @pytest.mark.parametrize("reader_class", [StdMinBarReader, StdLCMinBarReader])

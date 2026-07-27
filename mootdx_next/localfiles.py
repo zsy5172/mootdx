@@ -54,7 +54,7 @@ class _BinaryReader:
 
 
 class StdDailyBarReader(_BinaryReader):
-    security_exchange = ["sz", "sh"]
+    security_exchange = ["sz", "sh", "bj"]
     security_type = [
         "SH_A_STOCK",
         "SH_B_STOCK",
@@ -67,6 +67,8 @@ class StdDailyBarReader(_BinaryReader):
         "SZ_INDEX",
         "SZ_FUND",
         "SZ_BOND",
+        "BJ_A_STOCK",
+        "BJ_INDEX",
     ]
     security_coefficient = {
         "SH_A_STOCK": [0.01, 0.01],
@@ -80,6 +82,8 @@ class StdDailyBarReader(_BinaryReader):
         "SZ_INDEX": [0.01, 1.0],
         "SZ_FUND": [0.001, 0.01],
         "SZ_BOND": [0.001, 0.01],
+        "BJ_A_STOCK": [0.01, 0.01],
+        "BJ_INDEX": [0.01, 1.0],
     }
 
     def parse_data_by_file(self, filename: str | Path):
@@ -131,6 +135,11 @@ class StdDailyBarReader(_BinaryReader):
                 return "SH_FUND"
             if code_head in ["01", "02", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]:
                 return "SH_BOND"
+
+        if exchange == self.security_exchange[2]:
+            if basename[2:].startswith("899"):
+                return "BJ_INDEX"
+            return "BJ_A_STOCK"
 
         raise NotImplementedError("unknown security exchange")
 
