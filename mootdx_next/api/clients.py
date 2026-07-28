@@ -380,8 +380,8 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for xdxr: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for xdxr: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
         context = RequestContext(api="xdxr", params={"symbol": normalized_symbol, "market": market})

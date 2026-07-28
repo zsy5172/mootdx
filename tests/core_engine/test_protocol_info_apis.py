@@ -42,6 +42,12 @@ def test_encode_xdxr_matches_corpus_request() -> None:
     assert protocol.encode_xdxr(1, "600036") == _request("xdxr", "sh_600036", "01_xdxr")
 
 
+def test_encode_xdxr_accepts_bj_market_two() -> None:
+    protocol = StdQuoteProtocol()
+
+    assert protocol.encode_xdxr(2, '920001')[-7:] == b'\x02' + b'920001'
+
+
 def test_decode_xdxr_matches_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
     expected = _result("xdxr", "sh_600036")

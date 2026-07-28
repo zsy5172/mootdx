@@ -86,13 +86,21 @@ def test_sync_client_info_apis_reject_invalid_inputs() -> None:
         client.f10_content(symbol="600036", name="")
 
 
-def test_sync_client_info_apis_reject_bj() -> None:
+def test_sync_client_xdxr_accepts_bj_market_two() -> None:
+    transport = RecordingTransport(responses=[b'\x00'])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.xdxr(symbol='BJ920001') == []
+    assert transport.sent_payloads[0][-7:] == b'\x02' + b'920001'
+
+
+def test_sync_client_other_info_apis_reject_bj() -> None:
     client = SyncClient()
 
     with pytest.raises(UnsupportedMarketError):
         client.finance(symbol="430090")
-    with pytest.raises(UnsupportedMarketError):
-        client.xdxr(symbol="430090")
     with pytest.raises(UnsupportedMarketError):
         client.f10_categories(symbol="430090")
     with pytest.raises(UnsupportedMarketError):

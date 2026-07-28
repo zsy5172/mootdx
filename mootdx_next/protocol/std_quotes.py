@@ -958,7 +958,7 @@ class StdQuoteProtocol(AbstractProtocol):
         }
 
     def encode_xdxr(self, market: int, code: str) -> bytes:
-        if market not in self.valid_markets:
+        if market not in {*self.valid_markets, MARKET_BJ}:
             raise UnsupportedMarketError(f"unsupported market for xdxr: {market}")
 
         encoded_code = code.encode("utf-8")

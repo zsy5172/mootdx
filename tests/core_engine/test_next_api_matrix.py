@@ -395,7 +395,6 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
         ("transactions", ("600036", "20170209"), {"offset": 2001}, ValueError),
         ("transactions", ("430090", "20170209"), {}, UnsupportedMarketError),
         ("finance", ("430090",), {}, UnsupportedMarketError),
-        ("xdxr", ("430090",), {}, UnsupportedMarketError),
         ("f10_categories", ("430090",), {}, UnsupportedMarketError),
         ("f10_content", ("600036", ""), {}, UnknownF10CategoryError),
     ],
