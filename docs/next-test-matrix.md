@@ -50,6 +50,12 @@ the real 2026 adjustment windows for `600036` and `510500`.
 - the 2026-07-10 `600036` cash event;
 - both `510500` split/consolidation events and all four cash events;
 - qfq/hfq affine ETF handling;
+- LOF, closed-fund/REIT cash events and reverse-order hfq composition;
+- category 12 non-tradable-share contractions and explicit category 13/14
+  warrant-valuation failures;
+- Beijing-market bars/xdxr adjustment, including pre-listing event baselines;
+- requested-date minute price adjustment while preserving volume and amount;
+- long suspensions and ranges that do not cross unresolved events;
 - weekly, monthly, quarterly, and yearly OHLC aggregation after daily
   adjustment;
 - populated adjusted `get_k_data`, `k`, and `ohlc` result shapes.
