@@ -17,7 +17,7 @@ It fails when a public method is added without updating the matrix and covers:
 - the standard and extension local Reader public inventories;
 - all 12 wire frequency values and every string alias;
 - request window boundaries, including the 800-bar, 1800-live-transaction,
-  and 2000-historical-transaction limits;
+  2000-historical-transaction, and 2000-special-price limits;
 - compact integer, dashed string, and plain string dates;
 - SH, SZ, BJ, and explicit market prefixes;
 - invalid type, invalid range, invalid market, and empty upstream responses.
@@ -69,13 +69,14 @@ pytest tests/compat/test_reader_baseline.py -q
 ## 3. Opt-in exhaustive historical/live matrix
 
 `tests/core_engine/test_next_full_live_matrix.py` exercises all server-backed
-interfaces, all 12 bar frequencies, market/date/window variants, async calls,
-F10 with `600036`, block data, real `600036`/`510500` adjustment combinations,
-populated history wrappers, and the legacy-compatible facade. It is skipped by
-default. The production `transaction()` API always contacts the upstream
-server and preserves an empty response. The matrix only skips its populated
-real-time assertion outside a weekday trading session; historical
-`transactions()` is always exercised.
+interfaces, the `0x0452` special-price table and single-symbol rule fallback,
+all 12 bar frequencies, market/date/window variants, async calls, F10 with
+`600036`, block data, real `600036`/`510500` adjustment combinations, populated
+history wrappers, and the legacy-compatible facade. It is skipped by default.
+The production `transaction()` API always contacts the upstream server and
+preserves an empty response. The matrix only skips its populated real-time
+assertion outside a weekday trading session; historical `transactions()` is
+always exercised.
 
 ```bash
 MOOTDX_RUN_LIVE_MATRIX=1 pytest tests/core_engine/test_next_full_live_matrix.py -q

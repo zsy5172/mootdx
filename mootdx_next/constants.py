@@ -35,6 +35,7 @@ FREQUENCIES = (
 MAX_KLINE_COUNT = 800
 MAX_TRANSACTION_COUNT = 1800
 MAX_HISTORY_TRANSACTION_COUNT = 2000
+MAX_LIMIT_PRICE_COUNT = 2000
 
 BLOCK_SZ = "block_zs.dat"
 BLOCK_FG = "block_fg.dat"
@@ -43,9 +44,10 @@ BLOCK_DEFAULT = "block.dat"
 TYPE_FLATS = 0
 TYPE_GROUP = 1
 
-# Each endpoint below returned and decoded both a realtime quote and daily bars
-# for 600036 during the 2026-07-20 capability audit. CandidateRegistry probes
-# the capabilities again before exposing a latency-ranked snapshot.
+# Each endpoint below returned and decoded realtime quotes, daily bars, and the
+# complete 0x0452 special-price table during the 2026-07 capability audits.
+# CandidateRegistry probes quote/bar capabilities again before exposing a
+# latency-ranked snapshot.
 HQ_HOSTS = (
     ("深圳双线主站1", "110.41.147.114", 7709),
     ("上海双线主站6", "124.70.199.56", 7709),
@@ -72,7 +74,6 @@ HQ_HOSTS = (
     ("通达信深圳双线主站7", "129.204.230.128", 7709),
     ("通达信深圳双线主站8", "111.230.186.52", 7709),
     ("上海双线主站16", "121.37.183.82", 7709),
-    ("深圳双线主站9", "110.41.174.169", 7709),
     ("补充行情主站1", "182.140.139.191", 7709),
     ("补充行情主站2", "119.6.200.40", 7709),
     ("补充行情主站3", "218.200.222.134", 7709),

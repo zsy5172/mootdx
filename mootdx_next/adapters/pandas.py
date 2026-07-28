@@ -39,6 +39,19 @@ def quotes_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows, add_volume_alias=True)
 
 
+def limit_prices_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    return _frame_from_records(rows, columns=["market", "code", "limit_up", "limit_down"])
+
+
+def price_limit_to_frame(row: dict[str, object] | None) -> pd.DataFrame:
+    if not row:
+        return _empty_frame(["market", "code", "limit_up", "limit_down", "source"])
+    return pd.DataFrame.from_records(
+        [row],
+        columns=["market", "code", "limit_up", "limit_down", "source"],
+    )
+
+
 def bars_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows, datetime_column="datetime")
 

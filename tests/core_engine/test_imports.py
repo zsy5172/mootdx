@@ -13,10 +13,16 @@ from mootdx_next import InvalidFrequencyError
 from mootdx_next import InvalidResponseHeaderError
 from mootdx_next import InvalidSymbolError
 from mootdx_next import invalidate_hq_candidates
+from mootdx_next import invalidate_price_limit_cache
+from mootdx_next import limit_prices_to_frame
 from mootdx_next import minutes_to_frame
 from mootdx_next import OutsideTradingSessionError
 from mootdx_next import PayloadDecompressionError
 from mootdx_next import PoolExhaustedError
+from mootdx_next import PriceLimit
+from mootdx_next import PriceLimitRegistry
+from mootdx_next import price_limit_snapshot
+from mootdx_next import price_limit_to_frame
 from mootdx_next import quotes_to_frame
 from mootdx_next import refresh_hq_candidates
 from mootdx_next import RequestContext
@@ -53,10 +59,16 @@ def test_top_level_imports() -> None:
     assert InvalidResponseHeaderError is not None
     assert InvalidSymbolError is not None
     assert invalidate_hq_candidates is not None
+    assert invalidate_price_limit_cache is not None
+    assert limit_prices_to_frame is not None
     assert minutes_to_frame is not None
     assert OutsideTradingSessionError is not None
     assert PayloadDecompressionError is not None
     assert PoolExhaustedError is not None
+    assert PriceLimit is not None
+    assert PriceLimitRegistry is not None
+    assert price_limit_snapshot is not None
+    assert price_limit_to_frame is not None
     assert quotes_to_frame is not None
     assert refresh_hq_candidates is not None
     assert RequestContext is not None

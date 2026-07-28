@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
 import struct
 from typing import Any
 
 from mootdx_next.constants import MARKET_BJ
+from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.interfaces import AbstractProtocol
@@ -74,6 +76,8 @@ F10_CONTENT_HEAD_STRUCT = struct.Struct("<10sH")
 BLOCK_INFO_META_STRUCT = struct.Struct("<I1s32s1s")
 ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
 QUOTE_TRADING_PHASE_STRUCT = struct.Struct("<H")
+LIMIT_PRICE_REQUEST_STRUCT = struct.Struct("<HHHHHHHH")
+LIMIT_PRICE_ROW_STRUCT = struct.Struct("<BIff")
 
 
 def _get_volume(vol: int) -> float:
@@ -224,6 +228,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.encode_stock_list_page(int(kwargs["market"]), int(kwargs["start"]))
         if api == "quotes":
             return self.encode_quotes(list(kwargs["symbols"]))
+        if api == "limit_prices":
+            return self.encode_limit_prices(int(kwargs["start"]), int(kwargs["count"]))
         if api == "bars":
             return self.encode_bars(
                 int(kwargs["frequency"]),
@@ -285,6 +291,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.decode_stock_list_page(body)
         if api == "quotes":
             return self.decode_quotes(body)
+        if api == "limit_prices":
+            return self.decode_limit_prices(body)
         if api == "bars":
             return self.decode_bars(body, int(kwargs["frequency"]))
         if api == "index_bars":
@@ -399,6 +407,52 @@ class StdQuoteProtocol(AbstractProtocol):
             payload.extend(struct.pack("<B6s", market, encoded_code))
 
         return bytes(payload)
+
+    def encode_limit_prices(self, start: int = 0, count: int = MAX_LIMIT_PRICE_COUNT) -> bytes:
+        if start < 0 or start > 0xFFFF:
+            raise ValueError("start must be between 0 and 65535")
+        if count <= 0 or count > MAX_LIMIT_PRICE_COUNT:
+            raise ValueError(f"count must be between 1 and {MAX_LIMIT_PRICE_COUNT}")
+
+        body = LIMIT_PRICE_REQUEST_STRUCT.pack(0x0452, start, 0, count, 0, 0, 0, 0)
+        return struct.pack("<HIHH", 0, 0, len(body), len(body)) + body
+
+    def decode_limit_prices(self, body: bytes) -> list[dict[str, object]]:
+        if len(body) < U16_STRUCT.size:
+            raise ProtocolDecodeError(f"limit_prices body too short: {len(body)}")
+
+        try:
+            (count,) = U16_STRUCT.unpack_from(body, 0)
+        except struct.error as exc:
+            raise ProtocolDecodeError("failed to decode limit_prices count") from exc
+
+        expected_size = U16_STRUCT.size + count * LIMIT_PRICE_ROW_STRUCT.size
+        if len(body) != expected_size:
+            raise ProtocolDecodeError(
+                f"invalid limit_prices body size: expected {expected_size} bytes, got {len(body)}"
+            )
+
+        rows: list[dict[str, object]] = []
+        for index in range(count):
+            pos = U16_STRUCT.size + index * LIMIT_PRICE_ROW_STRUCT.size
+            try:
+                market, numeric_code, limit_up, limit_down = LIMIT_PRICE_ROW_STRUCT.unpack_from(body, pos)
+            except struct.error as exc:
+                raise ProtocolDecodeError(f"failed to decode limit_prices row {index}") from exc
+
+            if not math.isfinite(limit_up) or not math.isfinite(limit_down):
+                raise ProtocolDecodeError(f"limit_prices row {index} contains a non-finite price")
+
+            rows.append(
+                {
+                    "market": market,
+                    "code": f"{numeric_code:06d}",
+                    "limit_up": round(limit_up, 4),
+                    "limit_down": round(limit_down, 4),
+                }
+            )
+
+        return rows
 
     def decode_quotes(self, body: bytes) -> list[dict[str, object]]:
         if len(body) < 4:

@@ -37,6 +37,18 @@ class DummyNextClient:
             return [{"code": item, "price": 1.0, "vol": 10} for item in symbol]
         return [{"code": symbol, "price": 1.0, "vol": 10}]
 
+    def limit_prices(self, start: int = 0, count: int = 2000):
+        return [{"market": 1, "code": "600053", "limit_up": 7.5, "limit_down": 6.14}]
+
+    def price_limit(self, symbol: str, refresh: bool = False):
+        return {
+            "market": 1,
+            "code": "600036",
+            "limit_up": 42.9,
+            "limit_down": 35.1,
+            "source": "calculated",
+        }
+
     def bars(self, symbol: str, frequency: int | str = 9, start: int = 0, offset: int = 800):
         self.last_bars_call = {
             "symbol": symbol,
@@ -257,6 +269,23 @@ def test_next_quotes_compat_returns_dataframe_and_empty_for_none() -> None:
     client = _client()
     assert isinstance(client.quotes(symbol="600036"), pd.DataFrame)
     assert client.quotes(symbol=None).empty is True
+
+
+def test_next_limit_price_compat_returns_dataframe_shapes() -> None:
+    client = _client()
+
+    table = client.limit_prices(count=10)
+    single = client.price_limit("600036")
+
+    assert list(table.columns) == ["market", "code", "limit_up", "limit_down"]
+    assert list(single.columns) == ["market", "code", "limit_up", "limit_down", "source"]
+    assert single.iloc[0].to_dict() == {
+        "market": 1,
+        "code": "600036",
+        "limit_up": 42.9,
+        "limit_down": 35.1,
+        "source": "calculated",
+    }
 
 
 def test_next_stock_compat_returns_legacy_shapes() -> None:

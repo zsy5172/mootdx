@@ -48,6 +48,18 @@ class SyncRaw:
     def quotes(self, symbol=None):
         return [{"code": "600036", "price": 10.0, "vol": 100}]
 
+    def limit_prices(self, start=0, count=2000):
+        return [{"market": 1, "code": "600053", "limit_up": 7.5, "limit_down": 6.14}]
+
+    def price_limit(self, symbol: str, refresh=False):
+        return {
+            "market": 1,
+            "code": "600036",
+            "limit_up": 42.9,
+            "limit_down": 35.1,
+            "source": "calculated",
+        }
+
     def bars(self, symbol: str, frequency=9, start=0, offset=800):
         self.bar_calls.append((symbol, frequency, start, offset))
         return [_bar("2024-01-02", 10.0), _bar("2024-01-03", 11.0)] if start == 0 else []
@@ -118,6 +130,14 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     client = PandasClient(raw_client=raw)
 
     assert isinstance(client.quotes("600036"), pd.DataFrame)
+    assert list(client.limit_prices().columns) == ["market", "code", "limit_up", "limit_down"]
+    assert list(client.price_limit("600036").columns) == [
+        "market",
+        "code",
+        "limit_up",
+        "limit_down",
+        "source",
+    ]
     assert isinstance(client.bars("600036"), pd.DataFrame)
     assert isinstance(client.stocks(1), pd.DataFrame)
     assert isinstance(client.finance("600036"), pd.DataFrame)
@@ -172,6 +192,12 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
         sync_quotes = sync_client.quotes("600036")
         async_quotes = await async_client.quotes("600036")
         pdt.assert_frame_equal(sync_quotes, async_quotes)
+
+        pdt.assert_frame_equal(sync_client.limit_prices(), await async_client.limit_prices())
+        pdt.assert_frame_equal(
+            sync_client.price_limit("600036"),
+            await async_client.price_limit("600036"),
+        )
 
         sync_adjusted = sync_client.bars("600036", adjust="qfq")
         async_adjusted = await async_client.bars("600036", adjust="qfq")

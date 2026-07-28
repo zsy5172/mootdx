@@ -50,11 +50,12 @@ def test_connect2_invalid_index_does_not_raise() -> None:
     assert result["time"] is None
 
 
-def test_hq_hosts_are_unique_and_include_verified_supplemental_nodes() -> None:
+def test_hq_hosts_are_unique_and_include_complete_verified_nodes() -> None:
     addresses = [(host, port) for _, host, port in HQ_HOSTS]
 
-    assert len(HQ_HOSTS) == 30
+    assert len(HQ_HOSTS) == 29
     assert len(addresses) == len(set(addresses))
+    assert ("110.41.174.169", 7709) not in addresses
     assert {
         ("182.140.139.191", 7709),
         ("119.6.200.40", 7709),

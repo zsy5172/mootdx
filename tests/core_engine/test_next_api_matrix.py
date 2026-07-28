@@ -47,6 +47,8 @@ SYNC_PUBLIC_API = {
     "stock_count",
     "stocks",
     "quotes",
+    "limit_prices",
+    "price_limit",
     "bars",
     "index_bars",
     "minutes",
@@ -68,6 +70,8 @@ ASYNC_PUBLIC_API = {
     "stock_count",
     "stocks",
     "quotes",
+    "limit_prices",
+    "price_limit",
     "bars",
     "minutes",
     "minute",
@@ -89,6 +93,8 @@ PANDAS_PUBLIC_API = {
     "metrics",
     "traffic",
     "quotes",
+    "limit_prices",
+    "price_limit",
     "bars",
     "stock_count",
     "stocks",
@@ -195,6 +201,8 @@ class MatrixProtocol:
             return 0
         if api == "finance":
             return {"code": "600036"}
+        if api == "limit_prices":
+            return [{"market": 1, "code": "600036", "limit_up": 42.9, "limit_down": 35.1}]
         if api == "block_info_meta":
             return {"size": 0, "hash": ""}
         if api == "f10_categories":
@@ -240,6 +248,8 @@ SYNC_CALL_CASES = (
     SyncCallCase("stock_count", {"market": 0}, ("stock_count",)),
     SyncCallCase("stocks", {"market": 1}, ("stock_count",)),
     SyncCallCase("quotes", {"symbol": ["600036", "sz000001"]}, ("quotes",)),
+    SyncCallCase("limit_prices", {"start": 20, "count": 15}, ("limit_prices",)),
+    SyncCallCase("price_limit", {"symbol": "600036", "refresh": True}, ("limit_prices",)),
     SyncCallCase("bars", {"symbol": "sh600036", "frequency": "day", "start": 20, "offset": 15}, ("bars",)),
     SyncCallCase(
         "index_bars",
@@ -300,6 +310,8 @@ def test_frequency_matrix_covers_all_wire_values() -> None:
         ("bars", {"symbol": "600036", "frequency": 9, "start": 20, "offset": 800}),
         ("index_bars", {"symbol": "000001", "frequency": 9, "start": 0, "offset": 1}),
         ("index_bars", {"symbol": "399001", "frequency": 9, "start": 20, "offset": 800}),
+        ("limit_prices", {"start": 0, "count": 1}),
+        ("limit_prices", {"start": 20, "count": 2000}),
         ("transaction", {"symbol": "600036", "start": 0, "offset": 1}),
         ("transaction", {"symbol": "600036", "start": 20, "offset": 1800}),
         ("transactions", {"symbol": "600036", "date": "20170209", "start": 0, "offset": 1}),
@@ -313,7 +325,8 @@ def test_window_boundary_matrix(method: str, kwargs: dict[str, object]) -> None:
 
     encoded = protocol.encode_calls[-1][1]
     assert encoded["start"] == kwargs["start"]
-    assert encoded["count"] == kwargs["offset"]
+    expected_count = kwargs["count"] if method == "limit_prices" else kwargs["offset"]
+    assert encoded["count"] == expected_count
 
 
 @pytest.mark.parametrize(("value", "expected"), [("20171010", "20171010"), (20171010, "20171010"), ("2017-10-10", "20171010")])
@@ -368,6 +381,12 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
         ("index_bars", ("",), {}, InvalidSymbolError),
         ("index_bars", ("000001",), {"start": -1}, ValueError),
         ("index_bars", ("000001",), {"offset": 801}, ValueError),
+        ("limit_prices", (), {"start": -1}, ValueError),
+        ("limit_prices", (), {"start": 65536}, ValueError),
+        ("limit_prices", (), {"count": 0}, ValueError),
+        ("limit_prices", (), {"count": 2001}, ValueError),
+        ("price_limit", ("",), {}, InvalidSymbolError),
+        ("price_limit", ("60003A",), {}, InvalidSymbolError),
         ("minutes", ("600036", "2017/10/10"), {}, InvalidDateError),
         ("minutes", ("430090", "20171010"), {}, UnsupportedMarketError),
         ("transaction", ("600036",), {"offset": 0}, ValueError),
@@ -415,6 +434,14 @@ class AsyncDispatchRecorder:
                 return 1
             if name == "finance":
                 return {"code": "600036"}
+            if name == "price_limit":
+                return {
+                    "market": 1,
+                    "code": "600036",
+                    "limit_up": 42.9,
+                    "limit_down": 35.1,
+                    "source": "calculated",
+                }
             if name == "f10_content":
                 return "content"
             return [{"api": name}]
@@ -443,6 +470,8 @@ ASYNC_CALL_CASES = (
     AsyncCallCase("stock_count", (1,), {}, "stock_count", (1,), {}),
     AsyncCallCase("stocks", (1,), {}, "stocks", (1,), {}),
     AsyncCallCase("quotes", (["600036", "000001"],), {}, "quotes", (["600036", "000001"],), {}),
+    AsyncCallCase("limit_prices", (20, 15), {}, "limit_prices", (20, 15), {}),
+    AsyncCallCase("price_limit", ("600036", True), {}, "price_limit", ("600036", True), {}),
     AsyncCallCase("bars", ("600036", "day", 20, 15), {}, "bars", ("600036", "day", 20, 15), {}),
     AsyncCallCase("minutes", ("600036", "2017-10-10"), {}, "minutes", ("600036", "2017-10-10"), {}),
     AsyncCallCase("minute", ("600036",), {}, "minute", ("600036",), {}),
@@ -501,6 +530,18 @@ class FacadeRecorder:
     def quotes(self, symbol=None):
         return [{"code": "600036", "price": 10.0, "vol": 1}]
 
+    def limit_prices(self, start=0, count=2000):
+        return [{"market": 1, "code": "600053", "limit_up": 7.5, "limit_down": 6.14}]
+
+    def price_limit(self, symbol, refresh=False):
+        return {
+            "market": 1,
+            "code": "600036",
+            "limit_up": 42.9,
+            "limit_down": 35.1,
+            "source": "calculated",
+        }
+
     def bars(self, symbol, frequency=9, start=0, offset=800):
         return [
             {
@@ -557,6 +598,8 @@ class FacadeCase:
 
 FACADE_CASES = (
     FacadeCase("quotes", {"symbol": ["600036", "000001"]}, pd.DataFrame),
+    FacadeCase("limit_prices", {"start": 0, "count": 1}, pd.DataFrame),
+    FacadeCase("price_limit", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("bars", {"symbol": "600036", "frequency": "day", "start": 20, "offset": 900}, pd.DataFrame),
     FacadeCase("stock_count", {"market": 2}, int),
     FacadeCase("stocks", {"market": 1}, pd.DataFrame),

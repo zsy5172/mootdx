@@ -90,6 +90,42 @@ phase_name = TRADING_PHASES.get(phase_code, '未知状态')
 其中 `TRADING_PHASES[0]`、`TRADING_PHASES[9]` 和 `TRADING_PHASES[10]` 均为空字符串；状态码 `15`
 不在映射中。遇到未收录的状态码时，应保留数值并按未知状态处理。
 
+### 涨跌停价格
+
+next 引擎提供两个不同层级的涨跌停接口：
+
+```python
+from mootdx.quotes import Quotes
+
+client = Quotes.factory(engine='next')
+
+# 单个证券，高层接口返回一行 DataFrame
+result = client.price_limit('600036')
+
+# 服务器特殊价格表；start/count 是 0x0452 的分页参数
+special = client.limit_prices(start=0, count=2000)
+
+# 主动刷新进程缓存
+fresh = client.price_limit('600053', refresh=True)
+```
+
+`limit_prices()` 直接读取通达信 `0x0452` 命令，单页 `count` 范围为 1～2000。其结果只是一张
+“特殊证券涨跌停价格表”，不是全市场证券列表。2026-07-28 的真实客户端抓包确认，每条记录由
+`market`、六位 `code`、`limit_up` 和 `limit_down` 组成，覆盖 ST、可转债、上市初期证券和其他
+特殊限制品种。
+
+`price_limit()` 的处理顺序如下：
+
+1. 优先匹配服务器特殊价格表，`source='server'`；
+2. 未命中时读取实时行情的前收价；
+3. 只对规则明确的普通沪深 A 股、科创板、创业板和北交所股票计算，`source='calculated'`；
+4. 基金、债券、B 股、无有效前收或无法确认规则的证券返回空结果，不根据名称猜测。
+
+特殊价格表在当前 Python 进程内缓存 10 分钟，缓存快照不可变且线程安全，不会创建后台进程。可以使用
+`refresh=True` 强制刷新，也可以调用 `mootdx_next.invalidate_price_limit_cache()` 使缓存失效。
+Raw `SyncClient`/`AsyncClient` 的 `limit_prices()` 返回 `list[dict]`，`price_limit()` 返回
+`dict | None`；Pandas 客户端和 `Quotes.factory(engine='next')` 返回 DataFrame。
+
 ## 02. 获取k线数据
 
 **调用方法：**

@@ -56,6 +56,22 @@ def test_live_quote_symbol_matrix(live_client: SyncClient, symbols) -> None:
     assert isinstance(live_client.quotes(symbols), list)
 
 
+def test_live_limit_price_server_table_and_rule_fallback(live_client: SyncClient) -> None:
+    rows = live_client.limit_prices()
+    assert rows
+    assert all({"market", "code", "limit_up", "limit_down"} <= set(row) for row in rows)
+
+    special = next(row for row in rows if row["market"] in {0, 1})
+    prefix = "sz" if special["market"] == 0 else "sh"
+    resolved = live_client.price_limit(f"{prefix}{special['code']}", refresh=True)
+    assert resolved == {**special, "source": "server"}
+
+    ordinary = live_client.price_limit("600036")
+    assert ordinary is not None
+    assert ordinary["source"] in {"server", "calculated"}
+    assert ordinary["limit_up"] > ordinary["limit_down"]
+
+
 @pytest.mark.parametrize("frequency", list(range(12)))
 def test_live_bar_frequency_matrix(live_client: SyncClient, frequency: int) -> None:
     assert isinstance(live_client.bars("600036", frequency=frequency, start=0, offset=2), list)
@@ -113,8 +129,10 @@ def test_live_async_matrix() -> None:
     async def run() -> None:
         client = AsyncClient(servers=_servers(), max_retries=2)
         try:
-            quotes, bars, finance, index, categories, block = await asyncio.gather(
+            quotes, limits, price_limit, bars, finance, index, categories, block = await asyncio.gather(
                 client.quotes(["600036", "000001"]),
+                client.limit_prices(0, 10),
+                client.price_limit("600036"),
                 client.bars("600036", "day", 0, 2),
                 client.finance("600036"),
                 client.index_bars("000001", "day", 0, 2, 1),
@@ -122,6 +140,8 @@ def test_live_async_matrix() -> None:
                 client.block("block_zs.dat"),
             )
             assert isinstance(quotes, list)
+            assert isinstance(limits, list) and limits
+            assert isinstance(price_limit, dict)
             assert isinstance(bars, list)
             assert isinstance(finance, dict)
             assert isinstance(index, list)
@@ -139,6 +159,8 @@ def test_live_legacy_compatible_facade_matrix() -> None:
     client = Quotes.factory(engine="next")
     try:
         quotes = client.quotes("600036")
+        limits = client.limit_prices(count=10)
+        price_limit = client.price_limit("600036")
         bars = client.bars("600036", frequency="day", offset=2)
         index = client.index("000001", frequency="day", offset=2)
         finance = client.finance("600036")
@@ -151,6 +173,8 @@ def test_live_legacy_compatible_facade_matrix() -> None:
         ohlc = client.ohlc(symbol="600036", begin="2026-07-20", end="2026-07-25")
 
         assert isinstance(quotes, pd.DataFrame) and not quotes.empty
+        assert isinstance(limits, pd.DataFrame) and not limits.empty
+        assert isinstance(price_limit, pd.DataFrame) and len(price_limit) == 1
         assert isinstance(bars, pd.DataFrame) and not bars.empty
         assert isinstance(index, pd.DataFrame) and not index.empty
         assert isinstance(finance, pd.DataFrame) and not finance.empty

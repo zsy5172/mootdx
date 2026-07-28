@@ -46,9 +46,9 @@ BLOCK_DEFAULT = 'block.dat'
 TYPE_FLATS = 0
 TYPE_GROUP = 1
 
-# 2026-07-20 live audit: each enabled endpoint returned and decoded both
-# real-time quotes and daily bars for 600036. Unreachable and duplicate
-# endpoints from the historical list are intentionally excluded.
+# 2026-07 live audits: each enabled endpoint returned real-time quotes,
+# daily bars, and the complete 0x0452 special-price table. Unreachable,
+# duplicate, and incomplete endpoints are intentionally excluded.
 HQ_HOSTS = [
     ('深圳双线主站1', '110.41.147.114', 7709),
     ('上海双线主站6', '124.70.199.56', 7709),
@@ -75,7 +75,6 @@ HQ_HOSTS = [
     ('通达信深圳双线主站7', '129.204.230.128', 7709),
     ('通达信深圳双线主站8', '111.230.186.52', 7709),
     ('上海双线主站16', '121.37.183.82', 7709),
-    ('深圳双线主站9', '110.41.174.169', 7709),
     ('补充行情主站1', '182.140.139.191', 7709),
     ('补充行情主站2', '119.6.200.40', 7709),
     ('补充行情主站3', '218.200.222.134', 7709),

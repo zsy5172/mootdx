@@ -15,11 +15,12 @@
 
 - Raw：`SyncClient`、`AsyncClient`
 - Pandas：`PandasClient`、`AsyncPandasClient`
-- 标准市场行情、K 线、指数、分时、逐笔、财务、除权除息、F10 和板块接口
+- 标准市场行情、涨跌停、K 线、指数、分时、逐笔、财务、除权除息、F10 和板块接口
 - `get_k_data`、`k`、`ohlc` 各自保留原公开名字和签名
 - 本地日线、分钟线、扩展市场、板块和自定义板块 Reader
 - 官方 HTTPS 财务目录、下载、完整性校验和 DAT/ZIP 内存解析
 - 进程级、线程安全、10 分钟 TTL 的候选 IP 注册表
+- 进程级、线程安全、10 分钟 TTL 的服务器特殊涨跌停价格表
 
 ## 解耦门禁
 

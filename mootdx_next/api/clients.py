@@ -8,6 +8,7 @@ from typing import Any
 
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
+from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import PoolExhaustedError
@@ -17,11 +18,14 @@ from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.interfaces import AbstractScheduler
 from mootdx_next.interfaces import AbstractTransport
+from mootdx_next.limits import calculate_normal_stock_price_limit
+from mootdx_next.limits import get_price_limit_snapshot
+from mootdx_next.limits import refresh_price_limit_snapshot
 from mootdx_next.models import RequestContext
+from mootdx_next.models import ServerEndpoint
 from mootdx_next.params import normalize_date
 from mootdx_next.params import normalize_frequency
 from mootdx_next.params import today_yyyymmdd
-from mootdx_next.models import ServerEndpoint
 from mootdx_next.protocol import StdQuoteProtocol
 from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
@@ -34,6 +38,7 @@ from mootdx_next.transport.socket_transport import SyncSocketTransport
 BLOCK_CHUNK_SIZE = 0x7530
 TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
 HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
+LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 
 
 def _default_servers() -> list[ServerEndpoint]:
@@ -113,6 +118,54 @@ class SyncClient:
         payload = self.protocol.encode("quotes", symbols=symbols)
         envelope = self._send(context, payload)
         return list(self.protocol.decode("quotes", envelope))
+
+    def limit_prices(
+        self,
+        start: int = 0,
+        count: int = LIMIT_PRICE_MAX_OFFSET,
+    ) -> list[dict[str, object]]:
+        if start < 0 or start > 0xFFFF:
+            raise ValueError("start must be between 0 and 65535")
+        if count <= 0 or count > LIMIT_PRICE_MAX_OFFSET:
+            raise ValueError(f"count must be between 1 and {LIMIT_PRICE_MAX_OFFSET}")
+
+        context = RequestContext(api="limit_prices", params={"start": start, "count": count})
+        payload = self.protocol.encode("limit_prices", start=start, count=count)
+        envelope = self._send(context, payload)
+        return list(self.protocol.decode("limit_prices", envelope))
+
+    def price_limit(self, symbol: str, refresh: bool = False) -> dict[str, object] | None:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+
+        normalized_symbol = symbol.strip()
+        market = int(get_stock_market(normalized_symbol, string=False))
+        code = normalize_symbol(normalized_symbol)
+        if len(code) != 6 or not code.isdigit():
+            raise InvalidSymbolError("price_limit requires a six-digit numeric symbol")
+
+        loader = self._all_limit_prices
+        snapshot = refresh_price_limit_snapshot(loader) if refresh else get_price_limit_snapshot(loader)
+        matched = next((item for item in snapshot if item.market == market and item.code == code), None)
+        if matched is not None:
+            return matched.to_dict(source="server")
+
+        quotes = self.quotes(normalized_symbol)
+        quote = next(
+            (
+                item
+                for item in quotes
+                if int(item.get("market", -1)) == market and str(item.get("code", "")) == code
+            ),
+            None,
+        )
+        if quote is None:
+            return None
+
+        calculated = calculate_normal_stock_price_limit(market, code, float(quote.get("last_close", 0)))
+        if calculated is None:
+            return None
+        return calculated.to_dict(source="calculated")
 
     def bars(
         self,
@@ -391,6 +444,16 @@ class SyncClient:
         envelope = self._send(context, payload)
         return str(self.protocol.decode("f10_content", envelope))
 
+    def _all_limit_prices(self) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
+        for start in range(0, 0x10000, LIMIT_PRICE_MAX_OFFSET):
+            count = min(LIMIT_PRICE_MAX_OFFSET, 0x10000 - start)
+            page = self.limit_prices(start=start, count=count)
+            rows.extend(page)
+            if len(page) < count:
+                break
+        return rows
+
     def _send(self, context: RequestContext, payload: bytes):
         if self._closed:
             self._closed = False
@@ -485,6 +548,17 @@ class AsyncClient:
 
     async def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "quotes", symbol))
+
+    async def limit_prices(
+        self,
+        start: int = 0,
+        count: int = LIMIT_PRICE_MAX_OFFSET,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "limit_prices", start, count))
+
+    async def price_limit(self, symbol: str, refresh: bool = False) -> dict[str, object] | None:
+        result = await asyncio.to_thread(self._call_sync, "price_limit", symbol, refresh)
+        return None if result is None else dict(result)
 
     async def bars(
         self,

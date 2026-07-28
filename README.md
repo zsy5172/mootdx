@@ -122,6 +122,26 @@ client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="hfq")
 
 next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务。普通股票按除权参考价生成比例因子；ETF 同时处理扩缩股比例和现金分配偏移。`week`、`mon`、`3mon`、`year` 会先逐日复权，再生成周期 OHLC，避免一个周期跨越除权日时开盘、最高和最低价失真。证券代码会先去除首尾空白并统一市场前缀大小写；复权目前明确支持上海和深圳证券。
 
+### 涨跌停价格
+
+```python
+# 单个证券：返回一行 DataFrame
+limit = client.price_limit("600036")
+
+# 通达信服务器的特殊涨跌停价格表
+special_limits = client.limit_prices(start=0, count=2000)
+
+# 跳过进程缓存并主动刷新特殊价格表
+limit = client.price_limit("600053", refresh=True)
+```
+
+next 引擎优先使用通达信 `0x0452` 返回的服务器特殊价格表。该表不是全市场列表，主要包含 ST、
+可转债、上市初期证券等需要服务器明确给价的品种。未命中时，仅对规则明确的普通沪深 A 股、科创板、
+创业板和北交所股票按照前收价计算；基金、债券、B 股及无法确认规则的证券不会被猜测。
+
+`source` 列为 `server` 表示直接采用服务器值，为 `calculated` 表示普通股票规则计算。特殊价格表使用
+进程级线程安全缓存，默认有效期 10 分钟；各客户端仍保有独立连接池。
+
 ### 分时与逐笔成交
 
 ```python
@@ -138,7 +158,8 @@ client.transactions("600036", date="20170209", start=0, offset=100)
 client.transaction("600036", start=0, offset=100)
 ```
 
-`transaction()` 在非交易时段会抛出明确的交易时段异常；历史接口 `transactions()` 不受当前交易时间限制。
+`transaction()` 与历史接口 `transactions()` 都会直接请求上游，不受运行机器的本地时钟限制；非交易时段
+实时接口没有数据时返回空结果。
 即时逐笔的单次 `offset` 范围为 1～1800，历史逐笔为 1～2000；更多数据请递增 `start` 分页读取。
 
 ### 财务、除权除息与 F10
@@ -229,6 +250,7 @@ client = SyncClient(max_retries=1)
 
 try:
     quotes = client.quotes(["600036", "000001"])
+    limit = client.price_limit("600036")
     bars = client.bars("600036", frequency="day", offset=10)
     categories = client.f10_categories("600036")
 finally:
@@ -251,6 +273,7 @@ async def main():
             client.bars("600036", frequency="day", offset=10),
         )
 
+        limit = await client.price_limit("600036")
         index = await client.index_bars("000001", market=1, frequency="day", offset=10)
         block = await client.block("block_zs.dat")
         categories = await client.f10_categories("600036")

@@ -11,7 +11,9 @@ import pandas as pd
 from mootdx_next.adapters import bars_to_frame
 from mootdx_next.adapters import block_to_frame
 from mootdx_next.adapters import finance_to_frame
+from mootdx_next.adapters import limit_prices_to_frame
 from mootdx_next.adapters import minutes_to_frame
+from mootdx_next.adapters import price_limit_to_frame
 from mootdx_next.adapters import quotes_to_frame
 from mootdx_next.adapters import stocks_to_frame
 from mootdx_next.adapters import transaction_to_frame
@@ -204,6 +206,15 @@ class PandasClient:
             return pd.DataFrame()
         try:
             return quotes_to_frame(self.client.quotes(symbol=symbol))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def limit_prices(self, start=0, count=2000, **kwargs) -> pd.DataFrame:
+        return limit_prices_to_frame(self.client.limit_prices(start=int(start), count=int(count)))
+
+    def price_limit(self, symbol="", refresh=False, **kwargs) -> pd.DataFrame:
+        try:
+            return price_limit_to_frame(self.client.price_limit(str(symbol), refresh=bool(refresh)))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -523,6 +534,15 @@ class AsyncPandasClient:
             return pd.DataFrame()
         try:
             return quotes_to_frame(await self.client.quotes(symbol=symbol))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def limit_prices(self, start=0, count=2000, **kwargs) -> pd.DataFrame:
+        return limit_prices_to_frame(await self.client.limit_prices(start=int(start), count=int(count)))
+
+    async def price_limit(self, symbol="", refresh=False, **kwargs) -> pd.DataFrame:
+        try:
+            return price_limit_to_frame(await self.client.price_limit(str(symbol), refresh=bool(refresh)))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
