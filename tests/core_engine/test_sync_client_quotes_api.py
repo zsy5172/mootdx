@@ -37,6 +37,8 @@ def test_sync_client_quotes_decodes_single_symbol() -> None:
     assert len(rows) == 1
     assert rows[0]["code"] == "600036"
     assert rows[0]["market"] == 1
+    assert rows[0]["trading_phase"] == 5
+    assert "reversed_bytes4" not in rows[0]
     assert len(pool.released) == 1
 
 

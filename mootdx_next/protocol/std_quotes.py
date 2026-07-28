@@ -39,6 +39,24 @@ XDXR_CATEGORY_MAPPING = {
     14: "送认沽权证",
 }
 
+TRADING_PHASES = {
+    0: "",
+    1: "开盘前",
+    2: "开盘集合竞价",
+    3: "连续竞价",
+    4: "收盘集合竞价",
+    5: "闭市阶段",
+    6: "连续竞价闭市",
+    7: "盘后连续撮合",
+    8: "停牌",
+    9: "",
+    10: "",
+    11: "盘后停牌",
+    12: "波动中断",
+    13: "盘中休市",
+    14: "匹配临时停牌",
+}
+
 U16_STRUCT = struct.Struct("<H")
 U32_STRUCT = struct.Struct("<I")
 U16_PAIR_STRUCT = struct.Struct("<HH")
@@ -55,7 +73,7 @@ F10_CATEGORY_STRUCT = struct.Struct("<64s80sII")
 F10_CONTENT_HEAD_STRUCT = struct.Struct("<10sH")
 BLOCK_INFO_META_STRUCT = struct.Struct("<I1s32s1s")
 ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
-QUOTE_REV4_STRUCT = struct.Struct("<H")
+QUOTE_TRADING_PHASE_STRUCT = struct.Struct("<H")
 
 
 def _get_volume(vol: int) -> float:
@@ -438,7 +456,8 @@ class StdQuoteProtocol(AbstractProtocol):
                 ask5, pos = _get_price(body, pos)
                 bid_vol5, pos = _get_price(body, pos)
                 ask_vol5, pos = _get_price(body, pos)
-                reversed_bytes4 = list(QUOTE_REV4_STRUCT.unpack_from(body, pos))
+                (trading_status_word,) = QUOTE_TRADING_PHASE_STRUCT.unpack_from(body, pos)
+                trading_phase = (trading_status_word >> 2) & 0x0F
                 pos += 2
                 reversed_bytes5, pos = _get_price(body, pos)
                 reversed_bytes6, pos = _get_price(body, pos)
@@ -489,7 +508,7 @@ class StdQuoteProtocol(AbstractProtocol):
                         "ask5": _cal_price(price, ask5, coefficient),
                         "bid_vol5": bid_vol5,
                         "ask_vol5": ask_vol5,
-                        "reversed_bytes4": reversed_bytes4,
+                        "trading_phase": trading_phase,
                         "reversed_bytes5": reversed_bytes5,
                         "reversed_bytes6": reversed_bytes6,
                         "reversed_bytes7": reversed_bytes7,

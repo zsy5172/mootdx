@@ -55,6 +55,21 @@
       "status": "accepted"
     },
     {
+      "id": "trading-phase-field",
+      "apis": ["quotes"],
+      "case_ids": ["single_sh", "single_sz", "mixed_batch", "duplicated_batch"],
+      "legacy_behavior": "The quote parser exposes the complete 16-bit status word as an unexplained one-element reversed_bytes4 container.",
+      "next_behavior": "The quote parser removes reversed_bytes4 and exposes its protocol-defined bits 2-5 as the integer trading_phase code.",
+      "rationale": "The desktop client uses those four bits as the trading-stage code; exposing the composite word as an unknown field is not useful to API callers.",
+      "evidence": [
+        "Captured 0x053E quote responses produce phase code 5 after applying (status_word >> 2) & 0x0F.",
+        "Desktop TdxW.exe extracts the same four bits and indexes its local 16-entry trading-stage text table."
+      ],
+      "regression_tests": ["tests/core_engine/test_protocol_quotes.py", "tests/core_engine/test_sync_client_quotes_api.py"],
+      "allowed_paths": ["result.columns", "result.records"],
+      "status": "accepted"
+    },
+    {
       "id": "next-adjustment-corrections",
       "apis": ["bars", "minutes", "get_k_data", "k", "ohlc"],
       "case_ids": ["adjustment_matrix"],

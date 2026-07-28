@@ -50,6 +50,46 @@ client = Quotes.factory(market='std')
 client.quotes(symbol=["000001", "600300"])
 ```
 
+### 交易阶段
+
+实时行情结果中的 `trading_phase` 是行情服务器返回的交易阶段码，类型为整数。该值来自行情协议中的
+状态位，不依赖运行 mootdx 的计算机本地时间。可使用 next 引擎公开的 `TRADING_PHASES` 常量翻译：
+
+```python
+from mootdx.quotes import Quotes
+from mootdx_next import TRADING_PHASES
+
+client = Quotes.factory(market='std')
+quote = client.quotes(symbol='600036').iloc[0]
+
+phase_code = int(quote['trading_phase'])
+phase_name = TRADING_PHASES.get(phase_code, '未知状态')
+```
+
+`TRADING_PHASES` 的已知取值如下：
+
+| 状态码 | 通达信客户端显示 |
+| ---: | --- |
+| 0 | 空 |
+| 1 | 开盘前 |
+| 2 | 开盘集合竞价 |
+| 3 | 连续竞价 |
+| 4 | 收盘集合竞价 |
+| 5 | 闭市阶段 |
+| 6 | 连续竞价闭市 |
+| 7 | 盘后连续撮合 |
+| 8 | 停牌 |
+| 9 | 空 |
+| 10 | 空 |
+| 11 | 盘后停牌 |
+| 12 | 波动中断 |
+| 13 | 盘中休市 |
+| 14 | 匹配临时停牌 |
+| 15 | 保留/未知 |
+
+其中 `TRADING_PHASES[0]`、`TRADING_PHASES[9]` 和 `TRADING_PHASES[10]` 均为空字符串；状态码 `15`
+不在映射中。遇到未收录的状态码时，应保留数值并按未知状态处理。
+
 ## 02. 获取k线数据
 
 **调用方法：**

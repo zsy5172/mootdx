@@ -66,6 +66,7 @@ from mootdx_next.localfiles import StdDailyBarReader
 from mootdx_next.localfiles import StdLCMinBarReader
 from mootdx_next.localfiles import StdMinBarReader
 from mootdx_next.protocol import StdQuoteProtocol
+from mootdx_next.protocol import TRADING_PHASES
 from mootdx_next.parse import BaseParse
 from mootdx_next.reader import ExtReader
 from mootdx_next.reader import Reader
@@ -141,6 +142,7 @@ __all__ = [
     "TransportError",
     "TransportMetrics",
     "TransportTimeoutError",
+    "TRADING_PHASES",
     "UnknownF10CategoryError",
     "UnsupportedMarketError",
     "UnsafeArchiveError",

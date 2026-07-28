@@ -20,9 +20,10 @@ class MatrixCase:
     dimensions: dict[str, Any]
     tags: tuple[str, ...] = ()
     server: tuple[str, int] = DEFAULT_SERVER
+    deviation: str | None = None
 
     def spec_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "case_id": self.case_id,
             "api": self.api,
             "comparator": self.comparator,
@@ -41,6 +42,9 @@ class MatrixCase:
                 "tags": list(self.tags),
             },
         }
+        if self.deviation:
+            payload["deviation"] = self.deviation
+        return payload
 
 
 MATRIX_CASES: tuple[MatrixCase, ...] = (
@@ -83,6 +87,7 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         kwargs={"symbol": "600036"},
         dimensions={"batch_size": 1, "market_mix": "sh_only", "duplicates": False},
         tags=("systematic", "snapshot"),
+        deviation="trading-phase-field",
     ),
     MatrixCase(
         api="quotes",
@@ -91,6 +96,7 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         kwargs={"symbol": "000001"},
         dimensions={"batch_size": 1, "market_mix": "sz_only", "duplicates": False},
         tags=("systematic", "snapshot"),
+        deviation="trading-phase-field",
     ),
     MatrixCase(
         api="quotes",
@@ -99,6 +105,7 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         kwargs={"symbol": ["600036", "000001"]},
         dimensions={"batch_size": 2, "market_mix": "mixed_sh_sz", "duplicates": False},
         tags=("systematic", "snapshot"),
+        deviation="trading-phase-field",
     ),
     MatrixCase(
         api="quotes",
@@ -107,6 +114,7 @@ MATRIX_CASES: tuple[MatrixCase, ...] = (
         kwargs={"symbol": ["600036", "600036", "000001"]},
         dimensions={"batch_size": 3, "market_mix": "mixed_sh_sz", "duplicates": True},
         tags=("systematic", "snapshot"),
+        deviation="trading-phase-field",
     ),
     MatrixCase(
         api="bars",

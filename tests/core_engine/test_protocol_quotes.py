@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from compat.common import load_json
+from mootdx_next import TRADING_PHASES
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.protocol import StdQuoteProtocol
@@ -22,6 +23,15 @@ def _response_body(case_id: str) -> bytes:
     ).read_bytes()
 
 
+def _next_expected_records(case_id: str) -> list[dict[str, object]]:
+    expected = load_json(ROOT / "compat" / "corpus" / "quotes" / case_id / "expected.json")
+    records = expected["result"]["records"]
+    for record in records:
+        (trading_status_word,) = record.pop("reversed_bytes4")
+        record["trading_phase"] = (trading_status_word >> 2) & 0x0F
+    return records
+
+
 def test_encode_quotes_matches_corpus_request() -> None:
     protocol = StdQuoteProtocol()
 
@@ -31,19 +41,25 @@ def test_encode_quotes_matches_corpus_request() -> None:
 
 def test_decode_quotes_matches_single_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
-    expected = load_json(ROOT / "compat" / "corpus" / "quotes" / "single_sh" / "expected.json")
 
-    assert protocol.decode_quotes(_response_body("single_sh")) == expected["result"]["records"]
+    assert protocol.decode_quotes(_response_body("single_sh")) == _next_expected_records("single_sh")
 
 
 def test_decode_quotes_matches_mixed_batch_expected() -> None:
     protocol = StdQuoteProtocol()
-    expected = load_json(ROOT / "compat" / "corpus" / "quotes" / "mixed_batch" / "expected.json")
 
     rows = protocol.decode_quotes(_response_body("mixed_batch"))
 
-    assert rows == expected["result"]["records"]
+    assert rows == _next_expected_records("mixed_batch")
     assert [row["code"] for row in rows] == ["600036", "000001"]
+
+
+def test_decode_quotes_exposes_numeric_trading_phase() -> None:
+    rows = StdQuoteProtocol().decode_quotes(_response_body("mixed_batch"))
+
+    assert [row["trading_phase"] for row in rows] == [5, 5]
+    assert all("reversed_bytes4" not in row for row in rows)
+    assert TRADING_PHASES[5] == "闭市阶段"
 
 
 def test_encode_quotes_rejects_unsupported_market() -> None:
