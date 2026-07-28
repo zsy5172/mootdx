@@ -57,6 +57,19 @@ def test_real_600036_cash_events_are_pinned_in_legacy_corpus() -> None:
     assert [row["fenhong"] for row in events] == pytest.approx([10.13, 10.03])
 
 
+def test_real_600036_warrant_event_is_pinned_as_an_unvalued_input() -> None:
+    events = [
+        row
+        for row in _records("xdxr", "sh_600036")
+        if row["category"] in {1, 14} and _event_date(row) == "2006-02-27"
+    ]
+
+    assert [row["category"] for row in events] == [1, 14]
+    assert events[0]["songzhuangu"] == pytest.approx(2.5962998867)
+    assert events[1]["fenshu"] == pytest.approx(6)
+    assert events[1]["xingquanjia"] == pytest.approx(5.65)
+
+
 def test_real_510500_etf_action_sequence_is_pinned_in_legacy_corpus() -> None:
     events = _records("xdxr", "sh_510500")
 
@@ -100,8 +113,10 @@ def test_real_510500_etf_cash_event_uses_affine_adjustment(adjust: str) -> None:
         assert adjusted.at[previous_date, "close"] == pytest.approx(8.413 - 0.149)
         assert adjusted.at[event_date, "close"] == pytest.approx(8.151)
     else:
-        assert adjusted.loc[[previous_date, event_date], PRICE_COLUMNS].notna().all().all()
-        assert (adjusted.loc[[previous_date, event_date], PRICE_COLUMNS] > 0).all().all()
+        # The pinned bar corpus begins after the earlier split events, so this
+        # snapshot uses its first bar as the baseline and only undoes the cash
+        # event contained in the window.
+        assert adjusted.at[event_date, "close"] == pytest.approx(8.151 + 0.149)
 
 
 @pytest.mark.parametrize(

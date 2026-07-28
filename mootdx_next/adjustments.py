@@ -9,6 +9,7 @@ from typing import Protocol
 
 import pandas as pd
 
+from mootdx_next.constants import MARKET_BJ
 from mootdx_next.constants import MARKET_SH
 from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import AdjustmentError
@@ -28,6 +29,9 @@ ADJUSTMENT_ALIASES = {
 AGGREGATED_FREQUENCIES = {5, 6, 10, 11}
 DAILY_FREQUENCY = 9
 PRICE_COLUMNS = ('open', 'high', 'low', 'close')
+ADJUSTABLE_PRICE_COLUMNS = (*PRICE_COLUMNS, 'price')
+SZ_FUND_PREFIXES = ('15', '16', '18')
+SH_FUND_PREFIXES = ('50', '51', '52', '56', '588', '589')
 
 
 class AdjustmentClient(Protocol):
@@ -60,7 +64,7 @@ class _AdjustmentSnapshot:
     events: tuple[tuple[pd.Timestamp, float], ...]
     actions: tuple['_CorporateAction', ...]
     uses_affine_adjustment: bool
-    unresolved_events: tuple[pd.Timestamp, ...]
+    unresolved_events: tuple['_UnresolvedEvent', ...]
     loaded_at: float
 
 
@@ -69,6 +73,14 @@ class _CorporateAction:
     date: pd.Timestamp
     scale: float
     offset: float
+
+
+@dataclass(frozen=True)
+class _UnresolvedEvent:
+    date: pd.Timestamp
+    category: int
+    label: str
+    reason: str
 
 
 def normalize_adjustment(adjust: object) -> str | None:
@@ -123,17 +135,40 @@ class AdjustmentService:
         if frequency not in AGGREGATED_FREQUENCIES | {DAILY_FREQUENCY}:
             raise AdjustmentError(f'frequency {frequency} must be adjusted from the requested bars')
 
-        adjusted = self.adjusted_daily(symbol, adjust)
-        if frequency in AGGREGATED_FREQUENCIES:
-            adjusted = self._aggregate(adjusted, frequency)
-        return self._slice_latest(adjusted, start=start, offset=offset)
+        method = self._require_adjustment(adjust)
+        snapshot = self._snapshot(symbol)
+        window = self._select_bars_window(snapshot.daily, frequency=frequency, start=start, offset=offset)
+        adjusted = self._apply_snapshot(window, snapshot, method)
+        if frequency == DAILY_FREQUENCY:
+            return adjusted
+        return self._aggregate(adjusted, frequency)
 
-    def apply(self, frame: pd.DataFrame, symbol: str, adjust: str) -> pd.DataFrame:
+    def adjusted_range(
+        self,
+        symbol: str,
+        adjust: str,
+        *,
+        start: object,
+        end: object,
+    ) -> pd.DataFrame:
+        method = self._require_adjustment(adjust)
+        snapshot = self._snapshot(symbol)
+        window = self._slice_date_range(snapshot.daily, start=start, end=end)
+        return self._apply_snapshot(window, snapshot, method)
+
+    def apply(
+        self,
+        frame: pd.DataFrame,
+        symbol: str,
+        adjust: str,
+        *,
+        as_of: object | None = None,
+    ) -> pd.DataFrame:
         method = self._require_adjustment(adjust)
         if frame.empty:
             return frame.copy()
         snapshot = self._snapshot(symbol)
-        return self._apply_snapshot(frame, snapshot, method)
+        return self._apply_snapshot(frame, snapshot, method, as_of=as_of)
 
     def _snapshot(self, symbol: str) -> _AdjustmentSnapshot:
         canonical = self._canonical_symbol(symbol)
@@ -146,7 +181,11 @@ class AdjustmentService:
 
             daily = self._load_daily(canonical)
             rows = self._client.xdxr(canonical)
-            events, actions, uses_affine_adjustment, unresolved = self._build_events(daily, rows)
+            events, actions, uses_affine_adjustment, unresolved = self._build_events(
+                daily,
+                rows,
+                symbol=canonical,
+            )
             snapshot = _AdjustmentSnapshot(
                 daily=daily,
                 events=events,
@@ -201,24 +240,54 @@ class AdjustmentService:
         cls,
         daily: pd.DataFrame,
         rows: list[dict[str, object]],
+        *,
+        symbol: str | None = None,
     ) -> tuple[
         tuple[tuple[pd.Timestamp, float], ...],
         tuple[_CorporateAction, ...],
         bool,
-        tuple[pd.Timestamp, ...],
+        tuple[_UnresolvedEvent, ...],
     ]:
-        uses_affine_adjustment = any(cls._integer(row.get('category')) == 11 for row in rows)
+        daily_dates = daily.index.normalize()
+        first_daily_date = daily_dates.min()
+        # Funds use affine cash/split actions. A category-11 record is also
+        # sufficient evidence even when its split predates the bar window.
+        uses_affine_adjustment = cls._is_fund_symbol(symbol) or any(
+            cls._integer(row.get('category')) == 11 for row in rows
+        )
         ratios: dict[pd.Timestamp, float] = {}
         actions: list[_CorporateAction] = []
-        unresolved: list[pd.Timestamp] = []
-        daily_dates = daily.index.normalize()
+        unresolved: list[_UnresolvedEvent] = []
 
         for row in rows:
             category = cls._integer(row.get('category'))
+            if category == 12:
+                # Category 12 only contracts non-tradable shares. Audited TDX
+                # records do not change the per-share price of tradable holders.
+                continue
+            if category in {13, 14}:
+                event_date = cls._event_date(row)
+                if event_date <= first_daily_date:
+                    continue
+                warrant_name = '认购权证' if category == 13 else '认沽权证'
+                unresolved.append(
+                    _UnresolvedEvent(
+                        date=event_date,
+                        category=category,
+                        label=warrant_name,
+                        reason='缺少复权所需估值',
+                    )
+                )
+                continue
             if category not in {1, 11}:
                 continue
 
             event_date = cls._event_date(row)
+            if event_date <= first_daily_date:
+                # TDX may return pre-listing or pre-renumbering events for which
+                # this symbol has no event-before bars. The first available bar
+                # is the adjustment baseline, so those events cannot affect it.
+                continue
             ratio: float | None
             if category == 1:
                 fenhong = cls._number(row.get('fenhong'), default=0)
@@ -237,7 +306,14 @@ class AdjustmentService:
 
                 previous = daily.loc[daily_dates < event_date, 'close']
                 if previous.empty:
-                    unresolved.append(event_date)
+                    unresolved.append(
+                        _UnresolvedEvent(
+                            date=event_date,
+                            category=category,
+                            label='除权除息',
+                            reason='缺少事件日前一交易日收盘价',
+                        )
+                    )
                     continue
 
                 previous_close = cls._number(previous.iloc[-1])
@@ -258,7 +334,10 @@ class AdjustmentService:
 
         events = tuple(sorted(ratios.items(), key=lambda item: item[0]))
         ordered_actions = tuple(sorted(actions, key=lambda item: item.date))
-        return events, ordered_actions, uses_affine_adjustment, tuple(sorted(set(unresolved)))
+        ordered_unresolved = tuple(
+            sorted(set(unresolved), key=lambda item: (item.date, item.category, item.label, item.reason))
+        )
+        return events, ordered_actions, uses_affine_adjustment, ordered_unresolved
 
     @classmethod
     def _apply_snapshot(
@@ -266,55 +345,65 @@ class AdjustmentService:
         frame: pd.DataFrame,
         snapshot: _AdjustmentSnapshot,
         adjust: str,
+        *,
+        as_of: object | None = None,
     ) -> pd.DataFrame:
-        result = cls._to_datetime_frame(frame)
+        if as_of is None:
+            result = cls._to_datetime_frame(frame)
+            target_dates = result.index.normalize()
+        else:
+            result = frame.copy()
+            target_date = cls._normalize_target_date(as_of)
+            target_dates = pd.DatetimeIndex([target_date] * len(result))
         if result.empty:
             return result
 
-        target_dates = result.index.normalize()
+        cls._raise_for_unresolved(snapshot.unresolved_events, target_dates, adjust)
+
         if snapshot.uses_affine_adjustment:
             factor, offset = cls._affine_parameters(snapshot.actions, result.index, target_dates, adjust)
-            for column in PRICE_COLUMNS:
+            for column in ADJUSTABLE_PRICE_COLUMNS:
                 if column in result.columns:
                     result[column] = (
                         pd.to_numeric(result[column], errors='coerce') * factor.to_numpy() + offset.to_numpy()
                     )
             result['factor'] = factor.to_numpy()
-            return result.sort_index()
+        else:
+            factor = pd.Series(1.0, index=result.index)
+            for event_date, ratio in snapshot.events:
+                if adjust == 'qfq':
+                    mask = target_dates < event_date
+                    factor = factor.where(~mask, factor * ratio)
+                else:
+                    mask = target_dates >= event_date
+                    factor = factor.where(~mask, factor / ratio)
 
-        cls._raise_for_unresolved(snapshot.unresolved_events, target_dates, adjust)
+            for column in ADJUSTABLE_PRICE_COLUMNS:
+                if column in result.columns:
+                    result[column] = pd.to_numeric(result[column], errors='coerce') * factor.to_numpy()
+            result['factor'] = factor.to_numpy()
 
-        factor = pd.Series(1.0, index=result.index)
-        for event_date, ratio in snapshot.events:
-            if adjust == 'qfq':
-                mask = target_dates < event_date
-                factor = factor.where(~mask, factor * ratio)
-            else:
-                mask = target_dates >= event_date
-                factor = factor.where(~mask, factor / ratio)
-
-        for column in PRICE_COLUMNS:
-            if column in result.columns:
-                result[column] = pd.to_numeric(result[column], errors='coerce') * factor.to_numpy()
-        result['factor'] = factor.to_numpy()
-        return result.sort_index()
+        return result.sort_index() if as_of is None else result
 
     @staticmethod
     def _affine_parameters(
         actions: tuple[_CorporateAction, ...],
-        index: pd.DatetimeIndex,
+        index: pd.Index,
         target_dates: pd.DatetimeIndex,
         adjust: str,
     ) -> tuple[pd.Series, pd.Series]:
         factor = pd.Series(1.0, index=index)
         offset = pd.Series(0.0, index=index)
 
-        for action in actions:
-            if adjust == 'qfq':
+        if adjust == 'qfq':
+            for action in actions:
                 mask = target_dates < action.date
                 factor = factor.where(~mask, action.scale * factor)
                 offset = offset.where(~mask, action.scale * offset + action.offset)
-            else:
+        else:
+            # Forward adjustment composes actions in chronological order.
+            # Its inverse must therefore undo those actions in reverse order.
+            for action in reversed(actions):
                 mask = target_dates >= action.date
                 factor = factor.where(~mask, factor / action.scale)
                 offset = offset.where(~mask, (offset - action.offset) / action.scale)
@@ -323,25 +412,52 @@ class AdjustmentService:
 
     @staticmethod
     def _raise_for_unresolved(
-        unresolved: tuple[pd.Timestamp, ...],
+        unresolved: tuple[_UnresolvedEvent, ...],
         target_dates: pd.DatetimeIndex,
         adjust: str,
     ) -> None:
-        for event_date in unresolved:
-            required = (target_dates < event_date).any() if adjust == 'qfq' else (target_dates >= event_date).any()
+        for event in unresolved:
+            required = (target_dates < event.date).any() if adjust == 'qfq' else (target_dates >= event.date).any()
             if required:
                 raise AdjustmentError(
-                    f'cannot calculate {adjust}: no previous close before {event_date.date()}'
+                    f'cannot calculate {adjust}: category {event.category} {event.label}，'
+                    f'事件日期 {event.date.date()}，{event.reason}'
                 )
 
     @classmethod
+    def _select_bars_window(
+        cls,
+        daily: pd.DataFrame,
+        *,
+        frequency: int,
+        start: int,
+        offset: int,
+    ) -> pd.DataFrame:
+        if frequency == DAILY_FREQUENCY:
+            return cls._slice_latest(daily, start=start, offset=offset)
+
+        period_alias = cls._period_alias(frequency)
+        period_bars = cls._aggregate(daily, frequency)
+        selected = cls._slice_latest(period_bars, start=start, offset=offset)
+        if selected.empty:
+            return daily.iloc[0:0].copy()
+
+        selected_periods = selected.index.to_period(period_alias)
+        daily_periods = daily.index.to_period(period_alias)
+        return daily.loc[daily_periods.isin(selected_periods)].copy()
+
+    @staticmethod
+    def _slice_date_range(frame: pd.DataFrame, *, start: object, end: object) -> pd.DataFrame:
+        start_date = AdjustmentService._normalize_target_date(start)
+        end_date = AdjustmentService._normalize_target_date(end)
+        if end_date < start_date:
+            return frame.iloc[0:0].copy()
+        dates = frame.index.normalize()
+        return frame.loc[(dates >= start_date) & (dates <= end_date)].copy()
+
+    @classmethod
     def _aggregate(cls, daily: pd.DataFrame, frequency: int) -> pd.DataFrame:
-        period_alias = {
-            5: 'W-FRI',
-            6: 'M',
-            10: 'Q-DEC',
-            11: 'Y-DEC',
-        }[frequency]
+        period_alias = cls._period_alias(frequency)
         periods = daily.index.to_period(period_alias)
         aggregations: dict[str, str] = {}
 
@@ -381,6 +497,15 @@ class AdjustmentService:
         return aggregated.sort_index()
 
     @staticmethod
+    def _period_alias(frequency: int) -> str:
+        return {
+            5: 'W-FRI',
+            6: 'M',
+            10: 'Q-DEC',
+            11: 'Y-DEC',
+        }[frequency]
+
+    @staticmethod
     def _slice_latest(frame: pd.DataFrame, *, start: int, offset: int) -> pd.DataFrame:
         stop = max(0, len(frame) - start)
         begin = max(0, stop - offset)
@@ -402,6 +527,17 @@ class AdjustmentService:
         result = result.loc[valid].copy()
         result.index = pd.DatetimeIndex(index[valid])
         return result.sort_index()
+
+    @staticmethod
+    def _normalize_target_date(value: object) -> pd.Timestamp:
+        normalized = str(value) if isinstance(value, int) else value
+        try:
+            timestamp = pd.Timestamp(normalized)
+        except (TypeError, ValueError) as exc:
+            raise AdjustmentError(f'invalid adjustment date: {value}') from exc
+        if pd.isna(timestamp):
+            raise AdjustmentError(f'invalid adjustment date: {value}')
+        return timestamp.normalize()
 
     @staticmethod
     def _event_date(row: dict[str, object]) -> pd.Timestamp:
@@ -447,10 +583,25 @@ class AdjustmentService:
     def _canonical_symbol(symbol: str) -> str:
         raw = symbol.strip() if isinstance(symbol, str) else symbol
         market = get_stock_market(raw, string=False)
-        if market not in {MARKET_SH, MARKET_SZ}:
-            raise UnsupportedMarketError('price adjustment only supports sh/sz securities')
-        prefix = 'sh' if market == MARKET_SH else 'sz'
+        if market not in {MARKET_SH, MARKET_SZ, MARKET_BJ}:
+            raise UnsupportedMarketError('price adjustment only supports sh/sz/bj securities')
+        prefix = {
+            MARKET_SH: 'sh',
+            MARKET_SZ: 'sz',
+            MARKET_BJ: 'bj',
+        }[market]
         return f'{prefix}{normalize_symbol(raw)}'
+
+    @staticmethod
+    def _is_fund_symbol(symbol: str | None) -> bool:
+        if not symbol:
+            return False
+        normalized = symbol.strip().lower()
+        if normalized.startswith('sz'):
+            return normalize_symbol(normalized).startswith(SZ_FUND_PREFIXES)
+        if normalized.startswith('sh'):
+            return normalize_symbol(normalized).startswith(SH_FUND_PREFIXES)
+        return False
 
 
 class AsyncAdjustmentService:
@@ -499,17 +650,45 @@ class AsyncAdjustmentService:
         if frequency not in AGGREGATED_FREQUENCIES | {DAILY_FREQUENCY}:
             raise AdjustmentError(f'frequency {frequency} must be adjusted from the requested bars')
 
-        adjusted = await self.adjusted_daily(symbol, adjust)
-        if frequency in AGGREGATED_FREQUENCIES:
-            adjusted = AdjustmentService._aggregate(adjusted, frequency)
-        return AdjustmentService._slice_latest(adjusted, start=start, offset=offset)
+        method = AdjustmentService._require_adjustment(adjust)
+        snapshot = await self._snapshot(symbol)
+        window = AdjustmentService._select_bars_window(
+            snapshot.daily,
+            frequency=frequency,
+            start=start,
+            offset=offset,
+        )
+        adjusted = AdjustmentService._apply_snapshot(window, snapshot, method)
+        if frequency == DAILY_FREQUENCY:
+            return adjusted
+        return AdjustmentService._aggregate(adjusted, frequency)
 
-    async def apply(self, frame: pd.DataFrame, symbol: str, adjust: str) -> pd.DataFrame:
+    async def adjusted_range(
+        self,
+        symbol: str,
+        adjust: str,
+        *,
+        start: object,
+        end: object,
+    ) -> pd.DataFrame:
+        method = AdjustmentService._require_adjustment(adjust)
+        snapshot = await self._snapshot(symbol)
+        window = AdjustmentService._slice_date_range(snapshot.daily, start=start, end=end)
+        return AdjustmentService._apply_snapshot(window, snapshot, method)
+
+    async def apply(
+        self,
+        frame: pd.DataFrame,
+        symbol: str,
+        adjust: str,
+        *,
+        as_of: object | None = None,
+    ) -> pd.DataFrame:
         method = AdjustmentService._require_adjustment(adjust)
         if frame.empty:
             return frame.copy()
         snapshot = await self._snapshot(symbol)
-        return AdjustmentService._apply_snapshot(frame, snapshot, method)
+        return AdjustmentService._apply_snapshot(frame, snapshot, method, as_of=as_of)
 
     async def _snapshot(self, symbol: str) -> _AdjustmentSnapshot:
         canonical = AdjustmentService._canonical_symbol(symbol)
@@ -526,7 +705,11 @@ class AsyncAdjustmentService:
 
             daily = await self._load_daily(canonical)
             rows = await self._client.xdxr(canonical)
-            events, actions, uses_affine_adjustment, unresolved = AdjustmentService._build_events(daily, rows)
+            events, actions, uses_affine_adjustment, unresolved = AdjustmentService._build_events(
+                daily,
+                rows,
+                symbol=canonical,
+            )
             snapshot = _AdjustmentSnapshot(
                 daily=daily,
                 events=events,

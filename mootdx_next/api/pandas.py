@@ -35,6 +35,7 @@ from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.params import normalize_date
 from mootdx_next.params import normalize_frequency
 from mootdx_next.symbols import get_stock_market
 
@@ -269,9 +270,10 @@ class PandasClient:
             market = get_stock_market(symbol)
             if market not in {0, 1}:
                 raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
-            data = minutes_to_frame(self.client.minutes(symbol=str(symbol), date=date))
+            normalized_date = normalize_date(date)
+            data = minutes_to_frame(self.client.minutes(symbol=str(symbol), date=normalized_date))
             if adjust:
-                data = self._adjustments.apply(data, str(symbol), adjust)
+                data = self._adjustments.apply(data, str(symbol), adjust, as_of=normalized_date)
             return data
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -441,7 +443,12 @@ class PandasClient:
         end = pd.to_datetime(end_date)
         if end <= start:
             return pd.DataFrame()
-        data = self._adjustments.adjusted_daily(str(code), adjust).copy()
+        data = self._adjustments.adjusted_range(
+            str(code),
+            adjust,
+            start=start,
+            end=end,
+        ).copy()
         data["code"] = str(code)
         data["date"] = data.index.normalize()
         data.drop(
@@ -597,9 +604,15 @@ class AsyncPandasClient:
             market = get_stock_market(symbol)
             if market not in {0, 1}:
                 raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
-            data = minutes_to_frame(await self.client.minutes(symbol=str(symbol), date=date))
+            normalized_date = normalize_date(date)
+            data = minutes_to_frame(await self.client.minutes(symbol=str(symbol), date=normalized_date))
             if adjust:
-                data = await self._adjustments.apply(data, str(symbol), adjust)
+                data = await self._adjustments.apply(
+                    data,
+                    str(symbol),
+                    adjust,
+                    as_of=normalized_date,
+                )
             return data
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -721,7 +734,14 @@ class AsyncPandasClient:
                 end = pd.to_datetime(end_date)
                 if end <= start:
                     return pd.DataFrame()
-                data = (await self._adjustments.adjusted_daily(str(code), normalized_adjustment)).copy()
+                data = (
+                    await self._adjustments.adjusted_range(
+                        str(code),
+                        normalized_adjustment,
+                        start=start,
+                        end=end,
+                    )
+                ).copy()
                 data["code"] = str(code)
                 data["date"] = data.index.normalize()
                 data.drop(

@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from mootdx.consts import HQ_HOSTS
+from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import Quotes
 from mootdx_next import AsyncClient
 from mootdx_next import ServerEndpoint
@@ -192,7 +193,29 @@ def test_live_legacy_compatible_facade_matrix() -> None:
 def test_live_real_adjustment_and_history_wrapper_matrix() -> None:
     client = Quotes.factory(engine="next", servers=_servers(), timeout=5)
     try:
-        for symbol in ["600036", "510500"]:
+        latest_closes = []
+        for frequency, offset in [(9, 30), (5, 30), (6, 30), (10, 30), (11, 20)]:
+            adjusted = client.bars(
+                "600036",
+                frequency=frequency,
+                start=0,
+                offset=offset,
+                adjust="qfq",
+            )
+            assert not adjusted.empty
+            assert {"open", "high", "low", "close", "factor"} <= set(adjusted.columns)
+            latest_closes.append(adjusted["close"].iloc[-1])
+        assert latest_closes == pytest.approx(
+            [latest_closes[0]] * len(latest_closes),
+            rel=0.02,
+        )
+
+        with pytest.raises(MootdxValidationException, match="category 14.*2006-02-27.*估值"):
+            client.bars("600036", frequency=11, offset=30, adjust="qfq")
+        with pytest.raises(MootdxValidationException, match="category 14.*2006-02-27.*估值"):
+            client.bars("600036", frequency=9, offset=30, adjust="hfq")
+
+        for symbol in ["510500"]:
             for adjust in ["qfq", "hfq"]:
                 latest_closes = []
                 for frequency in [9, 5, 6, 10, 11]:
@@ -237,5 +260,43 @@ def test_live_real_adjustment_and_history_wrapper_matrix() -> None:
             assert "volume" in k_data.columns
             assert "volume" in ohlc.columns
             assert "factor" in get_k_data.columns
+
+        lof_qfq = client.get_k_data(
+            "161725",
+            start_date="2021-01-15",
+            end_date="2026-07-28",
+            adjust="qfq",
+        )
+        assert lof_qfq.iloc[0]["open"] == pytest.approx(1.384)
+        assert lof_qfq.iloc[0]["close"] == pytest.approx(1.355)
+
+        for symbol, expected_first_close in [
+            ("508000", 2.69508),
+            ("180101", 2.2342),
+        ]:
+            fund_qfq = client.get_k_data(
+                symbol,
+                start_date="2021-06-21",
+                end_date="2026-07-28",
+                adjust="qfq",
+            )
+            assert fund_qfq.iloc[0]["close"] == pytest.approx(expected_first_close)
+
+        bj_qfq = client.get_k_data(
+            "BJ920001",
+            start_date="2025-12-04",
+            end_date="2025-12-10",
+            adjust="qfq",
+        )
+        bj_hfq = client.get_k_data(
+            "BJ920001",
+            start_date="2025-12-04",
+            end_date="2025-12-10",
+            adjust="hfq",
+        )
+        assert bj_qfq.loc["2025-12-05", "factor"] == pytest.approx(0.995042)
+        assert bj_qfq.loc["2025-12-08", "factor"] == pytest.approx(1)
+        assert bj_hfq.loc["2025-12-05", "factor"] == pytest.approx(1.04704)
+        assert bj_hfq.loc["2025-12-08", "factor"] == pytest.approx(1.052257)
     finally:
         client.close()
