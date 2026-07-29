@@ -5,6 +5,8 @@ import math
 import threading
 import time
 from dataclasses import dataclass
+from decimal import Decimal
+from decimal import ROUND_HALF_UP
 from typing import Protocol
 
 import pandas as pd
@@ -72,6 +74,7 @@ class _AdjustmentSnapshot:
     actions: tuple['_CorporateAction', ...]
     uses_affine_adjustment: bool
     unresolved_events: tuple['_UnresolvedEvent', ...]
+    price_decimals: int
     loaded_at: float
 
 
@@ -199,6 +202,7 @@ class AdjustmentService:
                 actions=actions,
                 uses_affine_adjustment=uses_affine_adjustment,
                 unresolved_events=unresolved,
+                price_decimals=self._tdx_price_decimals(canonical),
                 loaded_at=time.monotonic(),
             )
             self._cache[canonical] = snapshot
@@ -257,6 +261,7 @@ class AdjustmentService:
     ]:
         daily_dates = daily.index.normalize()
         first_daily_date = daily_dates.min()
+        last_daily_date = daily_dates.max()
         # Funds use affine cash/split actions. A category-11 record is also
         # sufficient evidence even when its split predates the bar window.
         uses_affine_adjustment = cls._is_fund_symbol(symbol) or any(
@@ -274,7 +279,7 @@ class AdjustmentService:
                 continue
             if category in {13, 14}:
                 event_date = cls._event_date(row)
-                if event_date <= first_daily_date:
+                if event_date <= first_daily_date or event_date > last_daily_date:
                     continue
                 warrant_name = '认购权证' if category == 13 else '认沽权证'
                 unresolved.append(
@@ -294,6 +299,12 @@ class AdjustmentService:
                 # TDX may return pre-listing or pre-renumbering events for which
                 # this symbol has no event-before bars. The first available bar
                 # is the adjustment baseline, so those events cannot affect it.
+                continue
+            if event_date > last_daily_date:
+                # TDX gbbq/xdxr can contain announced actions whose ex-date is
+                # later than the newest available bar. They are not effective
+                # yet and must not move the current qfq anchor. This boundary
+                # was independently documented by injoyai/tdx commit 026e64a.
                 continue
             ratio: float | None
             if category == 1:
@@ -379,10 +390,17 @@ class AdjustmentService:
             factor, offset = cls._affine_parameters(snapshot.actions, result.index, target_dates, direction)
             for column in ADJUSTABLE_PRICE_COLUMNS:
                 if column in result.columns:
-                    result[column] = (
+                    adjusted_values = (
                         pd.to_numeric(result[column], errors='coerce') * factor.to_numpy() + offset.to_numpy()
                     )
+                    result[column] = (
+                        cls._round_half_up(adjusted_values, snapshot.price_decimals)
+                        if uses_tdx_adjustment
+                        else adjusted_values
+                    )
             result['factor'] = factor.to_numpy()
+            if uses_tdx_adjustment:
+                result['offset'] = offset.to_numpy()
         else:
             factor = pd.Series(1.0, index=result.index)
             for event_date, ratio in snapshot.events:
@@ -588,6 +606,17 @@ class AdjustmentService:
             return None
 
     @staticmethod
+    def _round_half_up(values: pd.Series, decimals: int) -> pd.Series:
+        quantum = Decimal(1).scaleb(-decimals)
+
+        def round_value(value: object) -> float:
+            if pd.isna(value):
+                return math.nan
+            return float(Decimal(str(float(value))).quantize(quantum, rounding=ROUND_HALF_UP))
+
+        return values.map(round_value)
+
+    @staticmethod
     def _require_adjustment(adjust: str) -> str:
         normalized = normalize_adjustment(adjust)
         if normalized is None:
@@ -617,6 +646,14 @@ class AdjustmentService:
         if normalized.startswith('sh'):
             return normalize_symbol(normalized).startswith(SH_FUND_PREFIXES)
         return False
+
+    @classmethod
+    def _tdx_price_decimals(cls, symbol: str) -> int:
+        normalized = symbol.strip().lower()
+        code = normalize_symbol(normalized)
+        if cls._is_fund_symbol(normalized) or (normalized.startswith('sh') and code.startswith('90')):
+            return 3
+        return 2
 
 
 class AsyncAdjustmentService:
@@ -731,6 +768,7 @@ class AsyncAdjustmentService:
                 actions=actions,
                 uses_affine_adjustment=uses_affine_adjustment,
                 unresolved_events=unresolved,
+                price_decimals=AdjustmentService._tdx_price_decimals(canonical),
                 loaded_at=time.monotonic(),
             )
             self._cache[canonical] = snapshot

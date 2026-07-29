@@ -201,6 +201,60 @@ def test_tdx_adjustment_uses_affine_cash_transform_for_stocks() -> None:
     assert tdx_qfq.at[before, 'open'] == pytest.approx(11.5 - 0.1)
     assert tdx_qfq.at[event_date, 'close'] == pytest.approx(11.9)
     assert tdx_hfq.at[event_date, 'close'] == pytest.approx(12.0)
+    assert tdx_qfq.at[before, 'offset'] == pytest.approx(-0.1)
+    assert tdx_qfq.at[event_date, 'offset'] == pytest.approx(0)
+    assert 'offset' not in proportional.columns
+
+
+def test_tdx_adjustment_rounds_half_up_at_the_security_precision() -> None:
+    stock, _ = _service(_daily_frame(['2024-01-02'], closes=[5.765]), [])
+    fund, _ = _service(_daily_frame(['2024-01-02'], closes=[1.2345]), [])
+
+    stock_qfq = stock.adjusted_daily('600036', 'tdx_qfq')
+    fund_qfq = fund.adjusted_daily('510500', 'tdx_qfq')
+
+    assert stock_qfq.iloc[0]['close'] == 5.77
+    assert fund_qfq.iloc[0]['close'] == 1.235
+
+
+@pytest.mark.parametrize('adjust', ['qfq', 'hfq', 'tdx_qfq', 'tdx_hfq'])
+def test_future_announced_actions_do_not_move_the_latest_bar_anchor(adjust: str) -> None:
+    daily = _daily_frame(
+        ['2026-05-29', '2026-06-01'],
+        closes=[15.17, 15.49],
+    )
+    events = [
+        _cash_event('2026-06-05', fenhong=9.0),
+        _warrant_event('2026-06-08'),
+    ]
+    service, _ = _service(daily, events)
+
+    result = service.adjusted_daily('600036', adjust)
+
+    assert result['close'].tolist() == [15.17, 15.49]
+    assert result['factor'].tolist() == [1, 1]
+    if adjust.startswith('tdx_'):
+        assert result['offset'].tolist() == [0, 0]
+
+
+def test_tdx_adjustment_composes_all_actions_inside_a_suspension_gap() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-10', '2024-01-11'],
+        closes=[20.0, 8.0, 9.0],
+    )
+    events = [
+        _cash_event('2024-01-04', fenhong=0, songzhuangu=10),
+        _cash_event('2024-01-06', fenhong=2.0),
+    ]
+    service, _ = _service(daily, events)
+
+    qfq = service.adjusted_daily('600036', 'tdx_qfq')
+    hfq = service.adjusted_daily('600036', 'tdx_hfq')
+
+    assert qfq.at[pd.Timestamp('2024-01-02 15:00:00'), 'close'] == pytest.approx(9.8)
+    assert qfq.at[pd.Timestamp('2024-01-02 15:00:00'), 'factor'] == pytest.approx(0.5)
+    assert qfq.at[pd.Timestamp('2024-01-02 15:00:00'), 'offset'] == pytest.approx(-0.2)
+    assert hfq.at[pd.Timestamp('2024-01-10 15:00:00'), 'close'] == pytest.approx(16.4)
 
 
 def test_etf_suogu_uses_tdx_factor_once_without_sina_shape_assumptions() -> None:

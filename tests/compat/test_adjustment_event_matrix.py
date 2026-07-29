@@ -76,6 +76,13 @@ class TdxDesktopBaselineClient:
                 "low": 6.43,
                 "close": 6.69,
             },
+            {
+                "datetime": "2026-07-29 15:00:00",
+                "open": 39.98,
+                "high": 40.07,
+                "low": 39.49,
+                "close": 39.66,
+            },
         ]
         self.events = _records("xdxr", "sh_600036")
 
@@ -154,7 +161,7 @@ def test_real_600036_tdx_adjustment_matches_desktop_capture(
 
     actual = service.adjusted_daily("600036", adjust).loc[dates, PRICE_COLUMNS]
 
-    pdt.assert_frame_equal(actual.round(2), expected, check_freq=False)
+    pdt.assert_frame_equal(actual, expected, check_freq=False)
 
 
 def test_real_600036_proportional_adjustment_keeps_warrant_guard() -> None:

@@ -57,6 +57,8 @@ the real 2026 adjustment windows for `600036` and `510500`.
 - Beijing-market bars/xdxr adjustment, including pre-listing event baselines;
 - requested-date minute price adjustment while preserving volume and amount;
 - long suspensions and ranges that do not cross unresolved events;
+- multiple corporate actions inside one suspension gap, future ex-dates, and
+  half-up price rounding at stock/fund precision;
 - weekly, monthly, quarterly, and yearly OHLC aggregation after daily
   adjustment;
 - populated adjusted `get_k_data`, `k`, and `ohlc` result shapes.
