@@ -12,6 +12,7 @@ from mootdx.quotes import NextStdQuotes
 from mootdx_next import AsyncPandasClient
 from mootdx_next import PandasClient
 from mootdx_next.adjustments import AdjustmentService
+from mootdx_next.adjustments import normalize_adjustment
 from mootdx_next.errors import AdjustmentError
 
 
@@ -157,6 +158,11 @@ def _service(
     return AdjustmentService(client, page_size=page_size, cache_ttl=3600), client
 
 
+@pytest.mark.parametrize('adjust', ['tdx_qfq', 'TDX_QFQ', ' tdx_hfq '])
+def test_tdx_adjustment_names_are_normalized(adjust: str) -> None:
+    assert normalize_adjustment(adjust) == adjust.strip().lower()
+
+
 def test_cash_dividend_qfq_and_hfq_match_tdx_formula() -> None:
     daily = _daily_frame(
         ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'],
@@ -176,6 +182,25 @@ def test_cash_dividend_qfq_and_hfq_match_tdx_formula() -> None:
     assert hfq.at[event_date, 'close'] == pytest.approx(11.9 / ratio)
     assert qfq.at[before, 'factor'] == pytest.approx(ratio)
     assert hfq.at[event_date, 'factor'] == pytest.approx(1 / ratio)
+
+
+def test_tdx_adjustment_uses_affine_cash_transform_for_stocks() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    service, _ = _service(daily, [_cash_event('2024-01-04')])
+
+    proportional = service.adjusted_daily('600036', 'qfq')
+    tdx_qfq = service.adjusted_daily('600036', 'tdx_qfq')
+    tdx_hfq = service.adjusted_daily('600036', 'tdx_hfq')
+
+    before = pd.Timestamp('2024-01-03 15:00:00')
+    event_date = pd.Timestamp('2024-01-04 15:00:00')
+    assert proportional.at[before, 'open'] == pytest.approx(11.5 * 119 / 120)
+    assert tdx_qfq.at[before, 'open'] == pytest.approx(11.5 - 0.1)
+    assert tdx_qfq.at[event_date, 'close'] == pytest.approx(11.9)
+    assert tdx_hfq.at[event_date, 'close'] == pytest.approx(12.0)
 
 
 def test_etf_suogu_uses_tdx_factor_once_without_sina_shape_assumptions() -> None:
@@ -271,6 +296,22 @@ def test_warrant_distribution_fails_instead_of_silently_returning_wrong_adjustme
         match=rf'category {category}.*{name}权证.*2006-02-27.*估值',
     ):
         service.adjusted_daily('600036', 'qfq')
+
+
+@pytest.mark.parametrize('adjust', ['tdx_qfq', 'tdx_hfq'])
+def test_tdx_adjustment_ignores_warrant_distribution_like_the_desktop_client(adjust: str) -> None:
+    daily = _daily_frame(
+        ['2006-01-11', '2006-02-27', '2006-02-28'],
+        closes=[7.68, 6.66, 6.69],
+    )
+    event = _cash_event('2006-02-27', fenhong=0, songzhuangu=2.596299886703491)
+    service, _ = _service(daily, [event, _warrant_event('2006-02-27')])
+    without_warrant, _ = _service(daily, [event])
+
+    actual = service.adjusted_daily('600036', adjust)
+    expected = without_warrant.adjusted_daily('600036', adjust)
+
+    pdt.assert_frame_equal(actual, expected)
 
 
 def test_warrant_error_only_blocks_ranges_that_depend_on_the_unknown_value() -> None:
@@ -410,18 +451,23 @@ def test_daily_window_is_identical_regardless_of_requested_offset() -> None:
     pdt.assert_frame_equal(window, wide.loc[window.index])
 
 
+@pytest.mark.parametrize('adjust', ['qfq', 'tdx_qfq', 'tdx_hfq'])
 @pytest.mark.parametrize(
     ('frequency', 'period'),
     [(5, 'W-FRI'), (6, 'M'), (10, 'Q-DEC'), (11, 'Y-DEC')],
 )
-def test_period_bars_equal_adjusted_daily_then_aggregated(frequency: int, period: str) -> None:
+def test_period_bars_equal_adjusted_daily_then_aggregated(
+    adjust: str,
+    frequency: int,
+    period: str,
+) -> None:
     dates = list(pd.bdate_range('2024-01-02', '2024-02-09').strftime('%Y-%m-%d'))
     closes = [float(value) for value in range(20, 20 + len(dates))]
     daily = _daily_frame(dates, closes=closes)
     service, _ = _service(daily, [_cash_event('2024-01-18', fenhong=2.0)])
 
-    adjusted_daily = service.adjusted_daily('600036', 'qfq')
-    actual = service.adjusted_bars('600036', 'qfq', frequency=frequency, start=0, offset=800)
+    adjusted_daily = service.adjusted_daily('600036', adjust)
+    actual = service.adjusted_bars('600036', adjust, frequency=frequency, start=0, offset=800)
     groups = adjusted_daily.groupby(adjusted_daily.index.to_period(period))
     expected = pd.DataFrame(
         {
@@ -495,6 +541,21 @@ def test_minutes_adjust_real_price_shape_for_the_requested_trading_date(date: st
     assert isinstance(result.index, pd.RangeIndex)
 
 
+def test_minutes_support_tdx_affine_adjustment_without_changing_volume() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    client = AdjustmentFixtureClient(daily, [_cash_event('2024-01-04')])
+    facade = NextStdQuotes(engine_client=client)
+
+    result = facade.minutes('SH600036', date=20240103, adjust='tdx_qfq')
+
+    assert result.iloc[0]['price'] == pytest.approx(9.9)
+    assert result.iloc[0]['vol'] == 100
+    assert result.iloc[0]['volume'] == 100
+
+
 def test_get_k_data_only_checks_warrant_events_needed_by_requested_range() -> None:
     daily = _daily_frame(
         ['2006-01-11', '2006-02-27', '2006-02-28'],
@@ -525,23 +586,24 @@ def test_async_minutes_and_history_adjustments_match_sync_range_semantics() -> N
         sync_client = PandasClient(raw_client=AdjustmentFixtureClient(daily, events))
         async_client = AsyncPandasClient(raw_client=AsyncAdjustmentFixtureClient(daily, events))
 
-        sync_minutes = sync_client.minutes('600036', date=20240103, adjust='qfq')
-        async_minutes = await async_client.minutes('600036', date=20240103, adjust='qfq')
-        pdt.assert_frame_equal(async_minutes, sync_minutes)
+        for adjust in ('qfq', 'tdx_qfq', 'tdx_hfq'):
+            sync_minutes = sync_client.minutes('600036', date=20240103, adjust=adjust)
+            async_minutes = await async_client.minutes('600036', date=20240103, adjust=adjust)
+            pdt.assert_frame_equal(async_minutes, sync_minutes)
 
-        sync_history = sync_client.get_k_data(
-            '600036',
-            start_date='2006-02-27',
-            end_date='2006-02-28',
-            adjust='qfq',
-        )
-        async_history = await async_client.get_k_data(
-            '600036',
-            start_date='2006-02-27',
-            end_date='2006-02-28',
-            adjust='qfq',
-        )
-        pdt.assert_frame_equal(async_history, sync_history)
+            sync_history = sync_client.get_k_data(
+                '600036',
+                start_date='2006-02-27',
+                end_date='2006-02-28',
+                adjust=adjust,
+            )
+            async_history = await async_client.get_k_data(
+                '600036',
+                start_date='2006-02-27',
+                end_date='2006-02-28',
+                adjust=adjust,
+            )
+            pdt.assert_frame_equal(async_history, sync_history)
 
     asyncio.run(run())
 
@@ -560,6 +622,26 @@ def test_k_and_ohlc_use_next_adjustment_without_legacy_factor_lookup() -> None:
     assert k_data.loc['2024-01-03', 'close'] == pytest.approx(12 * 119 / 120)
     pdt.assert_series_equal(k_data['close'], ohlc['close'])
     assert client.xdxr_calls == ['sh600036']
+
+
+def test_k_and_ohlc_expose_tdx_adjustment_modes() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    client = AdjustmentFixtureClient(daily, [_cash_event('2024-01-04')])
+    facade = NextStdQuotes(engine_client=client)
+
+    k_data = facade.k('SH600036', begin='2024-01-02', end='2024-01-04', adjust='tdx_qfq')
+    ohlc = facade.ohlc(
+        symbol='SH600036',
+        begin='2024-01-02',
+        end='2024-01-04',
+        adjust='tdx_hfq',
+    )
+
+    assert k_data.loc['2024-01-03', 'open'] == pytest.approx(11.4)
+    assert ohlc.loc['2024-01-04', 'close'] == pytest.approx(12.0)
 
 
 def test_adjustment_is_sorted_and_warning_free_for_future_pandas_join_semantics() -> None:

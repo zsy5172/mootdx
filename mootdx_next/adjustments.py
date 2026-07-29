@@ -24,6 +24,13 @@ ADJUSTMENT_ALIASES = {
     'before': 'qfq',
     'hfq': 'hfq',
     'qfq': 'qfq',
+    'tdx_hfq': 'tdx_hfq',
+    'tdx_qfq': 'tdx_qfq',
+}
+
+TDX_ADJUSTMENT_DIRECTIONS = {
+    'tdx_hfq': 'hfq',
+    'tdx_qfq': 'qfq',
 }
 
 AGGREGATED_FREQUENCIES = {5, 6, 10, 11}
@@ -358,10 +365,18 @@ class AdjustmentService:
         if result.empty:
             return result
 
-        cls._raise_for_unresolved(snapshot.unresolved_events, target_dates, adjust)
+        direction = TDX_ADJUSTMENT_DIRECTIONS.get(adjust, adjust)
+        uses_tdx_adjustment = adjust in TDX_ADJUSTMENT_DIRECTIONS
 
-        if snapshot.uses_affine_adjustment:
-            factor, offset = cls._affine_parameters(snapshot.actions, result.index, target_dates, adjust)
+        if not uses_tdx_adjustment:
+            cls._raise_for_unresolved(snapshot.unresolved_events, target_dates, direction)
+
+        if uses_tdx_adjustment or snapshot.uses_affine_adjustment:
+            # The desktop TDX client applies category-1/11 actions as affine
+            # price transforms for every security. Captured category-13/14
+            # warrant rows do not participate in that calculation; they stay
+            # unresolved for the existing proportional qfq/hfq modes only.
+            factor, offset = cls._affine_parameters(snapshot.actions, result.index, target_dates, direction)
             for column in ADJUSTABLE_PRICE_COLUMNS:
                 if column in result.columns:
                     result[column] = (
@@ -371,7 +386,7 @@ class AdjustmentService:
         else:
             factor = pd.Series(1.0, index=result.index)
             for event_date, ratio in snapshot.events:
-                if adjust == 'qfq':
+                if direction == 'qfq':
                     mask = target_dates < event_date
                     factor = factor.where(~mask, factor * ratio)
                 else:

@@ -86,9 +86,13 @@ client.stock_all()
 # 日 K 线
 client.bars("600036", frequency="day", start=0, offset=100)
 
-# 前复权 / 后复权
+# 兼容原有比例复权语义
 client.bars("600036", frequency="day", offset=100, adjust="qfq")
 client.bars("600036", frequency="day", offset=100, adjust="hfq")
+
+# 通达信客户端原生前复权 / 后复权语义
+client.bars("600036", frequency="day", offset=100, adjust="tdx_qfq")
+client.bars("600036", frequency="day", offset=100, adjust="tdx_hfq")
 
 # ETF 复权
 client.bars("510500", frequency="day", offset=100, adjust="qfq")
@@ -120,9 +124,14 @@ client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="hfq")
 `get_k_data(code, start_date, end_date, adjust=None)`、`k(symbol="", begin=None, end=None, **kwargs)` 和
 `ohlc(**kwargs)` 分别保留原版公开名字与签名，不是互相替换的迁移别名。它们只在内部共享历史 K 线分页实现，下游代码无需调换方法名。
 
-next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务。普通股票按除权参考价生成比例因子；ETF、LOF、封闭基金和 REIT 使用可逆的扩缩股与现金分配仿射模型。`week`、`mon`、`3mon`、`year` 会先逐日复权，再生成周期 OHLC，避免一个周期跨越除权日时开盘、最高和最低价失真。分钟线只调整 `price`，`vol`、`volume` 和 `amount` 保持原始成交口径。
+next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务，并提供两组明确区分的语义：
 
-证券代码会先去除首尾空白并统一市场前缀大小写，复权支持上海、深圳和北京市场。`xdxr` category 12（非流通股缩股）不会改变流通股价格；category 13/14 的权证份数和行权价不足以确定派发时的权证估值，因此当请求区间确实依赖该事件时会抛出明确异常，不再静默返回错误结果。例如 600036 在 2006-02-27 派发认沽权证，查询该事件之后的前复权仍可用，跨越该事件的前复权或事件之后的后复权会提示缺少权证估值。
+- `qfq`、`hfq` 保留现有比例复权。普通股票按除权参考价生成比例因子；ETF、LOF、封闭基金和 REIT 使用可逆的扩缩股与现金分配仿射模型。
+- `tdx_qfq`、`tdx_hfq` 对所有证券使用通达信桌面客户端的仿射复权公式。连续现金分红会形成价格平移，因此很早的 `tdx_qfq` 历史价格可能为负数；这是客户端原生结果，不是计算溢出。
+
+所有模式下，`week`、`mon`、`3mon`、`year` 都会先逐日复权，再生成周期 OHLC，避免一个周期跨越除权日时开盘、最高和最低价失真。分钟线只调整 `price`，`vol`、`volume` 和 `amount` 保持原始成交口径。
+
+证券代码会先去除首尾空白并统一市场前缀大小写，复权支持上海、深圳和北京市场。`xdxr` category 12（非流通股缩股）不会改变流通股价格。对于 category 13/14 权证派发，比例模式仍在请求区间依赖未知权证估值时抛出明确异常；`tdx_qfq`、`tdx_hfq` 则与实测桌面客户端一致，不把该记录纳入价格变换。600036 在 2006-02-27 的真实客户端抓包和 OHLC 基准已用于回归测试。
 
 ### 涨跌停价格
 

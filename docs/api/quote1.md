@@ -159,7 +159,14 @@ client.bars(symbol='600036', adjust='qfq')
 
 # 后复权
 client.bars(symbol='600036', adjust='hfq')
+
+# 通达信桌面客户端原生前复权 / 后复权
+client.bars(symbol='600036', adjust='tdx_qfq')
+client.bars(symbol='600036', adjust='tdx_hfq')
 ```
+
+`qfq`、`hfq` 保留比例复权兼容语义；`tdx_qfq`、`tdx_hfq` 使用通达信客户端的仿射价格变换。
+原生前复权连续扣除历史现金分红，因此很早的价格可能为负数。两组模式都不调整成交量和成交额。
 
 `get_k_data`、`k` 和 `ohlc` 都是保留原版名字与签名的一等公共 API，仅在内部共享历史 K 线实现，
 迁移时不需要调换方法名。
@@ -378,7 +385,7 @@ client.finance(symbol="600300")
 - symbol: 股票代码.
 - begin: 开始时间.
 - end: 结束时间.
-- adjust: 复权.
+- adjust: 复权模式，可选 `qfq`、`hfq`、`tdx_qfq`、`tdx_hfq`。
 
 **调用方法：**
 
@@ -394,7 +401,11 @@ client.k(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='qfq')
 # 后复权
 client.k(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='hfq')
 
-# ohlc 是k的别名, 功能相同
+# 通达信客户端原生前复权 / 后复权
+client.k(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_qfq')
+client.k(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_hfq')
+
+# ohlc 保留独立公开方法名，内部与 k 共享历史行情实现
 client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10")
 
 # 前复权
@@ -402,4 +413,8 @@ client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='qfq')
 
 # 后复权
 client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='hfq')
+
+# 通达信客户端原生前复权 / 后复权
+client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_qfq')
+client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_hfq')
 ```

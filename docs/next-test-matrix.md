@@ -51,8 +51,9 @@ the real 2026 adjustment windows for `600036` and `510500`.
 - both `510500` split/consolidation events and all four cash events;
 - qfq/hfq affine ETF handling;
 - LOF, closed-fund/REIT cash events and reverse-order hfq composition;
-- category 12 non-tradable-share contractions and explicit category 13/14
-  warrant-valuation failures;
+- category 12 non-tradable-share contractions, explicit category 13/14 guards
+  for proportional adjustment, and desktop-compatible category 13/14 handling
+  for `tdx_qfq`/`tdx_hfq`;
 - Beijing-market bars/xdxr adjustment, including pre-listing event baselines;
 - requested-date minute price adjustment while preserving volume and amount;
 - long suspensions and ranges that do not cross unresolved events;

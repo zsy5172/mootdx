@@ -215,6 +215,26 @@ def test_live_real_adjustment_and_history_wrapper_matrix() -> None:
         with pytest.raises(MootdxValidationException, match="category 14.*2006-02-27.*估值"):
             client.bars("600036", frequency=9, offset=30, adjust="hfq")
 
+        for adjust in ["tdx_qfq", "tdx_hfq"]:
+            latest_closes = []
+            for frequency in [9, 5, 6, 10, 11]:
+                adjusted = client.bars(
+                    "600036",
+                    frequency=frequency,
+                    start=0,
+                    offset=30,
+                    adjust=adjust,
+                )
+                assert not adjusted.empty
+                assert {"open", "high", "low", "close", "factor"} <= set(
+                    adjusted.columns
+                )
+                latest_closes.append(adjusted["close"].iloc[-1])
+            assert latest_closes == pytest.approx(
+                [latest_closes[0]] * len(latest_closes),
+                rel=0.02,
+            )
+
         for symbol in ["510500"]:
             for adjust in ["qfq", "hfq"]:
                 latest_closes = []

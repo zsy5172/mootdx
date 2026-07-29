@@ -199,9 +199,10 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
             await async_client.price_limit("600036"),
         )
 
-        sync_adjusted = sync_client.bars("600036", adjust="qfq")
-        async_adjusted = await async_client.bars("600036", adjust="qfq")
-        pdt.assert_frame_equal(sync_adjusted, async_adjusted)
+        for adjust in ("qfq", "tdx_qfq", "tdx_hfq"):
+            sync_adjusted = sync_client.bars("600036", adjust=adjust)
+            async_adjusted = await async_client.bars("600036", adjust=adjust)
+            pdt.assert_frame_equal(sync_adjusted, async_adjusted)
 
         async_k = await async_client.k("600036", "2024-01-02", "2024-01-03")
         async_ohlc = await async_client.ohlc(
