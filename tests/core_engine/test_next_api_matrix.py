@@ -15,6 +15,7 @@ from mootdx_next.api.pandas import AsyncPandasClient
 from mootdx_next.api.pandas import PandasClient
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
+from mootdx_next.bse import BseRegistry
 from mootdx_next.errors import InvalidDateError
 from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
@@ -273,7 +274,16 @@ def _matrix_client() -> tuple[SyncClient, MatrixProtocol, MatrixTransport]:
     transport = MatrixTransport()
     pool = RecordingConnectionPool(transport)
     scheduler = RecordingScheduler(server=pool.server)
-    client = SyncClient(protocol=protocol, connection_pool=pool, scheduler=scheduler)
+    class EmptyBseProvider:
+        def load(self):
+            return []
+
+    client = SyncClient(
+        protocol=protocol,
+        connection_pool=pool,
+        scheduler=scheduler,
+        bse_registry=BseRegistry(EmptyBseProvider()),
+    )
     return client, protocol, transport
 
 
@@ -407,10 +417,42 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
 
 
 @pytest.mark.parametrize(
+    ("method", "args", "kwargs", "expected_apis"),
+    [
+        ("minutes", ("bj430090", "20171010"), {}, ("minutes",)),
+        ("call_auction", ("bj430090",), {}, ("call_auction",)),
+        ("transaction", ("bj430090",), {"offset": 1}, ("transaction",)),
+        ("transactions", ("bj430090", "20171010"), {"offset": 1}, ("transactions",)),
+        ("finance", ("bj430090",), {}, ("finance",)),
+        ("f10_categories", ("bj430090",), {}, ("f10_categories",)),
+        (
+            "f10_content",
+            ("bj430090", "最新提示"),
+            {},
+            ("f10_categories", "f10_content"),
+        ),
+    ],
+)
+def test_bse_business_apis_preserve_market_context(
+    method: str,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+    expected_apis: tuple[str, ...],
+) -> None:
+    client, protocol, transport = _matrix_client()
+
+    getattr(client, method)(*args, **kwargs)
+
+    assert tuple(api for api, _ in protocol.encode_calls) == expected_apis
+    assert all(call_kwargs["market"] == 2 for _, call_kwargs in protocol.encode_calls)
+    assert all(context.params["market"] == 2 for context in transport.contexts)
+
+
+@pytest.mark.parametrize(
     ("method", "args", "kwargs", "error"),
     [
         ("stock_count", (3,), {}, UnsupportedMarketError),
-        ("stocks", (2,), {}, UnsupportedMarketError),
+        ("stocks", (3,), {}, UnsupportedMarketError),
         ("quotes", (123,), {}, InvalidSymbolError),
         ("quotes", (["600036", 1],), {}, InvalidSymbolError),
         ("bars", ("",), {}, InvalidSymbolError),
@@ -428,14 +470,10 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
         ("price_limit", ("",), {}, InvalidSymbolError),
         ("price_limit", ("60003A",), {}, InvalidSymbolError),
         ("minutes", ("600036", "2017/10/10"), {}, InvalidDateError),
-        ("minutes", ("430090", "20171010"), {}, UnsupportedMarketError),
         ("transaction", ("600036",), {"offset": 0}, ValueError),
         ("transaction", ("600036",), {"offset": 1801}, ValueError),
         ("transactions", ("600036", "20170209"), {"offset": 0}, ValueError),
         ("transactions", ("600036", "20170209"), {"offset": 2001}, ValueError),
-        ("transactions", ("430090", "20170209"), {}, UnsupportedMarketError),
-        ("finance", ("430090",), {}, UnsupportedMarketError),
-        ("f10_categories", ("430090",), {}, UnsupportedMarketError),
         ("f10_content", ("600036", ""), {}, UnknownF10CategoryError),
     ],
 )
@@ -597,8 +635,9 @@ class FacadeRecorder:
     def stock_count(self, market):
         return 1
 
-    def stocks(self, market):
-        return [{"code": "600036", "name": "招商银行"}]
+    def stocks(self, market, refresh=False):
+        code = {0: "000001", 1: "600036", 2: "920001"}[market]
+        return [{"market": market, "code": code, "name": "测试证券"}]
 
     def minutes(self, symbol, date):
         return [{"date": f"{date} 09:30", "price": 10.0}]
@@ -690,14 +729,30 @@ def test_next_facade_lifecycle_and_traffic_contract() -> None:
 
 
 @pytest.mark.parametrize(
+    ("method", "kwargs", "result_type"),
+    [
+        ("stocks", {"market": 2}, pd.DataFrame),
+        ("minutes", {"symbol": "bj430090", "date": "20171010"}, pd.DataFrame),
+        ("transactions", {"symbol": "bj430090", "date": "20171010"}, pd.DataFrame),
+        ("F10C", {"symbol": "bj430090"}, list),
+        ("F10", {"symbol": "bj430090", "name": "最新提示"}, str),
+    ],
+)
+def test_next_facade_accepts_bse_business_apis(
+    method: str,
+    kwargs: dict[str, object],
+    result_type: type,
+) -> None:
+    client = NextStdQuotes(engine_client=FacadeRecorder())
+
+    assert isinstance(getattr(client, method)(**kwargs), result_type)
+
+
+@pytest.mark.parametrize(
     ("method", "kwargs"),
     [
         ("stock_count", {"market": 3}),
-        ("stocks", {"market": 2}),
-        ("minutes", {"symbol": "430090", "date": "20171010"}),
-        ("transactions", {"symbol": "430090", "date": "20171010"}),
-        ("F10C", {"symbol": "430090"}),
-        ("F10", {"symbol": "430090", "name": "最新提示"}),
+        ("stocks", {"market": 3}),
     ],
 )
 def test_next_facade_translates_market_validation_errors(method: str, kwargs: dict[str, object]) -> None:

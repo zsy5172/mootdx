@@ -82,6 +82,14 @@ class ConfigArchiveError(ConfigFileError):
     """Raised when a TDX configuration archive is invalid or unsafe."""
 
 
+class BseError(MootdxNextError):
+    """Base exception for the Beijing Stock Exchange directory provider."""
+
+
+class BseResponseError(BseError):
+    """Raised when the BSE directory cannot be downloaded or validated."""
+
+
 class FinancialError(MootdxNextError):
     """Base exception for TDX financial-file operations."""
 

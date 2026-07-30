@@ -18,6 +18,13 @@ from mootdx_next.candidates import probe_hq_candidate
 from mootdx_next.candidates import refresh_ex_candidates
 from mootdx_next.candidates import refresh_hq_candidates
 from mootdx_next.candidates import ServerCandidate
+from mootdx_next.bse import BseHttpProvider
+from mootdx_next.bse import BseRegistry
+from mootdx_next.bse import BseSecurity
+from mootdx_next.bse import bse_snapshot
+from mootdx_next.bse import get_bse_securities
+from mootdx_next.bse import invalidate_bse_securities
+from mootdx_next.bse import refresh_bse_securities
 from mootdx_next.config_files import invalidate_zhb_cache
 from mootdx_next.config_files import ZhbRegistry
 from mootdx_next.config_files import ZhbSnapshot
@@ -37,6 +44,8 @@ from mootdx_next.adapters import transaction_to_frame
 from mootdx_next.adapters import transactions_to_frame
 from mootdx_next.adapters import xdxr_to_frame
 from mootdx_next.errors import AdjustmentError
+from mootdx_next.errors import BseError
+from mootdx_next.errors import BseResponseError
 from mootdx_next.errors import ConfigArchiveError
 from mootdx_next.errors import ConfigFileError
 from mootdx_next.errors import FinancialCatalogError
@@ -105,6 +114,12 @@ __all__ = [
     "AsyncFinancialFileClient",
     "AsyncPandasClient",
     "AdjustmentError",
+    "BseError",
+    "BseHttpProvider",
+    "BseRegistry",
+    "BseResponseError",
+    "BseSecurity",
+    "bse_snapshot",
     "bars_to_frame",
     "BaseParse",
     "BlockReader",
@@ -124,6 +139,7 @@ __all__ = [
     "FinancialReader",
     "finance_to_frame",
     "get_ex_candidates",
+    "get_bse_securities",
     "get_hq_candidates",
     "hq_candidate_snapshot",
     "ConnectionLease",
@@ -143,6 +159,7 @@ __all__ = [
     "InvalidSymbolError",
     "InvalidResponseHeaderError",
     "invalidate_ex_candidates",
+    "invalidate_bse_securities",
     "invalidate_hq_candidates",
     "invalidate_price_limit_cache",
     "invalidate_zhb_cache",
@@ -166,6 +183,7 @@ __all__ = [
     "RequestContext",
     "Reader",
     "refresh_ex_candidates",
+    "refresh_bse_securities",
     "refresh_hq_candidates",
     "ResponseEnvelope",
     "ResponseHeader",

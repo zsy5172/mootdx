@@ -11,7 +11,6 @@ from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import TransportTimeoutError
-from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import RequestContext
 from mootdx_next.protocol import StdQuoteProtocol
 from tests.core_engine.test_sync_client_stock_apis import RecordingConnectionPool
@@ -104,11 +103,14 @@ def test_sync_client_rejects_invalid_history_params() -> None:
         client.minutes(symbol="000001", date="2026/04/11")
 
 
-def test_sync_client_minutes_rejects_bj_symbol() -> None:
-    client = SyncClient()
+def test_sync_client_minutes_supports_bj_symbol() -> None:
+    transport = RecordingTransport(responses=[b"\x00\x00"])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
 
-    with pytest.raises(UnsupportedMarketError):
-        client.minutes(symbol="430090", date="20200101")
+    assert client.minutes(symbol="bj430090", date="20200101") == []
+    assert transport.sent_payloads[0][16] == 2
 
 
 def test_sync_client_history_apis_propagate_scheduler_failure() -> None:

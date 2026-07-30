@@ -6,6 +6,9 @@ import threading
 from collections.abc import Mapping
 from typing import Any
 
+from mootdx_next.bse import BseProvider
+from mootdx_next.bse import BseRegistry
+from mootdx_next.bse import bse_registry as default_bse_registry
 from mootdx_next.config_files import get_zhb_file
 from mootdx_next.config_files import parse_ipo_subscriptions
 from mootdx_next.config_files import parse_sp_blocks
@@ -60,7 +63,6 @@ TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
 HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 
-
 def _default_servers() -> list[ServerEndpoint]:
     return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS]
 
@@ -75,11 +77,20 @@ class SyncClient:
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
         config_registry: ZhbRegistry | None = None,
+        bse_registry: BseRegistry | None = None,
+        bse_provider: BseProvider | None = None,
     ) -> None:
+        if bse_registry is not None and bse_provider is not None:
+            raise ValueError("bse_registry and bse_provider are mutually exclusive")
         self.transport = transport
         self.protocol = protocol or StdQuoteProtocol()
         self.max_retries = max_retries
         self.config_registry = config_registry or zhb_registry
+        self.bse_registry = (
+            bse_registry
+            if bse_registry is not None
+            else BseRegistry(bse_provider) if bse_provider is not None else default_bse_registry
+        )
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -108,14 +119,20 @@ class SyncClient:
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError(f"unsupported market for stock_count: {market}")
 
+        if market == 2:
+            return len(self.bse_registry.get())
+
         context = RequestContext(api="stock_count", params={"market": market})
         payload = self.protocol.encode("stock_count", market=market)
         envelope = self._send(context, payload)
         return int(self.protocol.decode("stock_count", envelope))
 
-    def stocks(self, market: int) -> list[dict[str, object]]:
-        if market not in {0, 1}:
+    def stocks(self, market: int, refresh: bool = False) -> list[dict[str, object]]:
+        if market not in {0, 1, 2}:
             raise UnsupportedMarketError(f"unsupported market for stocks: {market}")
+
+        if market == 2:
+            return [item.to_stock_dict() for item in self.bse_registry.get(refresh=bool(refresh))]
 
         count = self.stock_count(market)
         if count <= 0:
@@ -126,7 +143,11 @@ class SyncClient:
             context = RequestContext(api="stock_list_page", params={"market": market, "start": start})
             payload = self.protocol.encode("stock_list_page", market=market, start=start)
             envelope = self._send(context, payload)
-            rows.extend(self.protocol.decode("stock_list_page", envelope))
+            page = self.protocol.decode("stock_list_page", envelope)
+            for row in page:
+                row["market"] = market
+                row["source"] = "tdx"
+            rows.extend(page)
 
         return rows
 
@@ -276,8 +297,8 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for minutes: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for minutes: only sh/sz/bj are supported")
 
         normalized_date = normalize_date(date)
         code = normalize_symbol(normalized_symbol)
@@ -305,8 +326,8 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for call_auction: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for call_auction: only sh/sz/bj are supported")
         code = normalize_symbol(normalized_symbol)
         if len(code) != 6 or not code.isdigit():
             raise InvalidSymbolError("call_auction requires a six-digit numeric symbol")
@@ -333,8 +354,8 @@ class SyncClient:
             raise ValueError(f"offset must be between 1 and {TRANSACTION_MAX_OFFSET}")
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for transaction: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for transaction: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
         context = RequestContext(
@@ -368,8 +389,8 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for transactions: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for transactions: only sh/sz/bj are supported")
 
         normalized_date = normalize_date(date)
         code = normalize_symbol(normalized_symbol)
@@ -408,8 +429,8 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for finance: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for finance: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
         context = RequestContext(api="finance", params={"symbol": normalized_symbol, "market": market})
@@ -574,8 +595,8 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for f10: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
         context = RequestContext(api="f10_categories", params={"symbol": normalized_symbol, "market": market})
@@ -592,8 +613,8 @@ class SyncClient:
         normalized_symbol = symbol.strip()
         normalized_name = name.strip()
         market = int(get_stock_market(normalized_symbol, string=False))
-        if market not in {0, 1}:
-            raise UnsupportedMarketError("unsupported market for f10: only sh/sz are supported")
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
         categories = self.f10_categories(normalized_symbol)
@@ -681,6 +702,8 @@ class AsyncClient:
         max_retries: int = 1,
         sync_client: SyncClient | None = None,
         config_registry: ZhbRegistry | None = None,
+        bse_registry: BseRegistry | None = None,
+        bse_provider: BseProvider | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -695,6 +718,8 @@ class AsyncClient:
             "servers": servers,
             "max_retries": max_retries,
             "config_registry": config_registry,
+            "bse_registry": bse_registry,
+            "bse_provider": bse_provider,
         }
 
     @property
@@ -731,7 +756,9 @@ class AsyncClient:
     async def stock_count(self, market: int) -> int:
         return int(await asyncio.to_thread(self._call_sync, "stock_count", market))
 
-    async def stocks(self, market: int) -> list[dict[str, object]]:
+    async def stocks(self, market: int, refresh: bool = False) -> list[dict[str, object]]:
+        if refresh:
+            return list(await asyncio.to_thread(self._call_sync, "stocks", market, refresh=True))
         return list(await asyncio.to_thread(self._call_sync, "stocks", market))
 
     async def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:

@@ -13,7 +13,6 @@ from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportTimeoutError
-from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import ConnectionLease
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
@@ -109,14 +108,16 @@ def test_sync_client_transactions_reject_invalid_params() -> None:
         client.transactions(symbol="600036", date="2017/02/09")
 
 
-def test_sync_client_transaction_rejects_bj_symbol() -> None:
-    client = SyncClient()
+def test_sync_client_transaction_supports_bj_symbol() -> None:
+    transport = RecordingTransport(responses=[b"\x00\x00", b"\x00\x00\x00\x00\x00\x00"])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
 
-    with pytest.raises(UnsupportedMarketError):
-        client.transaction(symbol="430090")
-
-    with pytest.raises(UnsupportedMarketError):
-        client.transactions(symbol="430090", date="20200101")
+    assert client.transaction(symbol="bj430090") == []
+    assert client.transactions(symbol="bj430090", date="20200101") == []
+    assert transport.sent_payloads[0][12:14] == (2).to_bytes(2, "little")
+    assert transport.sent_payloads[1][16:18] == (2).to_bytes(2, "little")
 
 
 def test_sync_client_transaction_propagates_scheduler_failure() -> None:

@@ -212,6 +212,7 @@ def _market_prefix(market: int) -> str:
 
 class StdQuoteProtocol(AbstractProtocol):
     valid_markets = {0, 1}
+    security_markets = {0, 1, MARKET_BJ}
     stock_count_markets = {0, 1, 2}
     quote_markets = {0, 1, 2}
 
@@ -743,7 +744,7 @@ class StdQuoteProtocol(AbstractProtocol):
         return rows
 
     def encode_minutes(self, market: int, code: str, date: str | int) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for minutes: {market}")
 
         if isinstance(date, str):
@@ -755,7 +756,7 @@ class StdQuoteProtocol(AbstractProtocol):
         return bytes(payload)
 
     def encode_call_auction(self, market: int, code: str) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for call_auction: {market}")
         encoded_code = code.encode("ascii")
         if len(encoded_code) != 6 or not code.isdigit():
@@ -857,7 +858,7 @@ class StdQuoteProtocol(AbstractProtocol):
         return rows
 
     def encode_transaction(self, market: int, code: str, start: int, count: int) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for transaction: {market}")
 
         encoded_code = code.encode("utf-8")
@@ -924,7 +925,7 @@ class StdQuoteProtocol(AbstractProtocol):
         count: int,
         date: str | int,
     ) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for transactions: {market}")
 
         if isinstance(date, str):
@@ -987,7 +988,7 @@ class StdQuoteProtocol(AbstractProtocol):
         return rows
 
     def encode_finance(self, market: int, code: str) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for finance: {market}")
 
         encoded_code = code.encode("utf-8")
@@ -1213,7 +1214,7 @@ class StdQuoteProtocol(AbstractProtocol):
         return rows
 
     def encode_f10_categories(self, market: int, code: str) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for f10_categories: {market}")
 
         encoded_code = code.encode("utf-8")
@@ -1257,7 +1258,7 @@ class StdQuoteProtocol(AbstractProtocol):
         start: int,
         length: int,
     ) -> bytes:
-        if market not in self.valid_markets:
+        if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for f10_content: {market}")
 
         encoded_code = code.encode("utf-8")

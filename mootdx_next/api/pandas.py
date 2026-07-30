@@ -254,10 +254,15 @@ class PandasClient:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
         return self.client.stock_count(int(market))
 
-    def stocks(self, market=MARKET_SH) -> pd.DataFrame:
-        if market not in {0, 1}:
-            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深市场"))
-        return stocks_to_frame(self.client.stocks(int(market)))
+    def stocks(self, market=MARKET_SH, refresh=False) -> pd.DataFrame:
+        if market not in {0, 1, 2}:
+            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场"))
+        rows = (
+            self.client.stocks(int(market), refresh=True)
+            if refresh
+            else self.client.stocks(int(market))
+        )
+        return stocks_to_frame(rows)
 
     def stock_all(self) -> pd.DataFrame:
         return pd.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
@@ -276,8 +281,8 @@ class PandasClient:
         adjust = normalize_adjustment(kwargs.pop("adjust", None))
         try:
             market = get_stock_market(symbol)
-            if market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             normalized_date = normalize_date(date)
             data = minutes_to_frame(self.client.minutes(symbol=str(symbol), date=normalized_date))
             if adjust:
@@ -296,8 +301,8 @@ class PandasClient:
     def transactions(self, symbol="", start=0, offset=800, date="20170209", **kwargs) -> pd.DataFrame:
         try:
             market = get_stock_market(symbol)
-            if market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             rows = self.client.transactions(
                 symbol=str(symbol),
                 start=int(start),
@@ -311,8 +316,8 @@ class PandasClient:
     def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
             resolved_market = get_stock_market(symbol) if market is None else market
-            if resolved_market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             return self.client.f10_categories(str(symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -320,8 +325,8 @@ class PandasClient:
     def f10_content(self, symbol="", name="", market=None) -> str:
         try:
             resolved_market = get_stock_market(symbol) if market is None else market
-            if resolved_market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             return self.client.f10_content(str(symbol), str(name))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -632,10 +637,15 @@ class AsyncPandasClient:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
         return await self.client.stock_count(int(market))
 
-    async def stocks(self, market=MARKET_SH) -> pd.DataFrame:
-        if market not in {0, 1}:
-            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深市场"))
-        return stocks_to_frame(await self.client.stocks(int(market)))
+    async def stocks(self, market=MARKET_SH, refresh=False) -> pd.DataFrame:
+        if market not in {0, 1, 2}:
+            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场"))
+        rows = (
+            await self.client.stocks(int(market), refresh=True)
+            if refresh
+            else await self.client.stocks(int(market))
+        )
+        return stocks_to_frame(rows)
 
     async def stock_all(self) -> pd.DataFrame:
         sh, sz = await asyncio.gather(self.stocks(0), self.stocks(1))
@@ -655,8 +665,8 @@ class AsyncPandasClient:
         adjust = normalize_adjustment(kwargs.pop("adjust", None))
         try:
             market = get_stock_market(symbol)
-            if market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             normalized_date = normalize_date(date)
             data = minutes_to_frame(await self.client.minutes(symbol=str(symbol), date=normalized_date))
             if adjust:
@@ -680,8 +690,8 @@ class AsyncPandasClient:
     async def transactions(self, symbol="", start=0, offset=800, date="20170209", **kwargs) -> pd.DataFrame:
         try:
             market = get_stock_market(symbol)
-            if market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             rows = await self.client.transactions(
                 symbol=str(symbol),
                 start=int(start),
@@ -695,8 +705,8 @@ class AsyncPandasClient:
     async def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
             resolved_market = get_stock_market(symbol) if market is None else market
-            if resolved_market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             return await self.client.f10_categories(str(symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -704,8 +714,8 @@ class AsyncPandasClient:
     async def f10_content(self, symbol="", name="", market=None) -> str:
         try:
             resolved_market = get_stock_market(symbol) if market is None else market
-            if resolved_market not in {0, 1}:
-                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深市场")
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             return await self.client.f10_content(str(symbol), str(name))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)

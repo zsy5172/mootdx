@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import pytest
 
 from mootdx_next.api.clients import SyncClient
+from mootdx_next.bse import BseRegistry
+from mootdx_next.bse import BseSecurity
 from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
@@ -181,7 +183,57 @@ def test_sync_client_rejects_invalid_market() -> None:
         client.stock_count(9)
 
     with pytest.raises(UnsupportedMarketError):
-        client.stocks(2)
+        client.stocks(9)
+
+
+def test_sync_client_bse_stocks_use_injected_registry_without_tdx_request() -> None:
+    class Provider:
+        def load(self):
+            return [
+                BseSecurity(
+                    code="920786",
+                    name="骑士乳业",
+                    date="20260730",
+                    pre_close=7.10,
+                    open=7.12,
+                    high=7.20,
+                    low=7.00,
+                    price=7.15,
+                    volume=123400,
+                    amount=880000.0,
+                )
+            ]
+
+    transport = RecordingTransport()
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(
+        protocol=StdQuoteProtocol(),
+        connection_pool=pool,
+        scheduler=scheduler,
+        bse_registry=BseRegistry(Provider()),
+    )
+
+    assert client.stock_count(2) == 1
+    assert client.stocks(2) == [
+        {
+            "market": 2,
+            "code": "920786",
+            "name": "骑士乳业",
+            "volunit": 100,
+            "decimal_point": 2,
+            "pre_close": 7.10,
+            "date": "20260730",
+            "open": 7.12,
+            "high": 7.20,
+            "low": 7.00,
+            "price": 7.15,
+            "volume": 123400,
+            "amount": 880000.0,
+            "source": "bse",
+        }
+    ]
+    assert transport.sent_payloads == []
 
 
 def test_sync_client_propagates_scheduler_failure() -> None:
