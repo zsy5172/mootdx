@@ -10,6 +10,7 @@ from mootdx_next.analytics import aggregate_bars
 from mootdx_next.analytics import atr
 from mootdx_next.analytics import boll
 from mootdx_next.analytics import ema
+from mootdx_next.analytics import forward_returns
 from mootdx_next.analytics import hhv
 from mootdx_next.analytics import llv
 from mootdx_next.analytics import ma
@@ -154,6 +155,7 @@ __all__ = [
     "atr",
     "boll",
     "ema",
+    "forward_returns",
     "hhv",
     "llv",
     "ma",

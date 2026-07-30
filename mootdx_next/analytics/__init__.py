@@ -11,12 +11,14 @@ from mootdx_next.analytics.indicators import macd
 from mootdx_next.analytics.indicators import ref
 from mootdx_next.analytics.indicators import rsi
 from mootdx_next.analytics.indicators import vwap
+from mootdx_next.analytics.returns import forward_returns
 
 __all__ = [
     "aggregate_bars",
     "atr",
     "boll",
     "ema",
+    "forward_returns",
     "hhv",
     "llv",
     "ma",
