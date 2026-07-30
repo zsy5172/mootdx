@@ -87,6 +87,9 @@ SYNC_PUBLIC_API = {
     "stock_statistics",
     "stock_statistics2",
     "xdxr",
+    "iter_xdxr",
+    "equity_at",
+    "turnover",
     "f10_categories",
     "f10_content",
 }
@@ -120,6 +123,9 @@ ASYNC_PUBLIC_API = {
     "iter_transactions",
     "finance",
     "xdxr",
+    "iter_xdxr",
+    "equity_at",
+    "turnover",
     "index_bars",
     "index_bars_until",
     "index_bars_all",
@@ -174,6 +180,9 @@ PANDAS_PUBLIC_API = {
     "F10C",
     "F10",
     "xdxr",
+    "iter_xdxr",
+    "equity_at",
+    "turnover",
     "finance",
     "index_bars",
     "index_bars_until",
@@ -390,6 +399,12 @@ SYNC_CALL_CASES = (
     SyncCallCase("finance", {"symbol": "600036"}, ("finance",)),
     SyncCallCase("block", {"block_file": "block_zs.dat"}, ("block_info_meta",)),
     SyncCallCase("xdxr", {"symbol": "600036"}, ("xdxr",)),
+    SyncCallCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, ("xdxr",)),
+    SyncCallCase(
+        "turnover",
+        {"symbol": "600036", "as_of": "20260730", "volume": 100},
+        ("xdxr",),
+    ),
     SyncCallCase("f10_categories", {"symbol": "600036"}, ("f10_categories",)),
     SyncCallCase(
         "f10_content",
@@ -423,6 +438,15 @@ def test_sync_iter_transactions_executes_when_consumed() -> None:
 
     assert chunks == [("20170209", [])]
     assert [api for api, _ in protocol.encode_calls] == ["transactions"]
+
+
+def test_sync_iter_xdxr_executes_when_consumed() -> None:
+    client, protocol, _ = _matrix_client()
+
+    chunks = list(client.iter_xdxr(["600036"]))
+
+    assert chunks == [("sh600036", [])]
+    assert [api for api, _ in protocol.encode_calls] == ["xdxr"]
 
 
 FREQUENCY_CASES = tuple((frequency, frequency) for frequency in range(12)) + tuple(FREQUENCY_ALIASES.items()) + (("DAY", 9),)
@@ -603,6 +627,10 @@ class AsyncDispatchRecorder:
                 return {"code": "600036"}
             if name == "security":
                 return {"market": 1, "code": "600036", "symbol": "sh600036"}
+            if name == "equity_at":
+                return {"symbol": "sh600036", "float_shares": 1000}
+            if name == "turnover":
+                return 1.0
             if name == "price_limit":
                 return {
                     "market": 1,
@@ -694,6 +722,22 @@ ASYNC_CALL_CASES = (
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
     AsyncCallCase("xdxr", ("600036",), {}, "xdxr", ("600036",), {}),
     AsyncCallCase(
+        "equity_at",
+        ("600036", "20260730"),
+        {},
+        "equity_at",
+        ("600036", "20260730"),
+        {},
+    ),
+    AsyncCallCase(
+        "turnover",
+        ("600036", "20260730", 100),
+        {"volume_unit": "lots"},
+        "turnover",
+        ("600036", "20260730", 100),
+        {"volume_unit": "lots"},
+    ),
+    AsyncCallCase(
         "index_bars",
         ("000001", "day", 20, 15, 1),
         {},
@@ -761,6 +805,19 @@ def test_async_iter_transactions_dispatches_each_consumed_day() -> None:
     assert recorder.calls == [
         ("transactions_day", ("600036", "20170209", 2000, 1), {})
     ]
+
+
+def test_async_iter_xdxr_dispatches_each_consumed_symbol() -> None:
+    recorder = AsyncDispatchRecorder()
+    client = AsyncClient(sync_client=recorder)
+
+    async def collect():
+        return [chunk async for chunk in client.iter_xdxr(["600036"])]
+
+    chunks = asyncio.run(collect())
+
+    assert chunks[0][0] == "sh600036"
+    assert recorder.calls == [("xdxr", ("sh600036",), {})]
 
 
 class FacadeRecorder:
@@ -875,6 +932,15 @@ class FacadeRecorder:
     def xdxr(self, symbol):
         return [{"year": 2026, "category": 1}]
 
+    def iter_xdxr(self, symbols=None, refresh=False, retries=1):
+        yield "sh600036", self.xdxr("sh600036")
+
+    def equity_at(self, symbol, as_of):
+        return {"symbol": "sh600036", "float_shares": 1000, "total_shares": 2000}
+
+    def turnover(self, symbol, as_of, volume, volume_unit="shares"):
+        return 10.0
+
     def finance(self, symbol):
         return {"code": symbol, "liutongguben": 1.0}
 
@@ -946,6 +1012,12 @@ FACADE_CASES = (
     FacadeCase("F10C", {"symbol": "600036"}, list),
     FacadeCase("F10", {"symbol": "600036", "name": "最新提示"}, str),
     FacadeCase("xdxr", {"symbol": "600036"}, pd.DataFrame),
+    FacadeCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, pd.DataFrame),
+    FacadeCase(
+        "turnover",
+        {"symbol": "600036", "as_of": "20260730", "volume": 100},
+        (float, type(None)),
+    ),
     FacadeCase("finance", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("index_bars", {"symbol": "000001", "frequency": "5m", "offset": 1}, pd.DataFrame),
     FacadeCase(
@@ -994,6 +1066,15 @@ def test_next_facade_iter_transactions_yields_dataframe_chunks() -> None:
 
     assert len(chunks) == 1
     assert chunks[0][0] == "20170209"
+    assert isinstance(chunks[0][1], pd.DataFrame)
+
+
+def test_next_facade_iter_xdxr_yields_dataframe_chunks() -> None:
+    client = NextStdQuotes(engine_client=FacadeRecorder())
+
+    chunks = list(client.iter_xdxr(["600036"]))
+
+    assert chunks[0][0] == "sh600036"
     assert isinstance(chunks[0][1], pd.DataFrame)
 
 

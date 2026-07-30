@@ -480,6 +480,46 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def iter_xdxr(
+        self,
+        symbols=None,
+        *,
+        refresh=False,
+        retries=1,
+        **kwargs,
+    ) -> Iterator[tuple[str, pd.DataFrame]]:
+        for symbol, rows in self.client.iter_xdxr(
+            symbols,
+            refresh=bool(refresh),
+            retries=int(retries),
+        ):
+            yield symbol, xdxr_to_frame(rows)
+
+    def equity_at(self, symbol="", as_of="19700101", **kwargs) -> pd.DataFrame:
+        try:
+            row = self.client.equity_at(str(symbol), as_of)
+            return pd.DataFrame.from_records([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def turnover(
+        self,
+        symbol="",
+        as_of="19700101",
+        volume=0,
+        volume_unit="shares",
+        **kwargs,
+    ) -> float | None:
+        try:
+            return self.client.turnover(
+                str(symbol),
+                as_of,
+                volume,
+                volume_unit=str(volume_unit),
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def finance(self, symbol="000001", **kwargs) -> pd.DataFrame:
         try:
             return finance_to_frame(self.client.finance(str(symbol)))
@@ -1037,6 +1077,46 @@ class AsyncPandasClient:
     async def xdxr(self, symbol="", **kwargs) -> pd.DataFrame:
         try:
             return xdxr_to_frame(await self.client.xdxr(str(symbol)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def iter_xdxr(
+        self,
+        symbols=None,
+        *,
+        refresh=False,
+        retries=1,
+        **kwargs,
+    ) -> AsyncIterator[tuple[str, pd.DataFrame]]:
+        async for symbol, rows in self.client.iter_xdxr(
+            symbols,
+            refresh=bool(refresh),
+            retries=int(retries),
+        ):
+            yield symbol, xdxr_to_frame(rows)
+
+    async def equity_at(self, symbol="", as_of="19700101", **kwargs) -> pd.DataFrame:
+        try:
+            row = await self.client.equity_at(str(symbol), as_of)
+            return pd.DataFrame.from_records([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def turnover(
+        self,
+        symbol="",
+        as_of="19700101",
+        volume=0,
+        volume_unit="shares",
+        **kwargs,
+    ) -> float | None:
+        try:
+            return await self.client.turnover(
+                str(symbol),
+                as_of,
+                volume,
+                volume_unit=str(volume_unit),
+            )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 

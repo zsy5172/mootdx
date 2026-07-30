@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import struct
 import threading
 from collections.abc import Callable
 from collections.abc import AsyncIterator
+from collections.abc import Iterable
 from collections.abc import Iterator
 from collections.abc import Mapping
 from datetime import datetime
+from datetime import date as Date
 from datetime import timedelta
 from typing import Any
 
@@ -116,6 +119,9 @@ REQUEST_APIS = frozenset(
         "stock_statistics2",
         "block",
         "xdxr",
+        "iter_xdxr",
+        "equity_at",
+        "turnover",
         "f10_categories",
         "f10_content",
     }
@@ -147,6 +153,44 @@ def _date_range(start_date: str | int, end_date: str | int) -> Iterator[str]:
     while current <= end:
         yield current.strftime("%Y%m%d")
         current += timedelta(days=1)
+
+
+def _symbol_iterable(symbols: Iterable[str] | str) -> tuple[str, ...]:
+    values = (symbols,) if isinstance(symbols, str) else tuple(symbols)
+    for symbol in values:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbols must contain non-blank strings")
+    return values
+
+
+def _canonical_security_symbol(symbol: str) -> str:
+    if not isinstance(symbol, str) or not symbol.strip():
+        raise InvalidSymbolError("symbol cannot be blank")
+    market = int(get_stock_market(symbol, string=False))
+    code = normalize_symbol(symbol)
+    if len(code) != 6 or not code.isdigit():
+        raise InvalidSymbolError("symbol must contain a six-digit numeric code")
+    prefix = {0: "sz", 1: "sh", 2: "bj"}[market]
+    return f"{prefix}{code}"
+
+
+def _normalize_as_of_date(value: str | int | datetime | Date) -> Date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, Date):
+        return value
+    return datetime.strptime(normalize_date(value), "%Y%m%d").date()
+
+
+def _xdxr_date(row: Mapping[str, object]) -> Date:
+    try:
+        return Date(
+            int(row["year"]),
+            int(row["month"]),
+            int(row["day"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ProtocolDecodeError("xdxr row has an invalid event date") from exc
 
 
 class SyncClient:
@@ -855,6 +899,85 @@ class SyncClient:
         envelope = self._send(context, payload)
         return list(self.protocol.decode("xdxr", envelope))
 
+    def iter_xdxr(
+        self,
+        symbols: Iterable[str] | str | None = None,
+        *,
+        refresh: bool = False,
+        retries: int = 1,
+    ) -> Iterator[tuple[str, list[dict[str, object]]]]:
+        if retries < 0:
+            raise ValueError("retries must be >= 0")
+        selected = self.stock_codes(refresh=refresh) if symbols is None else _symbol_iterable(symbols)
+        for symbol in selected:
+            canonical = _canonical_security_symbol(symbol)
+            for attempt in range(retries + 1):
+                try:
+                    rows = self.xdxr(canonical)
+                    break
+                except TransportError:
+                    if attempt == retries:
+                        raise
+            yield canonical, rows
+
+    def equity_at(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+    ) -> dict[str, object] | None:
+        target = _normalize_as_of_date(as_of)
+        candidates: list[tuple[Date, dict[str, object]]] = []
+        for row in self.xdxr(symbol):
+            if _optional_int(row.get("category")) not in {2, 3, 5, 7, 8, 9, 10}:
+                continue
+            event_date = _xdxr_date(row)
+            if event_date <= target:
+                candidates.append((event_date, row))
+        if not candidates:
+            return None
+
+        event_date, row = max(candidates, key=lambda item: item[0])
+        float_shares = _optional_float(row.get("panhouliutong_shares"))
+        total_shares = _optional_float(row.get("houzongguben_shares"))
+        return {
+            "market": _optional_int(row.get("market")),
+            "code": str(row.get("code", normalize_symbol(symbol))),
+            "symbol": str(row.get("symbol", _canonical_security_symbol(symbol))),
+            "date": event_date.strftime("%Y-%m-%d"),
+            "datetime": row.get("datetime"),
+            "category": _optional_int(row.get("category")),
+            "name": row.get("name"),
+            "float_shares": float_shares,
+            "total_shares": total_shares,
+        }
+
+    def turnover(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+        volume: int | float,
+        *,
+        volume_unit: str = "shares",
+    ) -> float | None:
+        if isinstance(volume, bool):
+            raise ValueError("volume must be a non-negative finite number")
+        normalized_volume = float(volume)
+        if normalized_volume < 0 or not math.isfinite(normalized_volume):
+            raise ValueError("volume must be a non-negative finite number")
+        normalized_unit = str(volume_unit).strip().lower()
+        if normalized_unit not in {"shares", "lots"}:
+            raise ValueError("volume_unit must be 'shares' or 'lots'")
+        if normalized_unit == "lots":
+            normalized_volume *= 100
+
+        equity = self.equity_at(symbol, as_of)
+        if equity is None:
+            return None
+        float_shares = _optional_float(equity.get("float_shares"))
+        if float_shares is None or float_shares <= 0:
+            return None
+        return normalized_volume / float_shares * 100
+
     def f10_categories(self, symbol: str) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
@@ -1322,6 +1445,53 @@ class AsyncClient:
 
     async def xdxr(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))
+
+    async def iter_xdxr(
+        self,
+        symbols: Iterable[str] | str | None = None,
+        *,
+        refresh: bool = False,
+        retries: int = 1,
+    ) -> AsyncIterator[tuple[str, list[dict[str, object]]]]:
+        selected = await self.stock_codes(refresh=refresh) if symbols is None else _symbol_iterable(symbols)
+        if retries < 0:
+            raise ValueError("retries must be >= 0")
+        for symbol in selected:
+            canonical = _canonical_security_symbol(symbol)
+            for attempt in range(retries + 1):
+                try:
+                    rows = await self.xdxr(canonical)
+                    break
+                except TransportError:
+                    if attempt == retries:
+                        raise
+            yield canonical, rows
+
+    async def equity_at(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+    ) -> dict[str, object] | None:
+        result = await asyncio.to_thread(self._call_sync, "equity_at", symbol, as_of)
+        return None if result is None else dict(result)
+
+    async def turnover(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+        volume: int | float,
+        *,
+        volume_unit: str = "shares",
+    ) -> float | None:
+        result = await asyncio.to_thread(
+            self._call_sync,
+            "turnover",
+            symbol,
+            as_of,
+            volume,
+            volume_unit=volume_unit,
+        )
+        return None if result is None else float(result)
 
     async def index_bars(
         self,
