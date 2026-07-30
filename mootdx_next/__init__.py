@@ -7,8 +7,18 @@ from mootdx_next.api.ex_pandas import ExPandasClient
 from mootdx_next.api.pandas import AsyncPandasClient
 from mootdx_next.api.pandas import PandasClient
 from mootdx_next.analytics import aggregate_bars
+from mootdx_next.analytics import atr
+from mootdx_next.analytics import boll
+from mootdx_next.analytics import ema
+from mootdx_next.analytics import hhv
+from mootdx_next.analytics import llv
+from mootdx_next.analytics import ma
+from mootdx_next.analytics import macd
+from mootdx_next.analytics import ref
+from mootdx_next.analytics import rsi
 from mootdx_next.analytics import summarize_trade_sides
 from mootdx_next.analytics import trades_to_minute_bars
+from mootdx_next.analytics import vwap
 from mootdx_next.candidates import CandidateRegistry
 from mootdx_next.candidates import ex_candidate_snapshot
 from mootdx_next.candidates import get_ex_candidates
@@ -141,6 +151,16 @@ __all__ = [
     "AsyncPandasClient",
     "AdjustmentError",
     "aggregate_bars",
+    "atr",
+    "boll",
+    "ema",
+    "hhv",
+    "llv",
+    "ma",
+    "macd",
+    "ref",
+    "rsi",
+    "vwap",
     "BseError",
     "BseHttpProvider",
     "BseRegistry",
