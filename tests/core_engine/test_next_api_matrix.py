@@ -92,6 +92,8 @@ SYNC_PUBLIC_API = {
     "ipo_subscriptions",
     "stock_statistics",
     "stock_statistics2",
+    "gbbq_all",
+    "gbbq",
     "xdxr",
     "iter_xdxr",
     "equity_at",
@@ -135,6 +137,8 @@ ASYNC_PUBLIC_API = {
     "trading_days",
     "is_trading_day",
     "finance",
+    "gbbq_all",
+    "gbbq",
     "xdxr",
     "iter_xdxr",
     "equity_at",
@@ -200,6 +204,8 @@ PANDAS_PUBLIC_API = {
     "f10_content_range",
     "F10C",
     "F10",
+    "gbbq_all",
+    "gbbq",
     "xdxr",
     "iter_xdxr",
     "equity_at",
@@ -814,6 +820,15 @@ ASYNC_CALL_CASES = (
         {"refresh": True},
     ),
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
+    AsyncCallCase("gbbq_all", (True,), {}, "gbbq_all", (True,), {}),
+    AsyncCallCase(
+        "gbbq",
+        ("600036", True),
+        {"fallback": False},
+        "gbbq",
+        ("600036", True),
+        {"fallback": False},
+    ),
     AsyncCallCase("xdxr", ("600036",), {}, "xdxr", ("600036",), {}),
     AsyncCallCase(
         "equity_at",
@@ -1082,6 +1097,12 @@ class FacadeRecorder:
     def xdxr(self, symbol):
         return [{"year": 2026, "category": 1}]
 
+    def gbbq_all(self, refresh=False):
+        return [{"market": 1, "code": "600036", "category": 1, "source": "gbbq.zip"}]
+
+    def gbbq(self, symbol, refresh=False, fallback=True):
+        return self.gbbq_all(refresh=refresh)
+
     def iter_xdxr(self, symbols=None, refresh=False, retries=1):
         yield "sh600036", self.xdxr("sh600036")
 
@@ -1187,6 +1208,8 @@ FACADE_CASES = (
         bytes,
     ),
     FacadeCase("xdxr", {"symbol": "600036"}, pd.DataFrame),
+    FacadeCase("gbbq_all", {}, pd.DataFrame),
+    FacadeCase("gbbq", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, pd.DataFrame),
     FacadeCase(
         "turnover",

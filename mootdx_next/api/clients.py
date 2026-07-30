@@ -45,6 +45,11 @@ from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.errors import GbbqError
+from mootdx_next.gbbq import GbbqProvider
+from mootdx_next.gbbq import GbbqRegistry
+from mootdx_next.gbbq import gbbq_provider as default_gbbq_provider
+from mootdx_next.gbbq import gbbq_registry as default_gbbq_registry
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.interfaces import AbstractScheduler
 from mootdx_next.interfaces import AbstractTransport
@@ -142,6 +147,8 @@ REQUEST_APIS = frozenset(
         "stock_statistics",
         "stock_statistics2",
         "block",
+        "gbbq_all",
+        "gbbq",
         "xdxr",
         "iter_xdxr",
         "equity_at",
@@ -233,6 +240,8 @@ class SyncClient:
         bse_provider: BseProvider | None = None,
         security_registry: SecurityRegistry | None = None,
         trading_calendar_registry: TradingCalendarRegistry | None = None,
+        gbbq_registry: GbbqRegistry | None = None,
+        gbbq_provider: GbbqProvider | None = None,
     ) -> None:
         if bse_registry is not None and bse_provider is not None:
             raise ValueError("bse_registry and bse_provider are mutually exclusive")
@@ -247,6 +256,8 @@ class SyncClient:
         )
         self.security_registry = security_registry or default_security_registry
         self.trading_calendar_registry = trading_calendar_registry or default_trading_calendar_registry
+        self.gbbq_registry = gbbq_registry or default_gbbq_registry
+        self.gbbq_provider = gbbq_provider or default_gbbq_provider
         self._adjustment_service: Any | None = None
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
@@ -1018,6 +1029,39 @@ class SyncClient:
 
         return _parse_block_content(content)
 
+    def gbbq_all(self, refresh: bool = False) -> list[dict[str, object]]:
+        snapshot = self.gbbq_registry.get(self.gbbq_provider.load, refresh=bool(refresh))
+        return [event.to_dict() for event in snapshot.events]
+
+    def gbbq(
+        self,
+        symbol: str,
+        refresh: bool = False,
+        *,
+        fallback: bool = True,
+    ) -> list[dict[str, object]]:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+        normalized_symbol = symbol.strip()
+        market = int(get_stock_market(normalized_symbol, string=False))
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for gbbq: only sh/sz/bj are supported")
+        code = normalize_symbol(normalized_symbol)
+
+        try:
+            snapshot = self.gbbq_registry.get(self.gbbq_provider.load, refresh=bool(refresh))
+            events = snapshot.find(market, code)
+        except GbbqError:
+            if not fallback:
+                raise
+            events = ()
+        if events:
+            return [event.to_dict() for event in events]
+        if not fallback:
+            return []
+        rows = self.xdxr(normalized_symbol)
+        return [dict(row, source="tdx") for row in rows]
+
     def xdxr(self, symbol: str) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
@@ -1469,6 +1513,8 @@ class AsyncClient:
         bse_provider: BseProvider | None = None,
         security_registry: SecurityRegistry | None = None,
         trading_calendar_registry: TradingCalendarRegistry | None = None,
+        gbbq_registry: GbbqRegistry | None = None,
+        gbbq_provider: GbbqProvider | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -1487,6 +1533,8 @@ class AsyncClient:
             "bse_provider": bse_provider,
             "security_registry": security_registry,
             "trading_calendar_registry": trading_calendar_registry,
+            "gbbq_registry": gbbq_registry,
+            "gbbq_provider": gbbq_provider,
         }
 
     @property
@@ -1790,6 +1838,26 @@ class AsyncClient:
 
     async def finance(self, symbol: str) -> dict[str, object]:
         return dict(await asyncio.to_thread(self._call_sync, "finance", symbol))
+
+    async def gbbq_all(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "gbbq_all", refresh))
+
+    async def gbbq(
+        self,
+        symbol: str,
+        refresh: bool = False,
+        *,
+        fallback: bool = True,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "gbbq",
+                symbol,
+                refresh,
+                fallback=fallback,
+            )
+        )
 
     async def xdxr(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))

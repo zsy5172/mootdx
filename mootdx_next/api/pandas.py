@@ -588,6 +588,24 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def gbbq_all(self, refresh=False, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_to_frame(self.client.gbbq_all(refresh=bool(refresh)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def gbbq(self, symbol="", refresh=False, fallback=True, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_to_frame(
+                self.client.gbbq(
+                    str(symbol),
+                    refresh=bool(refresh),
+                    fallback=bool(fallback),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def iter_xdxr(
         self,
         symbols=None,
@@ -1298,6 +1316,24 @@ class AsyncPandasClient:
     async def xdxr(self, symbol="", **kwargs) -> pd.DataFrame:
         try:
             return xdxr_to_frame(await self.client.xdxr(str(symbol)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def gbbq_all(self, refresh=False, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_to_frame(await self.client.gbbq_all(refresh=bool(refresh)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def gbbq(self, symbol="", refresh=False, fallback=True, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_to_frame(
+                await self.client.gbbq(
+                    str(symbol),
+                    refresh=bool(refresh),
+                    fallback=bool(fallback),
+                )
+            )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 

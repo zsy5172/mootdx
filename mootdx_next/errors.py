@@ -82,6 +82,22 @@ class ConfigArchiveError(ConfigFileError):
     """Raised when a TDX configuration archive is invalid or unsafe."""
 
 
+class GbbqError(MootdxNextError):
+    """Base exception for official TDX GBBQ snapshot operations."""
+
+
+class GbbqDownloadError(GbbqError):
+    """Raised when the official GBBQ archive cannot be downloaded safely."""
+
+
+class GbbqArchiveError(GbbqError):
+    """Raised when the official GBBQ ZIP archive is invalid or unsafe."""
+
+
+class GbbqDecodeError(GbbqError):
+    """Raised when encrypted GBBQ records cannot be decoded safely."""
+
+
 class BseError(MootdxNextError):
     """Base exception for the Beijing Stock Exchange directory provider."""
 
