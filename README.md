@@ -1,6 +1,6 @@
 # mootdx
 
-通达信标准市场行情与本地数据读取工具。
+通达信标准市场、扩展市场行情与本地数据读取工具。
 
 当前版本默认使用全新的 `next` 引擎：它不依赖 `tdxpy`，提供独立协议解析、连接池、节点故障转移、进程级候选 IP 缓存和线程安全的异步调用。
 
@@ -16,7 +16,8 @@
 ## 主要能力
 
 - `Quotes.factory()` 默认使用 `next`，现有标准市场调用通常无需修改。
-- 支持实时行情、K 线、指数、分时、逐笔成交、财务、除权除息、F10 和板块数据。
+- 支持实时行情、K 线、指数、集合竞价、分时、逐笔成交、财务、除权除息、F10、板块和公共配置数据。
+- 原生支持 ExHq 扩展行情，包括期货、港股、外盘的市场表、品种、报价、K 线、分时和逐笔。
 - 支持同步 `SyncClient` 和线程隔离的 `AsyncClient`。
 - 每个异步工作线程使用独立客户端和连接池，共享不可变的候选 IP 快照。
 - `bestip=True` 触发进程内测速，结果缓存 10 分钟，不再写入旧版 `BESTIP` 配置。
@@ -175,6 +176,16 @@ client.transaction("600036", start=0, offset=100)
 实时接口没有数据时返回空结果。
 即时逐笔的单次 `offset` 范围为 1～1800，历史逐笔为 1～2000；更多数据请递增 `start` 分页读取。
 
+集合竞价接口直接返回服务器的竞价序列：
+
+```python
+auction = client.call_auction("600036")
+```
+
+结果包含 `time`、`price`、`matched`、`unmatched`、`side` 和 `side_name`。未匹配量在协议中是带符号
+32 位整数：正值为买方、负值为卖方，API 将数量取绝对值并把方向单独放在 `side`。服务器不返回交易
+日期，因此接口不会根据本机日期猜测。
+
 ### 财务、除权除息与 F10
 
 ```python
@@ -201,7 +212,60 @@ F10/F10C 示例使用 `600036`，避免 `000001` 在不同市场和服务节点�
 ```python
 client.block(tofile="block.dat")
 client.block(tofile="block_zs.dat")
+
+# 原始公共文件和 zhb.zip 内存快照
+raw = client.block_file_raw("block_gn.dat")
+archive = client.report_file("zhb.zip")
+files = client.zhb_files()
+
+# 板块指数、别名和附带指数 ID 的板块成分
+client.tdx_block_indexes()
+client.tdx_block_aliases()
+client.block_with_index("block_gn.dat")
+
+# 大型指数/专业板块、行业、新股申购和盘后统计快照
+client.sp_blocks("中证2000")
+client.tdx_industries()
+client.ipo_subscriptions()
+client.stock_statistics()
+client.stock_statistics2()
 ```
+
+`zhb.zip` 在内存中安全解压，并使用进程级线程安全快照缓存 10 分钟；主动刷新可传 `refresh=True`。
+解压器拒绝路径穿越、重复成员、加密成员和超出限制的压缩包。`stock_statistics*()` 是服务器发布的盘后
+快照，尚未验证语义的资金字段保留在不可变 `raw_fields` 中，不擅自命名。
+
+## 扩展市场接口
+
+默认 next 引擎已经恢复原生 ExHq，旧调用入口无需更换：
+
+```python
+from mootdx.quotes import Quotes
+
+ex = Quotes.factory(market="ext", bestip=True)
+try:
+    markets = ex.markets()
+    count = ex.instrument_count()
+    instruments = ex.instrument(start=0, offset=100)
+    quote = ex.quote(symbol="31#00700")
+    bars = ex.bars(symbol="31#00700", frequency="day", offset=100)
+    minute = ex.minute(symbol="31#00700")
+    history_minute = ex.minutes(symbol="31#00700", date="20260729")
+    trades = ex.transaction(symbol="31#00700", offset=100)
+    history_trades = ex.transactions(symbol="31#00700", date="20260729", offset=100)
+finally:
+    ex.close()
+```
+
+`market` 可以单独传入，也可以使用 `market#symbol`，两者同时给出时必须一致。真实节点确认的单次上限
+为：品种页 1000、批量报价 100、K 线 700、当前/历史逐笔 1800；超出上限会明确报错，因为服务器会
+静默截断。`instrument_count()` 是服务端槽位计数，当前可能包含少量不可枚举的保留尾部，
+`instruments()` 遇到合法全零空页会停止。
+
+ExHq 当前逐笔没有交易日期，历史逐笔包含请求日期。协议原始逐笔价格是实际价格的 1000 倍，新引擎
+返回修正后的 `price` 并保留 `price_raw`。当前分时/逐笔在对应市场非交易时段允许返回空结果。
+`bars_range()` 是通达信 `0x240D` 日期区间接口，真实响应为区间分钟 K，并受服务端单次记录数限制。
+完整字段和 Raw/Async 用法见 [扩展行情接口](docs/api/quote2.md)。
 
 ## 服务器选择
 
@@ -220,11 +284,15 @@ client = Quotes.factory(bestip=True)
 可以主动刷新或失效缓存：
 
 ```python
+from mootdx_next import invalidate_ex_candidates
 from mootdx_next import invalidate_hq_candidates
+from mootdx_next import refresh_ex_candidates
 from mootdx_next import refresh_hq_candidates
 
 refresh_hq_candidates()
 invalidate_hq_candidates()
+refresh_ex_candidates()
+invalidate_ex_candidates()
 ```
 
 ### 指定固定服务器
@@ -301,6 +369,40 @@ asyncio.run(main())
 `AsyncClient` 与 `SyncClient` 的业务方法保持一致，`AsyncPandasClient` 与 `PandasClient` 同样保持业务方法对称。
 异步客户端查找和实际调用都在线程池工作线程内完成，不会在线程之间共享非线程安全的连接池状态。
 
+### 扩展市场 SDK
+
+```python
+import asyncio
+
+from mootdx_next import AsyncExClient
+from mootdx_next import ExPandasClient
+from mootdx_next import ExSyncClient
+
+raw = ExSyncClient()
+try:
+    quote = raw.quote(31, "00700")
+    bars = raw.bars(31, "00700", frequency="day", offset=100)
+finally:
+    raw.close()
+
+pandas_client = ExPandasClient(bestip=True)
+frame = pandas_client.quote(31, "00700")
+pandas_client.close()
+
+
+async def ex_main():
+    client = AsyncExClient()
+    try:
+        return await asyncio.gather(
+            client.quote(31, "00700"),
+            client.bars(31, "00700", frequency="day", offset=10),
+        )
+    finally:
+        client.close()
+```
+
+`AsyncExClient`/`ExSyncClient` 和 `AsyncExPandasClient`/`ExPandasClient` 分别保持完整方法对称。
+
 ### 财务文件 SDK
 
 ```python
@@ -347,13 +449,10 @@ client = Quotes.factory(engine="legacy")
 
 它要求安装 `mootdx[legacy]`。新代码不建议依赖底层 `client.client` 的 tdxpy 私有方法。
 
-以下远程功能已经明确废弃：
-
-- 在线扩展市场行情，即 `Quotes.factory(market="ext")`
-- 旧 GP socket 财务下载线路
+旧 GP socket 财务下载线路已经明确废弃。
 
 `Affair.files()` 和 `Affair.fetch()` 仍受支持，但已经改为通达信官方 HTTPS 财务服务；本地 `ExtReader`
-也仍完整支持扩展市场文件。废弃的是在线 EX 行情和旧 GP socket，不是本地 Reader。
+也仍完整支持扩展市场文件。在线 EX 行情由 next 引擎的原生 ExHq 实现提供。
 
 ## 开发与测试
 
@@ -382,6 +481,12 @@ uv run nox -s next_live_matrix
 ```
 
 真实逐笔成交测试在非交易时段会明确跳过。测试设计说明参见 [Next engine test matrix](docs/next-test-matrix.md)。
+
+扩展行情真实矩阵只在本地按需运行，不进入 GitHub Actions：
+
+```bash
+MOOTDX_NEXT_EX_LIVE=1 pytest tests/core_engine/test_next_ex_live_smoke.py -q
+```
 
 ## 常见问题
 
