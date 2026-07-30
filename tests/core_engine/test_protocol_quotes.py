@@ -32,6 +32,12 @@ def _next_expected_records(case_id: str) -> list[dict[str, object]]:
     return records
 
 
+def _legacy_projection(
+    actual: list[dict[str, object]], expected: list[dict[str, object]]
+) -> list[dict[str, object]]:
+    return [{key: row[key] for key in legacy} for row, legacy in zip(actual, expected, strict=True)]
+
+
 def test_encode_quotes_matches_corpus_request() -> None:
     protocol = StdQuoteProtocol()
 
@@ -41,8 +47,12 @@ def test_encode_quotes_matches_corpus_request() -> None:
 
 def test_decode_quotes_matches_single_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
+    expected = _next_expected_records("single_sh")
+    actual = protocol.decode_quotes(_response_body("single_sh"))
 
-    assert protocol.decode_quotes(_response_body("single_sh")) == _next_expected_records("single_sh")
+    assert _legacy_projection(actual, expected) == expected
+    assert actual[0]["rate"] == actual[0]["reversed_bytes9"]
+    assert actual[0]["rate_raw"] == round(float(actual[0]["rate"]) * 100)
 
 
 def test_decode_quotes_matches_mixed_batch_expected() -> None:
@@ -50,8 +60,20 @@ def test_decode_quotes_matches_mixed_batch_expected() -> None:
 
     rows = protocol.decode_quotes(_response_body("mixed_batch"))
 
-    assert rows == _next_expected_records("mixed_batch")
+    expected = _next_expected_records("mixed_batch")
+    assert _legacy_projection(rows, expected) == expected
     assert [row["code"] for row in rows] == ["600036", "000001"]
+
+
+def test_decode_quotes_scales_new_shanghai_etf_prefixes_as_funds() -> None:
+    protocol = StdQuoteProtocol()
+    body = bytearray(_response_body("single_sh"))
+    body[5:11] = b"588000"
+
+    row = protocol.decode_quotes(bytes(body))[0]
+
+    assert row["code"] == "588000"
+    assert row["price"] == pytest.approx(3.921)
 
 
 def test_decode_quotes_exposes_numeric_trading_phase() -> None:

@@ -10,19 +10,8 @@ from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.models import ResponseEnvelope
-
-SECURITY_COEFFICIENT = {
-    "SH_A_STOCK": 0.01,
-    "SH_B_STOCK": 0.001,
-    "SH_INDEX": 0.01,
-    "SH_FUND": 0.001,
-    "SH_BOND": 0.0001,
-    "SZ_A_STOCK": 0.01,
-    "SZ_B_STOCK": 0.01,
-    "SZ_INDEX": 0.01,
-    "SZ_FUND": 0.001,
-    "SZ_BOND": 0.0001,
-}
+from mootdx_next.symbols import get_security_coefficient
+from mootdx_next.symbols import get_security_type
 
 XDXR_CATEGORY_MAPPING = {
     1: "除权除息",
@@ -151,43 +140,11 @@ def _get_price(data: bytes, pos: int) -> tuple[int, int]:
 
 
 def _get_security_type(market: int, code: str) -> str:
-    code_head = str(code)[:2]
-
-    if market == 0:
-        if code_head in ["00", "30"]:
-            return "SZ_A_STOCK"
-        if code_head in ["20"]:
-            return "SZ_B_STOCK"
-        if code_head in ["39"]:
-            return "SZ_INDEX"
-        if code_head in ["15", "16"]:
-            return "SZ_FUND"
-        if code_head in ["10", "11", "12", "13", "14"]:
-            return "SZ_BOND"
-
-    if market == 1:
-        if code_head in ["60", "68"]:
-            return "SH_A_STOCK"
-        if code_head in ["90"]:
-            return "SH_B_STOCK"
-        if code_head in ["00", "88", "99"]:
-            return "SH_INDEX"
-        if code_head in ["50", "51"]:
-            return "SH_FUND"
-        if code_head in ["01", "10", "11", "12", "13", "14", "20"]:
-            return "SH_BOND"
-
-    raise NotImplementedError
+    return get_security_type(market, code)
 
 
 def _get_security_coefficient(market: int, code: str) -> float:
-    if market == MARKET_BJ:
-        return 0.01
-
-    try:
-        return SECURITY_COEFFICIENT[_get_security_type(market=market, code=code)]
-    except NotImplementedError:
-        return 0.01
+    return get_security_coefficient(market, code)
 
 
 def _format_quotes_time(time_stamp: int) -> str | int:
@@ -522,7 +479,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 reversed_bytes6, pos = _get_price(body, pos)
                 reversed_bytes7, pos = _get_price(body, pos)
                 reversed_bytes8, pos = _get_price(body, pos)
-                reversed_bytes9, active2 = QUOTE_TAIL_STRUCT.unpack_from(body, pos)
+                rate_raw, active2 = QUOTE_TAIL_STRUCT.unpack_from(body, pos)
                 pos += 4
 
                 decoded_code = code.decode("utf-8")
@@ -572,7 +529,12 @@ class StdQuoteProtocol(AbstractProtocol):
                         "reversed_bytes6": reversed_bytes6,
                         "reversed_bytes7": reversed_bytes7,
                         "reversed_bytes8": reversed_bytes8,
-                        "reversed_bytes9": reversed_bytes9 / 100.0,
+                        # ``reversed_bytes9`` historically exposed the scaled
+                        # value.  Keep it as a compatibility alias while also
+                        # publishing the verified name and signed wire value.
+                        "reversed_bytes9": rate_raw / 100.0,
+                        "rate": rate_raw / 100.0,
+                        "rate_raw": rate_raw,
                         "active2": active2,
                         "volume": vol,
                     }
@@ -1006,6 +968,7 @@ class StdQuoteProtocol(AbstractProtocol):
             "yingshouzhangkuan": yingshouzhangkuan * 10000,
             "yingyelirun": yingyelirun * 10000,
             "touzishouyu": touzishouyu * 10000,
+            "touzishouyi": touzishouyu * 10000,
             "jingyingxianjinliu": jingyingxianjinliu * 10000,
             "zongxianjinliu": zongxianjinliu * 10000,
             "cunhuo": cunhuo * 10000,

@@ -34,7 +34,9 @@ def test_encode_finance_matches_corpus_request() -> None:
 def test_decode_finance_matches_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
     expected = _result("finance", "sz_000001")["records"][0]
-    assert protocol.decode_finance(_body("finance", "sz_000001", "01_finance")) == expected
+    actual = protocol.decode_finance(_body("finance", "sz_000001", "01_finance"))
+    assert {key: actual[key] for key in expected} == expected
+    assert actual["touzishouyi"] == actual["touzishouyu"]
 
 
 def test_encode_xdxr_matches_corpus_request() -> None:
