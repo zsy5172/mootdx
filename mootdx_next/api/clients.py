@@ -78,6 +78,7 @@ HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
+F10_CONTENT_PAGE_SIZE = 0x7800
 BarPredicate = Callable[[Mapping[str, object]], bool]
 DIRECT_PRICE_TYPES = frozenset(
     {
@@ -140,6 +141,7 @@ REQUEST_APIS = frozenset(
         "adjustment_factors",
         "f10_categories",
         "f10_content",
+        "f10_content_range",
     }
 )
 
@@ -1055,33 +1057,84 @@ class SyncClient:
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
 
-        code = normalize_symbol(normalized_symbol)
         categories = self.f10_categories(normalized_symbol)
         matched = next((item for item in categories if item["name"] == normalized_name), None)
         if matched is None:
             raise UnknownF10CategoryError(f"unknown f10 category: {normalized_name}")
 
-        context = RequestContext(
-            api="f10_content",
-            params={
-                "symbol": normalized_symbol,
-                "market": market,
-                "name": normalized_name,
-                "filename": matched["filename"],
-                "start": matched["start"],
-                "length": matched["length"],
-            },
+        expected_length = int(matched["length"])
+        content = self.f10_content_range(
+            normalized_symbol,
+            str(matched["filename"]),
+            int(matched["start"]),
+            expected_length,
         )
-        payload = self.protocol.encode(
-            "f10_content",
-            market=market,
-            code=code,
-            filename=matched["filename"],
-            start=int(matched["start"]),
-            length=int(matched["length"]),
-        )
-        envelope = self._send(context, payload)
-        return str(self.protocol.decode("f10_content", envelope))
+        if len(content) != expected_length:
+            raise ProtocolDecodeError(
+                f"f10 category {normalized_name!r} truncated: "
+                f"expected {expected_length} bytes, got {len(content)}"
+            )
+        return content.decode("gbk", "ignore")
+
+    def f10_content_range(
+        self,
+        symbol: str,
+        filename: str,
+        start: int,
+        length: int,
+    ) -> bytes:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+        if not isinstance(filename, str) or not filename.strip():
+            raise ValueError("f10 filename cannot be blank")
+        if start < 0 or start > 0xFFFFFFFF:
+            raise ValueError("start must be between 0 and 4294967295")
+        if length < 0 or length > 0xFFFFFFFF - start:
+            raise ValueError("length exceeds the 32-bit f10 range")
+        if length == 0:
+            return b""
+
+        normalized_symbol = symbol.strip()
+        market = int(get_stock_market(normalized_symbol, string=False))
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
+        code = normalize_symbol(normalized_symbol)
+
+        chunks: list[bytes] = []
+        received = 0
+        while received < length:
+            page_length = min(F10_CONTENT_PAGE_SIZE, length - received)
+            page_start = start + received
+            context = RequestContext(
+                api="f10_content",
+                params={
+                    "symbol": normalized_symbol,
+                    "market": market,
+                    "filename": filename,
+                    "start": page_start,
+                    "length": page_length,
+                },
+            )
+            payload = self.protocol.encode(
+                "f10_content",
+                market=market,
+                code=code,
+                filename=filename,
+                start=page_start,
+                length=page_length,
+            )
+            envelope = self._send(context, payload)
+            decoded = self.protocol.decode("f10_content", envelope, raw=True)
+            chunk = decoded.encode("gbk") if isinstance(decoded, str) else bytes(decoded)
+            if len(chunk) > page_length:
+                raise ProtocolDecodeError(
+                    f"f10 range returned {len(chunk)} bytes for a {page_length}-byte request"
+                )
+            chunks.append(chunk)
+            received += len(chunk)
+            if len(chunk) < page_length:
+                break
+        return b"".join(chunks)
 
     def _all_limit_prices(self) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
@@ -1675,6 +1728,24 @@ class AsyncClient:
 
     async def f10_content(self, symbol: str, name: str) -> str:
         return str(await asyncio.to_thread(self._call_sync, "f10_content", symbol, name))
+
+    async def f10_content_range(
+        self,
+        symbol: str,
+        filename: str,
+        start: int,
+        length: int,
+    ) -> bytes:
+        return bytes(
+            await asyncio.to_thread(
+                self._call_sync,
+                "f10_content_range",
+                symbol,
+                filename,
+                start,
+                length,
+            )
+        )
 
     def _call_sync(self, api: str, *args: Any, **kwargs: Any) -> object:
         client = self._get_sync_client()

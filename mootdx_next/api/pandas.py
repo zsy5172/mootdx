@@ -468,6 +468,20 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def f10_content_range(self, symbol="", filename="", start=0, length=0, market=None) -> bytes:
+        try:
+            resolved_market = get_stock_market(symbol) if market is None else market
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
+            return self.client.f10_content_range(
+                str(symbol),
+                str(filename),
+                int(start),
+                int(length),
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def F10C(self, symbol="", market=None):  # noqa: N802
         return self.f10_categories(symbol=symbol, market=market)
 
@@ -1073,6 +1087,27 @@ class AsyncPandasClient:
             if resolved_market not in {0, 1, 2}:
                 raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
             return await self.client.f10_content(str(symbol), str(name))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def f10_content_range(
+        self,
+        symbol="",
+        filename="",
+        start=0,
+        length=0,
+        market=None,
+    ) -> bytes:
+        try:
+            resolved_market = get_stock_market(symbol) if market is None else market
+            if resolved_market not in {0, 1, 2}:
+                raise UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场")
+            return await self.client.f10_content_range(
+                str(symbol),
+                str(filename),
+                int(start),
+                int(length),
+            )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 

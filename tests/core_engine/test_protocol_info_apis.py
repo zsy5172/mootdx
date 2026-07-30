@@ -94,6 +94,15 @@ def test_decode_f10_content_matches_corpus_expected() -> None:
     assert protocol.decode_f10_content(_body("f10_content", "sh_600036__latest_tip", "02_f10_content")) == expected
 
 
+def test_decode_f10_content_bytes_preserves_raw_gbk() -> None:
+    protocol = StdQuoteProtocol()
+    body = _body("f10_content", "sh_600036__latest_tip", "02_f10_content")
+
+    content = protocol.decode_f10_content_bytes(body)
+
+    assert content.decode("gbk", "ignore") == protocol.decode_f10_content(body)
+
+
 @pytest.mark.parametrize(
     ("decoder", "body"),
     [

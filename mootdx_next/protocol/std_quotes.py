@@ -327,6 +327,8 @@ class StdQuoteProtocol(AbstractProtocol):
         if api == "f10_categories":
             return self.decode_f10_categories(body)
         if api == "f10_content":
+            if bool(kwargs.get("raw")):
+                return self.decode_f10_content_bytes(body)
             return self.decode_f10_content(body)
         if api == "block_info_meta":
             return self.decode_block_info_meta(body)
@@ -1298,13 +1300,15 @@ class StdQuoteProtocol(AbstractProtocol):
 
         encoded_code = code.encode("utf-8")
         encoded_filename = filename.encode("utf-8") if isinstance(filename, str) else filename
+        if len(encoded_filename) > 80:
+            raise ValueError("f10 filename must fit within 80 bytes")
         if len(encoded_filename) != 80:
             encoded_filename = encoded_filename.ljust(80, b"\x00")
         payload = bytearray.fromhex("0c 07 10 9c 00 01 68 00 68 00 d0 02")
         payload.extend(struct.pack("<H6sH80sIII", market, encoded_code, 0, encoded_filename, start, length, 0))
         return bytes(payload)
 
-    def decode_f10_content(self, body: bytes) -> str:
+    def decode_f10_content_bytes(self, body: bytes) -> bytes:
         if len(body) < 12:
             raise ProtocolDecodeError(f"f10_content body too short: {len(body)}")
 
@@ -1316,7 +1320,10 @@ class StdQuoteProtocol(AbstractProtocol):
         content = body[12 : 12 + length]
         if len(content) != length:
             raise ProtocolDecodeError(f"f10_content truncated: expected {length} bytes, got {len(content)}")
-        return content.decode("gbk", "ignore")
+        return content
+
+    def decode_f10_content(self, body: bytes) -> str:
+        return self.decode_f10_content_bytes(body).decode("gbk", "ignore")
 
     def encode_block_info_meta(self, block_file: str) -> bytes:
         encoded = block_file.encode("utf-8")

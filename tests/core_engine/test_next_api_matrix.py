@@ -93,6 +93,7 @@ SYNC_PUBLIC_API = {
     "adjustment_factors",
     "f10_categories",
     "f10_content",
+    "f10_content_range",
 }
 
 ASYNC_PUBLIC_API = {
@@ -145,6 +146,7 @@ ASYNC_PUBLIC_API = {
     "stock_statistics2",
     "f10_categories",
     "f10_content",
+    "f10_content_range",
 }
 
 PANDAS_PUBLIC_API = {
@@ -179,6 +181,7 @@ PANDAS_PUBLIC_API = {
     "iter_transactions",
     "f10_categories",
     "f10_content",
+    "f10_content_range",
     "F10C",
     "F10",
     "xdxr",
@@ -299,7 +302,7 @@ class MatrixProtocol:
         if api == "block_info_meta":
             return {"size": 0, "hash": ""}
         if api == "f10_categories":
-            return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
+            return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 7}]
         if api == "f10_content":
             return "content"
         return []
@@ -413,6 +416,11 @@ SYNC_CALL_CASES = (
         "f10_content",
         {"symbol": "600036", "name": "最新提示"},
         ("f10_categories", "f10_content"),
+    ),
+    SyncCallCase(
+        "f10_content_range",
+        {"symbol": "600036", "filename": "600036.txt", "start": 0, "length": 7},
+        ("f10_content",),
     ),
 )
 
@@ -548,6 +556,12 @@ def test_symbol_market_prefix_matrix(symbol: str, market: int, code: str) -> Non
             {},
             ("f10_categories", "f10_content"),
         ),
+        (
+            "f10_content_range",
+            ("bj430090", "430090.txt", 0, 7),
+            {},
+            ("f10_content",),
+        ),
     ],
 )
 def test_bse_business_apis_preserve_market_context(
@@ -644,6 +658,8 @@ class AsyncDispatchRecorder:
                 }
             if name == "f10_content":
                 return "content"
+            if name == "f10_content_range":
+                return b"content"
             return [{"api": name}]
 
         return call
@@ -780,6 +796,14 @@ ASYNC_CALL_CASES = (
         {},
         "f10_content",
         ("600036", "最新提示"),
+        {},
+    ),
+    AsyncCallCase(
+        "f10_content_range",
+        ("600036", "600036.txt", 0, 7),
+        {},
+        "f10_content_range",
+        ("600036", "600036.txt", 0, 7),
         {},
     ),
 )
@@ -940,6 +964,9 @@ class FacadeRecorder:
     def f10_content(self, symbol, name):
         return "content"
 
+    def f10_content_range(self, symbol, filename, start, length):
+        return b"content"
+
     def xdxr(self, symbol):
         return [{"year": 2026, "category": 1}]
 
@@ -1033,6 +1060,11 @@ FACADE_CASES = (
     ),
     FacadeCase("F10C", {"symbol": "600036"}, list),
     FacadeCase("F10", {"symbol": "600036", "name": "最新提示"}, str),
+    FacadeCase(
+        "f10_content_range",
+        {"symbol": "600036", "filename": "600036.txt", "start": 0, "length": 7},
+        bytes,
+    ),
     FacadeCase("xdxr", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, pd.DataFrame),
     FacadeCase(
