@@ -135,3 +135,35 @@ for inspection after the manual run.
 Live failures must be classified as transport availability, empty upstream
 data, protocol decode failure, or API contract failure before changing an
 expected result.
+
+## 5. Extended-market ExHq matrix
+
+The ExHq implementation has its own protocol, connection pool, candidate
+snapshot and synchronous/asynchronous clients. Deterministic coverage lives in:
+
+- `test_protocol_ex_quotes.py`: every request frame and response record,
+  truncated-body rejection, zero-padded empty instrument pages, current versus
+  historical date behavior, quote-list layouts and `/1000` trade prices;
+- `test_ex_clients.py`: every raw Sync/Async API, exact parity, all server
+  window boundaries, full-instrument pagination and worker-thread isolation;
+- `test_ex_pandas_clients.py`: DataFrame schemas and indexes, `market#symbol`
+  compatibility, lifecycle/error mapping and best-IP precedence.
+
+The limits were verified against live ExHq responses instead of copied from a
+client default: 1000 instruments per page, 100 quote-list rows, 700 bars and
+1800 trades. Larger requests are silently truncated by the server, so the
+public clients reject them.
+
+The local-only live matrix is intentionally absent from GitHub Actions:
+
+```bash
+MOOTDX_NEXT_EX_LIVE=1 \
+pytest tests/core_engine/test_next_ex_live_smoke.py -q
+```
+
+It covers every raw ExHq endpoint, a concurrent Async client artifact and the
+`Quotes.factory(market="ext")` Pandas artifact. Current minute/trade results may
+be empty outside the corresponding market session; populated historical
+minutes and trades are always required. `instrument_count` is treated as the
+server's slot count because the live tail currently contains reserved entries
+that return a documented all-zero empty page.
