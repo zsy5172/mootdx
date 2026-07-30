@@ -636,6 +636,11 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_low_diff, pos = _get_price(body, pos)
                 (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
                 vol = _get_volume(vol_raw)
+                if frequency in {0, 1, 2, 3, 7, 8}:
+                    # Standard security intraday bars encode volume in shares,
+                    # while day-or-longer bars use lots.  Normalise the public
+                    # ``vol``/``volume`` unit to lots across frequencies.
+                    vol /= 100
                 pos += 4
                 (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
                 amount = _get_volume(amount_raw)
@@ -648,6 +653,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 low = float(price_open_diff + price_low_diff) / 1000
                 pre_diff_base = price_open_diff + price_close_diff
 
+                previous_close = None if not rows else rows[-1]["close"]
                 rows.append(
                     {
                         "open": open_,
@@ -663,6 +669,7 @@ class StdQuoteProtocol(AbstractProtocol):
                         "minute": minute,
                         "datetime": f"{year}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}",
                         "volume": vol,
+                        "previous_close": previous_close,
                     }
                 )
         except (IndexError, struct.error) as exc:
@@ -709,6 +716,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 low = float(price_open_diff + price_low_diff) / 1000
                 pre_diff_base = price_open_diff + price_close_diff
 
+                previous_close = None if not rows else rows[-1]["close"]
                 rows.append(
                     {
                         "open": open_,
@@ -726,6 +734,7 @@ class StdQuoteProtocol(AbstractProtocol):
                         "up_count": up_count,
                         "down_count": down_count,
                         "volume": vol,
+                        "previous_close": previous_close,
                     }
                 )
         except (IndexError, struct.error) as exc:

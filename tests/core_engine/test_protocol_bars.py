@@ -37,14 +37,23 @@ def test_encode_bars_matches_intraday_corpus_request() -> None:
 
 def test_decode_bars_matches_daily_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
+    expected = _expected("daily_sh_600036_last10")
+    actual = protocol.decode_bars(_body("daily_sh_600036_last10"), 9)
 
-    assert protocol.decode_bars(_body("daily_sh_600036_last10"), 9) == _expected("daily_sh_600036_last10")
+    assert [{key: row[key] for key in legacy} for row, legacy in zip(actual, expected, strict=True)] == expected
+    assert actual[0]["previous_close"] is None
+    assert actual[1]["previous_close"] == actual[0]["close"]
 
 
 def test_decode_bars_matches_intraday_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
+    expected = _expected("intraday_5m_sh_600036_last20")
+    for row in expected:
+        row["vol"] /= 100
+        row["volume"] /= 100
+    actual = protocol.decode_bars(_body("intraday_5m_sh_600036_last20"), 0)
 
-    assert protocol.decode_bars(_body("intraday_5m_sh_600036_last20"), 0) == _expected("intraday_5m_sh_600036_last20")
+    assert [{key: row[key] for key in legacy} for row, legacy in zip(actual, expected, strict=True)] == expected
 
 
 def test_decode_bars_matches_bj_corpus_expected() -> None:
