@@ -122,6 +122,7 @@ REQUEST_APIS = frozenset(
         "iter_xdxr",
         "equity_at",
         "turnover",
+        "adjustment_factors",
         "f10_categories",
         "f10_content",
     }
@@ -219,6 +220,7 @@ class SyncClient:
             else BseRegistry(bse_provider) if bse_provider is not None else default_bse_registry
         )
         self.security_registry = security_registry or default_security_registry
+        self._adjustment_service: Any | None = None
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -978,6 +980,23 @@ class SyncClient:
             return None
         return normalized_volume / float_shares * 100
 
+    def adjustment_factors(self, symbol: str) -> list[dict[str, object]]:
+        if self._adjustment_service is None:
+            from mootdx_next.adjustments import AdjustmentService
+
+            self._adjustment_service = AdjustmentService(self)
+        frame = self._adjustment_service.factors(symbol).reset_index()
+        rows = frame.to_dict("records")
+        for row in rows:
+            timestamp = row.get("datetime")
+            if hasattr(timestamp, "strftime"):
+                row["datetime"] = timestamp.strftime("%Y-%m-%d %H:%M")
+                row["date"] = timestamp.strftime("%Y-%m-%d")
+            for key, value in tuple(row.items()):
+                if isinstance(value, float) and math.isnan(value):
+                    row[key] = None
+        return rows
+
     def f10_categories(self, symbol: str) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
@@ -1492,6 +1511,9 @@ class AsyncClient:
             volume_unit=volume_unit,
         )
         return None if result is None else float(result)
+
+    async def adjustment_factors(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "adjustment_factors", symbol))
 
     async def index_bars(
         self,

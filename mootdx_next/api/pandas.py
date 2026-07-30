@@ -128,6 +128,16 @@ def _k_shape(data: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _adjustment_factor_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    data = pd.DataFrame.from_records(rows)
+    if "datetime" not in data.columns:
+        return data
+    timestamps = pd.to_datetime(data.pop("datetime"), errors="coerce")
+    data.index = timestamps
+    data.index.name = "datetime"
+    return data.sort_index()
+
+
 class PandasClient:
     """Pandas-oriented next SDK client with legacy-compatible public methods."""
 
@@ -517,6 +527,14 @@ class PandasClient:
                 volume,
                 volume_unit=str(volume_unit),
             )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def adjustment_factors(self, symbol="", **kwargs) -> pd.DataFrame:
+        try:
+            if hasattr(self.client, "adjustment_factors"):
+                return _adjustment_factor_frame(self.client.adjustment_factors(str(symbol)))
+            return self._adjustments.factors(str(symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -1117,6 +1135,16 @@ class AsyncPandasClient:
                 volume,
                 volume_unit=str(volume_unit),
             )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def adjustment_factors(self, symbol="", **kwargs) -> pd.DataFrame:
+        try:
+            if hasattr(self.client, "adjustment_factors"):
+                return _adjustment_factor_frame(
+                    await self.client.adjustment_factors(str(symbol))
+                )
+            return await self._adjustments.factors(str(symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 

@@ -245,6 +245,20 @@ def test_async_adjustment_factors_match_sync_coefficients() -> None:
     pdt.assert_frame_equal(actual, expected)
 
 
+def test_pandas_facade_adjustment_factors_supports_injected_minimal_client() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    facade = NextStdQuotes(
+        engine_client=AdjustmentFixtureClient(daily, [_cash_event('2024-01-04')])
+    )
+
+    factors = facade.adjustment_factors('600036')
+
+    assert factors.at[pd.Timestamp('2024-01-03 15:00'), 'qfq_add'] == pytest.approx(-0.1)
+
+
 def test_tdx_adjustment_rounds_half_up_at_the_security_precision() -> None:
     stock, _ = _service(_daily_frame(['2024-01-02'], closes=[5.765]), [])
     fund, _ = _service(_daily_frame(['2024-01-02'], closes=[1.2345]), [])

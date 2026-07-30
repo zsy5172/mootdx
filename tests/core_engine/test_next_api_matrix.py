@@ -90,6 +90,7 @@ SYNC_PUBLIC_API = {
     "iter_xdxr",
     "equity_at",
     "turnover",
+    "adjustment_factors",
     "f10_categories",
     "f10_content",
 }
@@ -126,6 +127,7 @@ ASYNC_PUBLIC_API = {
     "iter_xdxr",
     "equity_at",
     "turnover",
+    "adjustment_factors",
     "index_bars",
     "index_bars_until",
     "index_bars_all",
@@ -183,6 +185,7 @@ PANDAS_PUBLIC_API = {
     "iter_xdxr",
     "equity_at",
     "turnover",
+    "adjustment_factors",
     "finance",
     "index_bars",
     "index_bars_until",
@@ -738,6 +741,14 @@ ASYNC_CALL_CASES = (
         {"volume_unit": "lots"},
     ),
     AsyncCallCase(
+        "adjustment_factors",
+        ("600036",),
+        {},
+        "adjustment_factors",
+        ("600036",),
+        {},
+    ),
+    AsyncCallCase(
         "index_bars",
         ("000001", "day", 20, 15, 1),
         {},
@@ -941,6 +952,17 @@ class FacadeRecorder:
     def turnover(self, symbol, as_of, volume, volume_unit="shares"):
         return 10.0
 
+    def adjustment_factors(self, symbol):
+        return [
+            {
+                "datetime": "2026-07-30 15:00",
+                "qfq_mul": 1.0,
+                "qfq_add": 0.0,
+                "hfq_mul": 1.0,
+                "hfq_add": 0.0,
+            }
+        ]
+
     def finance(self, symbol):
         return {"code": symbol, "liutongguben": 1.0}
 
@@ -1018,6 +1040,7 @@ FACADE_CASES = (
         {"symbol": "600036", "as_of": "20260730", "volume": 100},
         (float, type(None)),
     ),
+    FacadeCase("adjustment_factors", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("finance", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("index_bars", {"symbol": "000001", "frequency": "5m", "offset": 1}, pd.DataFrame),
     FacadeCase(
