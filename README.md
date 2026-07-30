@@ -79,6 +79,14 @@ client.stock_count(1)
 # 上海或深圳证券列表
 client.stocks(1)
 client.stock_all()
+
+# 按真实证券类型筛选；返回带市场前缀的代码
+client.stock_codes()
+client.etf_codes()
+client.index_codes()
+
+# 北交所目录由公开行情快照补充，market=2
+client.stocks(2)
 ```
 
 ### K 线与指数
@@ -107,6 +115,23 @@ client.bars("600036", frequency="5m", start=0, offset=100)
 # 上证指数；000001 同时也是深市股票代码，因此建议明确 market=1
 client.index("000001", market=1, frequency="day", offset=100)
 
+# next 原生指数接口，以及自动分页的全量/条件读取
+client.index_bars("000001", market=1, frequency="day", offset=100)
+client.index_bars_all("000001", market=1, frequency="day")
+client.index_bars_until(
+    "000001",
+    lambda row: row["datetime"] <= "2020-01-01 15:00",
+    market=1,
+)
+
+# 普通证券也提供同样的分页能力
+client.bars_all("600036", frequency="day")
+client.bars_until(
+    "600036",
+    lambda row: row["datetime"] <= "2020-01-01 15:00",
+    frequency="day",
+)
+
 # 指定日期区间，自动从最新一页向历史分页
 client.get_k_data(
     code="600036",
@@ -124,6 +149,17 @@ client.ohlc(symbol="600036", begin="2019-07-03", end="2019-07-10", adjust="hfq")
 
 `get_k_data(code, start_date, end_date, adjust=None)`、`k(symbol="", begin=None, end=None, **kwargs)` 和
 `ohlc(**kwargs)` 分别保留原版公开名字与签名，不是互相替换的迁移别名。它们只在内部共享历史 K 线分页实现，下游代码无需调换方法名。
+
+标准证券 K 线的 `vol`、`volume` 在各周期统一为“手”，`amount` 为元。指数协议有一个需要特别区分的
+上游口径：日线及更长周期的 `volume` 是手，但分钟包的同一槽位实际约等于 `amount / 100`，并非可与
+日线相加的成交量。next 原生 `index_bars*()` 因此同时返回：
+
+- `volume_unit="lot"`、`volume_lots=<手数>`：日线及更长周期；
+- `volume_unit="hundred_yuan_turnover"`、`volume_lots=None`、`turnover_100_yuan=<百元成交额>`：分钟周期；
+- `volume_raw`：未做单位换算的协议值。
+
+为保持旧调用结果，兼容入口 `index()` 继续让 `vol`、`volume` 使用原版协议值；需要明确单位的新代码应
+使用 `index_bars()` 及上述字段。该差异已用上证指数和深证成指多个完整交易日的分钟、日线真实包核验。
 
 next 兼容层的复权数据来自通达信日线和 `xdxr`，不依赖外部复权因子服务，并提供两组明确区分的语义：
 
@@ -170,6 +206,30 @@ client.transactions("600036", date="20170209", start=0, offset=100)
 
 # 实时逐笔成交，仅在交易时段可用
 client.transaction("600036", start=0, offset=100)
+
+# 自动分页读取当天或指定历史交易日的全部逐笔
+client.transaction_all("600036")
+client.transactions_day("600036", date="20260729")
+
+# 按交易日惰性读取日期区间；每次只在内存中保留一天
+for trading_date, rows in client.iter_transactions(
+    "600036",
+    start_date="20260701",
+    end_date="20260729",
+):
+    process(trading_date, rows)
+
+# 自动从最早月 K 推断上市月份，惰性遍历完整逐笔历史
+for trading_date, rows in client.iter_transaction_history("600036", before="20260729"):
+    process(trading_date, rows)
+
+# 交易日历来自上证指数日线的进程级不可变快照
+client.trading_days("20260701", "20260729")
+client.is_trading_day("20260729")
+
+# 用 09:25 逐笔重建独立的 09:30 集合竞价 K，形成每天 241 根分钟线
+client.minute_bars_241("600036", offset=800)
+client.minute_bars_241_all("600036")
 ```
 
 `transaction()` 与历史接口 `transactions()` 都会直接请求上游，不受运行机器的本地时钟限制；非交易时段
@@ -195,6 +255,14 @@ client.finance("600036")
 # 除权除息
 client.xdxr("600036")
 
+# 按日期保留全部公司行为；同日事件不会互相覆盖
+client.xdxr_by_date("600036")
+
+# 指定日期的流通/总股本、市值与换手率
+client.equity_at("600036", as_of="20260729")
+client.market_value("600036", as_of="20260729", price=39.66)
+client.turnover("600036", as_of="20260729", volume=503975, volume_unit="lots")
+
 # F10 目录
 categories = client.F10C("600036")
 
@@ -206,6 +274,34 @@ all_f10 = client.F10("600036")
 ```
 
 F10/F10C 示例使用 `600036`，避免 `000001` 在不同市场和服务节点上的语义差异。
+
+`xdxr()` 保留响应内的 `market`、`code`、完整 `datetime`、`raw_c1`～`raw_c4`。股本字段同时提供
+`*_wan_shares`（万股）和 `*_shares`（股），市值固定为“元”，避免换手率和市值计算再依赖隐含单位。
+
+### 聚合、指标与未来收益率
+
+分析函数独立于网络客户端，可直接处理 next 返回的记录或 Pandas 数据：
+
+```python
+from mootdx_next import aggregate_bars
+from mootdx_next import atr, boll, ema, forward_returns, ma, macd, rsi, vwap
+from mootdx_next import summarize_trade_sides, trades_to_minute_bars
+
+daily = client.bars("600036", frequency="day", offset=160)
+minute = client.bars("600036", frequency="1m", offset=800)
+trades = client.transactions_day("600036", date="20260729")
+
+ma5 = ma(daily, 5)
+macd_frame = macd(daily)
+returns = forward_returns(daily, horizons=(1, 5, 20))
+five_minute = aggregate_bars(minute, "5min")
+trade_summary = summarize_trade_sides(trades)
+rebuilt = trades_to_minute_bars(trades, date="20260729", outside_session="drop")
+```
+
+指标返回与输入完整对齐的时间序列；MACD 使用通达信双倍柱值，BOLL 使用总体标准差，RSI/ATR 使用
+Wilder 平滑。`vwap()` 默认金额单位为元、成交量单位为手。聚合函数会校验成交量和成交额守恒，并且
+不会让分钟桶跨越午休或交易日。
 
 ### 板块数据
 
