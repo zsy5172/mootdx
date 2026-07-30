@@ -31,10 +31,15 @@ def test_encode_transaction_matches_corpus_request() -> None:
 
 def test_decode_transaction_matches_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
+    expected = _expected("transaction", "live_sh_600036_last10")
+    actual = protocol.decode_transaction(_body("transaction", "live_sh_600036_last10", "01_transaction"))
 
-    assert protocol.decode_transaction(_body("transaction", "live_sh_600036_last10", "01_transaction")) == _expected(
-        "transaction", "live_sh_600036_last10"
-    )
+    assert [{key: row[key] for key in legacy} for row, legacy in zip(actual, expected, strict=True)] == expected
+    assert actual[0]["side_name"] == "buy"
+    assert actual[0]["is_buy"] is True
+    assert actual[0]["is_sell"] is False
+    assert actual[0]["amount"] == pytest.approx(39.21 * 55 * 100)
+    assert actual[0]["average_volume"] == pytest.approx(55 / 28)
 
 
 def test_encode_history_transactions_matches_corpus_request() -> None:
@@ -47,10 +52,32 @@ def test_encode_history_transactions_matches_corpus_request() -> None:
 
 def test_decode_history_transactions_matches_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
-
-    assert protocol.decode_history_transactions(
+    expected = _expected("transactions", "history_sh_600036_20170209_last10")
+    actual = protocol.decode_history_transactions(
         _body("transactions", "history_sh_600036_20170209_last10", "01_transactions")
-    ) == _expected("transactions", "history_sh_600036_20170209_last10")
+    )
+
+    assert [{key: row[key] for key in legacy} for row, legacy in zip(actual, expected, strict=True)] == expected
+
+
+def test_transaction_decoders_use_etf_price_scale_and_history_date_context() -> None:
+    protocol = StdQuoteProtocol()
+    current = protocol.decode_transaction(
+        _body("transaction", "live_sh_600036_last10", "01_transaction"),
+        market=1,
+        code="510300",
+    )
+    history = protocol.decode_history_transactions(
+        _body("transactions", "history_sh_600036_20170209_last10", "01_transactions"),
+        market=1,
+        code="510300",
+        date="20170209",
+    )
+
+    assert current[0]["price"] == pytest.approx(3.921)
+    assert "datetime" not in current[0]
+    assert history[0]["price"] == pytest.approx(1.873)
+    assert history[0]["datetime"] == "2017-02-09 14:59"
 
 
 @pytest.mark.parametrize(

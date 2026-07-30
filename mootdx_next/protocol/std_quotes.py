@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import struct
+from datetime import datetime
 from typing import Any
 
 from mootdx_next.constants import MARKET_BJ
@@ -167,11 +168,46 @@ def _cal_price(base_price: int, diff: int, coefficient: float = 0.01) -> float:
     return float(base_price + diff) * coefficient
 
 
+def _scale_integer_price(value: int, coefficient: float) -> float:
+    """Scale a protocol integer without multiplication-induced float tails."""
+
+    divisor = round(1.0 / coefficient)
+    return float(value) / divisor
+
+
 def _decode_gbk_string(value: bytes) -> str:
     zero = value.find(b"\x00")
     if zero != -1:
         value = value[:zero]
     return value.decode("gbk", "ignore")
+
+
+def _format_yyyymmdd(value: str | int) -> str:
+    raw = str(value).strip().replace("-", "")
+    try:
+        parsed = datetime.strptime(raw, "%Y%m%d")
+    except ValueError as exc:
+        raise ProtocolDecodeError(f"invalid response context date: {value}") from exc
+    return parsed.strftime("%Y-%m-%d")
+
+
+def _minute_slot(index: int) -> tuple[int, int]:
+    if not 0 <= index < 240:
+        raise ProtocolDecodeError(f"standard minute row index out of range: {index}")
+    absolute_minute = 9 * 60 + 31 + index if index < 120 else 13 * 60 + 1 + index - 120
+    return divmod(absolute_minute, 60)
+
+
+def _transaction_side_name(value: int) -> str:
+    if value == 0:
+        return "buy"
+    if value == 1:
+        return "sell"
+    return "neutral"
+
+
+def _market_prefix(market: int) -> str:
+    return {0: "sz", 1: "sh", 2: "bj"}.get(int(market), f"m{market}")
 
 
 class StdQuoteProtocol(AbstractProtocol):
@@ -260,11 +296,25 @@ class StdQuoteProtocol(AbstractProtocol):
         if api == "index_bars":
             return self.decode_index_bars(body, int(kwargs["frequency"]))
         if api == "minutes":
-            return self.decode_minutes(body, int(kwargs["market"]), str(kwargs["code"]))
+            return self.decode_minutes(
+                body,
+                int(kwargs["market"]),
+                str(kwargs["code"]),
+                date=kwargs["date"],
+            )
         if api == "transaction":
-            return self.decode_transaction(body)
+            return self.decode_transaction(
+                body,
+                market=int(kwargs["market"]),
+                code=str(kwargs["code"]),
+            )
         if api == "transactions":
-            return self.decode_history_transactions(body)
+            return self.decode_history_transactions(
+                body,
+                market=int(kwargs["market"]),
+                code=str(kwargs["code"]),
+                date=kwargs["date"],
+            )
         if api == "finance":
             return self.decode_finance(body)
         if api == "xdxr":
@@ -750,7 +800,14 @@ class StdQuoteProtocol(AbstractProtocol):
             )
         return rows
 
-    def decode_minutes(self, body: bytes, market: int, code: str) -> list[dict[str, object]]:
+    def decode_minutes(
+        self,
+        body: bytes,
+        market: int,
+        code: str,
+        *,
+        date: str | int | None = None,
+    ) -> list[dict[str, object]]:
         if len(body) < 2:
             raise ProtocolDecodeError(f"minutes body too short: {len(body)}")
 
@@ -765,13 +822,26 @@ class StdQuoteProtocol(AbstractProtocol):
         rows: list[dict[str, object]] = []
 
         try:
-            for _ in range(num):
+            date_prefix = _format_yyyymmdd(date) if date is not None else None
+            for index in range(num):
                 price_raw, pos = _get_price(body, pos)
                 _reversed_1, pos = _get_price(body, pos)
                 vol, pos = _get_price(body, pos)
                 last_price += price_raw
                 price = float(last_price) * coefficient
-                rows.append({"price": price, "vol": vol, "volume": vol})
+                hour, minute = _minute_slot(index)
+                time_value = f"{hour:02d}:{minute:02d}"
+                row: dict[str, object] = {
+                    "time": time_value,
+                    "hour": hour,
+                    "minute": minute,
+                    "price": price,
+                    "vol": vol,
+                    "volume": vol,
+                }
+                if date_prefix is not None:
+                    row["datetime"] = f"{date_prefix} {time_value}"
+                rows.append(row)
         except (IndexError, struct.error) as exc:
             raise ProtocolDecodeError(f"failed to decode minutes row {len(rows)}") from exc
 
@@ -786,7 +856,13 @@ class StdQuoteProtocol(AbstractProtocol):
         payload.extend(struct.pack("<H6sHH", market, encoded_code, start, count))
         return bytes(payload)
 
-    def decode_transaction(self, body: bytes) -> list[dict[str, object]]:
+    def decode_transaction(
+        self,
+        body: bytes,
+        *,
+        market: int = 1,
+        code: str = "600000",
+    ) -> list[dict[str, object]]:
         if len(body) < 2:
             raise ProtocolDecodeError(f"transaction body too short: {len(body)}")
 
@@ -798,6 +874,7 @@ class StdQuoteProtocol(AbstractProtocol):
         pos = 2
         last_price = 0
         rows: list[dict[str, object]] = []
+        coefficient = _get_security_coefficient(market, code)
 
         try:
             for _ in range(num):
@@ -808,16 +885,23 @@ class StdQuoteProtocol(AbstractProtocol):
                 buy_or_sell, pos = _get_price(body, pos)
                 _reversed, pos = _get_price(body, pos)
                 last_price += price_raw
-                rows.append(
-                    {
-                        "time": f"{hour:02d}:{minute:02d}",
-                        "price": float(last_price) / 100,
-                        "vol": vol,
-                        "num": num_trades,
-                        "buyorsell": buy_or_sell,
-                        "volume": vol,
-                    }
-                )
+                price = _scale_integer_price(last_price, coefficient)
+                amount = price * vol * 100
+                row: dict[str, object] = {
+                    "time": f"{hour:02d}:{minute:02d}",
+                    "price": price,
+                    "vol": vol,
+                    "num": num_trades,
+                    "buyorsell": buy_or_sell,
+                    "side_name": _transaction_side_name(buy_or_sell),
+                    "is_buy": buy_or_sell == 0,
+                    "is_sell": buy_or_sell == 1,
+                    "amount": amount,
+                    "average_volume": vol / num_trades if num_trades > 0 else None,
+                    "average_amount": amount / num_trades if num_trades > 0 else None,
+                    "volume": vol,
+                }
+                rows.append(row)
         except (IndexError, struct.error) as exc:
             raise ProtocolDecodeError(f"failed to decode transaction row {len(rows)}") from exc
 
@@ -842,7 +926,14 @@ class StdQuoteProtocol(AbstractProtocol):
         payload.extend(struct.pack("<IH6sHH", date, market, encoded_code, start, count))
         return bytes(payload)
 
-    def decode_history_transactions(self, body: bytes) -> list[dict[str, object]]:
+    def decode_history_transactions(
+        self,
+        body: bytes,
+        *,
+        market: int = 1,
+        code: str = "600000",
+        date: str | int | None = None,
+    ) -> list[dict[str, object]]:
         if len(body) < 6:
             raise ProtocolDecodeError(f"transactions body too short: {len(body)}")
 
@@ -854,6 +945,8 @@ class StdQuoteProtocol(AbstractProtocol):
         pos = 6
         last_price = 0
         rows: list[dict[str, object]] = []
+        coefficient = _get_security_coefficient(market, code)
+        date_prefix = _format_yyyymmdd(date) if date is not None else None
 
         try:
             for _ in range(num):
@@ -863,15 +956,22 @@ class StdQuoteProtocol(AbstractProtocol):
                 buy_or_sell, pos = _get_price(body, pos)
                 _reversed, pos = _get_price(body, pos)
                 last_price += price_raw
-                rows.append(
-                    {
-                        "time": f"{hour:02d}:{minute:02d}",
-                        "price": float(last_price) / 100,
-                        "vol": vol,
-                        "buyorsell": buy_or_sell,
-                        "volume": vol,
-                    }
-                )
+                time_value = f"{hour:02d}:{minute:02d}"
+                price = _scale_integer_price(last_price, coefficient)
+                row: dict[str, object] = {
+                    "time": time_value,
+                    "price": price,
+                    "vol": vol,
+                    "buyorsell": buy_or_sell,
+                    "side_name": _transaction_side_name(buy_or_sell),
+                    "is_buy": buy_or_sell == 0,
+                    "is_sell": buy_or_sell == 1,
+                    "amount": price * vol * 100,
+                    "volume": vol,
+                }
+                if date_prefix is not None:
+                    row["datetime"] = f"{date_prefix} {time_value}"
+                rows.append(row)
         except (IndexError, struct.error) as exc:
             raise ProtocolDecodeError(f"failed to decode transactions row {len(rows)}") from exc
 
