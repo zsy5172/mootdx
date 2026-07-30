@@ -10,6 +10,7 @@ import pandas as pd
 
 from mootdx_next.adapters import bars_to_frame
 from mootdx_next.adapters import block_to_frame
+from mootdx_next.adapters import call_auction_to_frame
 from mootdx_next.adapters import finance_to_frame
 from mootdx_next.adapters import limit_prices_to_frame
 from mootdx_next.adapters import minutes_to_frame
@@ -263,6 +264,12 @@ class PandasClient:
     def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
         today = datetime.now().strftime("%Y%m%d")
         return self.minutes(symbol=symbol, date=today, **kwargs)
+
+    def call_auction(self, symbol="", **kwargs) -> pd.DataFrame:
+        try:
+            return call_auction_to_frame(self.client.call_auction(str(symbol)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
 
     def minutes(self, symbol=None, date="20191023", **kwargs) -> pd.DataFrame:
         adjust = normalize_adjustment(kwargs.pop("adjust", None))
@@ -597,6 +604,12 @@ class AsyncPandasClient:
     async def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
         today = datetime.now().strftime("%Y%m%d")
         return await self.minutes(symbol=symbol, date=today, **kwargs)
+
+    async def call_auction(self, symbol="", **kwargs) -> pd.DataFrame:
+        try:
+            return call_auction_to_frame(await self.client.call_auction(str(symbol)))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
 
     async def minutes(self, symbol=None, date="20191023", **kwargs) -> pd.DataFrame:
         adjust = normalize_adjustment(kwargs.pop("adjust", None))

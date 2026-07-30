@@ -78,6 +78,7 @@ ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
 QUOTE_TRADING_PHASE_STRUCT = struct.Struct("<H")
 LIMIT_PRICE_REQUEST_STRUCT = struct.Struct("<HHHHHHHH")
 LIMIT_PRICE_ROW_STRUCT = struct.Struct("<BIff")
+CALL_AUCTION_ROW_STRUCT = struct.Struct("<HfIiBB")
 
 
 def _get_volume(vol: int) -> float:
@@ -230,6 +231,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.encode_quotes(list(kwargs["symbols"]))
         if api == "limit_prices":
             return self.encode_limit_prices(int(kwargs["start"]), int(kwargs["count"]))
+        if api == "call_auction":
+            return self.encode_call_auction(int(kwargs["market"]), str(kwargs["code"]))
         if api == "bars":
             return self.encode_bars(
                 int(kwargs["frequency"]),
@@ -293,6 +296,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.decode_quotes(body)
         if api == "limit_prices":
             return self.decode_limit_prices(body)
+        if api == "call_auction":
+            return self.decode_call_auction(body)
         if api == "bars":
             return self.decode_bars(body, int(kwargs["frequency"]))
         if api == "index_bars":
@@ -727,6 +732,61 @@ class StdQuoteProtocol(AbstractProtocol):
         payload = bytearray.fromhex("0c 01 30 00 01 01 0d 00 0d 00 b4 0f")
         payload.extend(struct.pack("<IB6s", date, market, encoded_code))
         return bytes(payload)
+
+    def encode_call_auction(self, market: int, code: str) -> bytes:
+        if market not in self.valid_markets:
+            raise UnsupportedMarketError(f"unsupported market for call_auction: {market}")
+        encoded_code = code.encode("ascii")
+        if len(encoded_code) != 6 or not code.isdigit():
+            raise ValueError("call_auction requires a six-digit numeric code")
+
+        payload = bytearray.fromhex("0c 00 00 00 00 01 1e 00 1e 00 6a 05")
+        payload.extend(struct.pack("<BB6s", market, 0, encoded_code))
+        payload.extend(bytes.fromhex("00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 f4 01 00 00"))
+        return bytes(payload)
+
+    def decode_call_auction(self, body: bytes) -> list[dict[str, object]]:
+        if len(body) < 2:
+            raise ProtocolDecodeError(f"call_auction body too short: {len(body)}")
+        try:
+            (count,) = U16_STRUCT.unpack_from(body, 0)
+        except struct.error as exc:
+            raise ProtocolDecodeError("failed to decode call_auction count") from exc
+
+        expected_size = 2 + count * CALL_AUCTION_ROW_STRUCT.size
+        if len(body) != expected_size:
+            raise ProtocolDecodeError(
+                f"invalid call_auction body size: expected {expected_size} bytes, got {len(body)}"
+            )
+
+        rows: list[dict[str, object]] = []
+        pos = 2
+        for index in range(count):
+            try:
+                raw_time, price, matched, signed_unmatched, _, second = CALL_AUCTION_ROW_STRUCT.unpack_from(
+                    body, pos
+                )
+            except struct.error as exc:
+                raise ProtocolDecodeError(f"failed to decode call_auction row {index}") from exc
+            pos += CALL_AUCTION_ROW_STRUCT.size
+            hour, minute = divmod(raw_time, 60)
+            if hour > 23 or second > 59 or not math.isfinite(price):
+                raise ProtocolDecodeError(f"invalid call_auction row {index}")
+            side = 1 if signed_unmatched > 0 else -1 if signed_unmatched < 0 else 0
+            rows.append(
+                {
+                    "time": f"{hour:02d}:{minute:02d}:{second:02d}",
+                    "hour": hour,
+                    "minute": minute,
+                    "second": second,
+                    "price": round(float(price), 3),
+                    "matched": matched,
+                    "unmatched": abs(signed_unmatched),
+                    "side": side,
+                    "side_name": "buy" if side > 0 else "sell" if side < 0 else "balanced",
+                }
+            )
+        return rows
 
     def decode_minutes(self, body: bytes, market: int, code: str) -> list[dict[str, object]]:
         if len(body) < 2:

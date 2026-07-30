@@ -270,6 +270,25 @@ class SyncClient:
     def minute(self, symbol: str) -> list[dict[str, object]]:
         return self.minutes(symbol=symbol, date=today_yyyymmdd())
 
+    def call_auction(self, symbol: str) -> list[dict[str, object]]:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+        normalized_symbol = symbol.strip()
+        market = int(get_stock_market(normalized_symbol, string=False))
+        if market not in {0, 1}:
+            raise UnsupportedMarketError("unsupported market for call_auction: only sh/sz are supported")
+        code = normalize_symbol(normalized_symbol)
+        if len(code) != 6 or not code.isdigit():
+            raise InvalidSymbolError("call_auction requires a six-digit numeric symbol")
+
+        context = RequestContext(
+            api="call_auction",
+            params={"symbol": normalized_symbol, "market": market},
+        )
+        payload = self.protocol.encode("call_auction", market=market, code=code)
+        envelope = self._send(context, payload)
+        return list(self.protocol.decode("call_auction", envelope))
+
     def transaction(
         self,
         symbol: str,
@@ -581,6 +600,9 @@ class AsyncClient:
 
     async def minute(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "minute", symbol))
+
+    async def call_auction(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "call_auction", symbol))
 
     async def transaction(self, symbol: str, start: int = 0, offset: int = 800) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "transaction", symbol, start, offset))
