@@ -69,7 +69,10 @@ SYNC_PUBLIC_API = {
     "minute",
     "call_auction",
     "transaction",
+    "transaction_all",
     "transactions",
+    "transactions_day",
+    "iter_transactions",
     "finance",
     "block",
     "block_file_raw",
@@ -111,7 +114,10 @@ ASYNC_PUBLIC_API = {
     "minute",
     "call_auction",
     "transaction",
+    "transaction_all",
     "transactions",
+    "transactions_day",
+    "iter_transactions",
     "finance",
     "xdxr",
     "index_bars",
@@ -159,7 +165,10 @@ PANDAS_PUBLIC_API = {
     "call_auction",
     "minutes",
     "transaction",
+    "transaction_all",
     "transactions",
+    "transactions_day",
+    "iter_transactions",
     "f10_categories",
     "f10_content",
     "F10C",
@@ -367,9 +376,15 @@ SYNC_CALL_CASES = (
     SyncCallCase("minutes", {"symbol": "sz000001", "date": "2017-10-10"}, ("minutes",)),
     SyncCallCase("minute", {"symbol": "000001"}, ("minutes",)),
     SyncCallCase("transaction", {"symbol": "600036", "start": 1, "offset": 1}, ("transaction",)),
+    SyncCallCase("transaction_all", {"symbol": "600036"}, ("transaction",)),
     SyncCallCase(
         "transactions",
         {"symbol": "600036", "date": 20170209, "start": 20, "offset": 15},
+        ("transactions",),
+    ),
+    SyncCallCase(
+        "transactions_day",
+        {"symbol": "600036", "date": 20170209},
         ("transactions",),
     ),
     SyncCallCase("finance", {"symbol": "600036"}, ("finance",)),
@@ -391,6 +406,23 @@ def test_sync_client_executes_every_business_api(case: SyncCallCase) -> None:
     getattr(client, case.method)(**case.kwargs)
 
     assert tuple(api for api, _ in protocol.encode_calls) == case.protocol_apis
+
+
+def test_sync_iter_transactions_executes_when_consumed() -> None:
+    client, protocol, _ = _matrix_client()
+
+    chunks = list(
+        client.iter_transactions(
+            "600036",
+            "20170209",
+            "20170209",
+            include_empty=True,
+            max_pages=1,
+        )
+    )
+
+    assert chunks == [("20170209", [])]
+    assert [api for api, _ in protocol.encode_calls] == ["transactions"]
 
 
 FREQUENCY_CASES = tuple((frequency, frequency) for frequency in range(12)) + tuple(FREQUENCY_ALIASES.items()) + (("DAY", 9),)
@@ -636,11 +668,27 @@ ASYNC_CALL_CASES = (
     AsyncCallCase("minute", ("600036",), {}, "minute", ("600036",), {}),
     AsyncCallCase("transaction", ("600036", 20, 15), {}, "transaction", ("600036", 20, 15), {}),
     AsyncCallCase(
+        "transaction_all",
+        ("600036", 900, 2),
+        {},
+        "transaction_all",
+        ("600036", 900, 2),
+        {},
+    ),
+    AsyncCallCase(
         "transactions",
         ("600036", "20170209", 20, 15),
         {},
         "transactions",
         ("600036", "20170209", 20, 15),
+        {},
+    ),
+    AsyncCallCase(
+        "transactions_day",
+        ("600036", "20170209", 1000, 2),
+        {},
+        "transactions_day",
+        ("600036", "20170209", 1000, 2),
         {},
     ),
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
@@ -690,6 +738,29 @@ def test_async_dispatch_matrix_covers_every_supported_business_method(case: Asyn
     asyncio.run(getattr(client, case.method)(*case.args, **case.kwargs))
 
     assert recorder.calls == [(case.sync_method, case.sync_args, case.sync_kwargs)]
+
+
+def test_async_iter_transactions_dispatches_each_consumed_day() -> None:
+    recorder = AsyncDispatchRecorder()
+    client = AsyncClient(sync_client=recorder)
+
+    async def collect():
+        return [
+            chunk
+            async for chunk in client.iter_transactions(
+                "600036",
+                "20170209",
+                "20170209",
+                max_pages=1,
+            )
+        ]
+
+    chunks = asyncio.run(collect())
+
+    assert chunks
+    assert recorder.calls == [
+        ("transactions_day", ("600036", "20170209", 2000, 1), {})
+    ]
 
 
 class FacadeRecorder:
@@ -775,8 +846,25 @@ class FacadeRecorder:
     def transaction(self, symbol, start=0, offset=800):
         return [{"time": "09:30", "price": 10.0, "vol": 1}]
 
+    def transaction_all(self, symbol, page_size=1800, max_pages=None):
+        return self.transaction(symbol, 0, page_size)
+
     def transactions(self, symbol, date, start=0, offset=800):
         return [{"time": "09:30", "price": 10.0, "vol": 1}]
+
+    def transactions_day(self, symbol, date, page_size=2000, max_pages=None):
+        return self.transactions(symbol, date, 0, page_size)
+
+    def iter_transactions(
+        self,
+        symbol,
+        start_date,
+        end_date,
+        include_empty=False,
+        page_size=2000,
+        max_pages=None,
+    ):
+        yield str(start_date), self.transactions_day(symbol, start_date, page_size, max_pages)
 
     def f10_categories(self, symbol):
         return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
@@ -844,9 +932,15 @@ FACADE_CASES = (
     FacadeCase("minute", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("minutes", {"symbol": "600036", "date": "2017-10-10"}, pd.DataFrame),
     FacadeCase("transaction", {"symbol": "600036", "start": 20, "offset": 15}, pd.DataFrame),
+    FacadeCase("transaction_all", {"symbol": "600036", "max_pages": 1}, pd.DataFrame),
     FacadeCase(
         "transactions",
         {"symbol": "600036", "date": "20170209", "start": 20, "offset": 15},
+        pd.DataFrame,
+    ),
+    FacadeCase(
+        "transactions_day",
+        {"symbol": "600036", "date": "20170209", "max_pages": 1},
         pd.DataFrame,
     ),
     FacadeCase("F10C", {"symbol": "600036"}, list),
@@ -891,6 +985,16 @@ def test_next_facade_lifecycle_and_traffic_contract() -> None:
     assert client.closed is True
     client.reconnect()
     assert client.closed is False
+
+
+def test_next_facade_iter_transactions_yields_dataframe_chunks() -> None:
+    client = NextStdQuotes(engine_client=FacadeRecorder())
+
+    chunks = list(client.iter_transactions("600036", "20170209", "20170209"))
+
+    assert len(chunks) == 1
+    assert chunks[0][0] == "20170209"
+    assert isinstance(chunks[0][1], pd.DataFrame)
 
 
 @pytest.mark.parametrize(

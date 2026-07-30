@@ -4,7 +4,11 @@ import asyncio
 import struct
 import threading
 from collections.abc import Callable
+from collections.abc import AsyncIterator
+from collections.abc import Iterator
 from collections.abc import Mapping
+from datetime import datetime
+from datetime import timedelta
 from typing import Any
 
 from mootdx_next.bse import BseProvider
@@ -94,7 +98,10 @@ REQUEST_APIS = frozenset(
         "minute",
         "call_auction",
         "transaction",
+        "transaction_all",
         "transactions",
+        "transactions_day",
+        "iter_transactions",
         "finance",
         "block_file_raw",
         "report_file",
@@ -129,6 +136,17 @@ def _optional_float(value: object) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _date_range(start_date: str | int, end_date: str | int) -> Iterator[str]:
+    start = datetime.strptime(normalize_date(start_date), "%Y%m%d").date()
+    end = datetime.strptime(normalize_date(end_date), "%Y%m%d").date()
+    if end < start:
+        raise ValueError("end_date must be on or after start_date")
+    current = start
+    while current <= end:
+        yield current.strftime("%Y%m%d")
+        current += timedelta(days=1)
 
 
 class SyncClient:
@@ -568,6 +586,19 @@ class SyncClient:
             )
         )
 
+    def transaction_all(
+        self,
+        symbol: str,
+        page_size: int = TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self._collect_transaction_pages(
+            lambda start, count: self.transaction(symbol, start=start, offset=count),
+            page_size=page_size,
+            page_max=TRANSACTION_MAX_OFFSET,
+            max_pages=max_pages,
+        )
+
     def transactions(
         self,
         symbol: str,
@@ -617,6 +648,46 @@ class SyncClient:
                 date=normalized_date,
             )
         )
+
+    def transactions_day(
+        self,
+        symbol: str,
+        date: str | int,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        normalized_date = normalize_date(date)
+        return self._collect_transaction_pages(
+            lambda start, count: self.transactions(
+                symbol,
+                normalized_date,
+                start=start,
+                offset=count,
+            ),
+            page_size=page_size,
+            page_max=HISTORY_TRANSACTION_MAX_OFFSET,
+            max_pages=max_pages,
+        )
+
+    def iter_transactions(
+        self,
+        symbol: str,
+        start_date: str | int,
+        end_date: str | int,
+        *,
+        include_empty: bool = False,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> Iterator[tuple[str, list[dict[str, object]]]]:
+        for date in _date_range(start_date, end_date):
+            rows = self.transactions_day(
+                symbol,
+                date,
+                page_size=page_size,
+                max_pages=max_pages,
+            )
+            if rows or include_empty:
+                yield date, rows
 
     def finance(self, symbol: str) -> dict[str, object]:
         if not isinstance(symbol, str) or not symbol.strip():
@@ -855,6 +926,38 @@ class SyncClient:
             refresh=bool(refresh),
         )
         return [item.symbol for item in snapshot if item.security_type == security_type]
+
+    @staticmethod
+    def _collect_transaction_pages(
+        fetch: Callable[[int, int], list[dict[str, object]]],
+        *,
+        page_size: int,
+        page_max: int,
+        max_pages: int | None,
+    ) -> list[dict[str, object]]:
+        if page_size <= 0 or page_size > page_max:
+            raise ValueError(f"page_size must be between 1 and {page_max}")
+        available_pages = BAR_MAX_START // page_size + 1
+        if max_pages is None:
+            page_limit = available_pages
+        else:
+            if max_pages <= 0:
+                raise ValueError("max_pages must be greater than zero")
+            page_limit = min(int(max_pages), available_pages)
+
+        combined: list[dict[str, object]] = []
+        previous_page: list[dict[str, object]] | None = None
+        for page_index in range(page_limit):
+            page = [dict(row) for row in fetch(page_index * page_size, page_size)]
+            if not page:
+                break
+            if page == previous_page:
+                raise ProtocolDecodeError("transaction pagination did not advance")
+            combined = page + combined
+            if len(page) < page_size:
+                break
+            previous_page = page
+        return combined
 
     @staticmethod
     def _bars_until(
@@ -1151,6 +1254,22 @@ class AsyncClient:
     async def transaction(self, symbol: str, start: int = 0, offset: int = 800) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "transaction", symbol, start, offset))
 
+    async def transaction_all(
+        self,
+        symbol: str,
+        page_size: int = TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "transaction_all",
+                symbol,
+                page_size,
+                max_pages,
+            )
+        )
+
     async def transactions(
         self,
         symbol: str,
@@ -1159,6 +1278,44 @@ class AsyncClient:
         offset: int = 800,
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "transactions", symbol, date, start, offset))
+
+    async def transactions_day(
+        self,
+        symbol: str,
+        date: str | int,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "transactions_day",
+                symbol,
+                date,
+                page_size,
+                max_pages,
+            )
+        )
+
+    async def iter_transactions(
+        self,
+        symbol: str,
+        start_date: str | int,
+        end_date: str | int,
+        *,
+        include_empty: bool = False,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> AsyncIterator[tuple[str, list[dict[str, object]]]]:
+        for date in _date_range(start_date, end_date):
+            rows = await self.transactions_day(
+                symbol,
+                date,
+                page_size=page_size,
+                max_pages=max_pages,
+            )
+            if rows or include_empty:
+                yield date, rows
 
     async def finance(self, symbol: str) -> dict[str, object]:
         return dict(await asyncio.to_thread(self._call_sync, "finance", symbol))

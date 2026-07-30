@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from collections.abc import Callable
+from collections.abc import Iterator
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
@@ -366,6 +368,23 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def transaction_all(
+        self,
+        symbol="",
+        page_size=1800,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            rows = self.client.transaction_all(
+                str(symbol),
+                page_size=int(page_size),
+                max_pages=None if max_pages is None else int(max_pages),
+            )
+            return transaction_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def transactions(self, symbol="", start=0, offset=800, date="20170209", **kwargs) -> pd.DataFrame:
         try:
             market = get_stock_market(symbol)
@@ -380,6 +399,46 @@ class PandasClient:
             return transactions_to_frame(rows)
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
+
+    def transactions_day(
+        self,
+        symbol="",
+        date="20170209",
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            rows = self.client.transactions_day(
+                str(symbol),
+                date,
+                page_size=int(page_size),
+                max_pages=None if max_pages is None else int(max_pages),
+            )
+            return transactions_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def iter_transactions(
+        self,
+        symbol="",
+        start_date="20170209",
+        end_date="20170209",
+        *,
+        include_empty=False,
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> Iterator[tuple[str, pd.DataFrame]]:
+        for date, rows in self.client.iter_transactions(
+            str(symbol),
+            start_date,
+            end_date,
+            include_empty=bool(include_empty),
+            page_size=int(page_size),
+            max_pages=None if max_pages is None else int(max_pages),
+        ):
+            yield date, transactions_to_frame(rows)
 
     def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
@@ -869,6 +928,23 @@ class AsyncPandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    async def transaction_all(
+        self,
+        symbol="",
+        page_size=1800,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            rows = await self.client.transaction_all(
+                str(symbol),
+                page_size=int(page_size),
+                max_pages=None if max_pages is None else int(max_pages),
+            )
+            return transaction_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     async def transactions(self, symbol="", start=0, offset=800, date="20170209", **kwargs) -> pd.DataFrame:
         try:
             market = get_stock_market(symbol)
@@ -883,6 +959,46 @@ class AsyncPandasClient:
             return transactions_to_frame(rows)
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
+
+    async def transactions_day(
+        self,
+        symbol="",
+        date="20170209",
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            rows = await self.client.transactions_day(
+                str(symbol),
+                date,
+                page_size=int(page_size),
+                max_pages=None if max_pages is None else int(max_pages),
+            )
+            return transactions_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def iter_transactions(
+        self,
+        symbol="",
+        start_date="20170209",
+        end_date="20170209",
+        *,
+        include_empty=False,
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> AsyncIterator[tuple[str, pd.DataFrame]]:
+        async for date, rows in self.client.iter_transactions(
+            str(symbol),
+            start_date,
+            end_date,
+            include_empty=bool(include_empty),
+            page_size=int(page_size),
+            max_pages=None if max_pages is None else int(max_pages),
+        ):
+            yield date, transactions_to_frame(rows)
 
     async def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
