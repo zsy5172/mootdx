@@ -77,6 +77,7 @@ SYNC_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "iter_transaction_history",
     "trading_days",
     "is_trading_day",
     "finance",
@@ -134,6 +135,7 @@ ASYNC_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "iter_transaction_history",
     "trading_days",
     "is_trading_day",
     "finance",
@@ -197,6 +199,7 @@ PANDAS_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "iter_transaction_history",
     "trading_days",
     "is_trading_day",
     "f10_categories",
@@ -486,6 +489,16 @@ def test_sync_iter_transactions_executes_when_consumed() -> None:
 
     assert chunks == [("20170209", [])]
     assert [api for api, _ in protocol.encode_calls] == ["transactions"]
+
+
+def test_sync_iter_transaction_history_executes_when_consumed() -> None:
+    client, protocol, _ = _matrix_client()
+
+    iterator = client.iter_transaction_history("600036", before="20170209")
+
+    assert protocol.encode_calls == []
+    assert list(iterator) == []
+    assert [api for api, _ in protocol.encode_calls] == ["bars"]
 
 
 def test_sync_iter_xdxr_executes_when_consumed() -> None:
@@ -1079,6 +1092,19 @@ class FacadeRecorder:
     ):
         yield str(start_date), self.transactions_day(symbol, start_date, page_size, max_pages)
 
+    def iter_transaction_history(
+        self,
+        symbol,
+        before=None,
+        include_today=False,
+        include_empty=False,
+        refresh_calendar=False,
+        page_size=2000,
+        max_pages=None,
+    ):
+        date = "20170209" if before is None else str(before).replace("-", "")
+        yield date, self.transactions_day(symbol, date, page_size, max_pages)
+
     def trading_days(self, start_date=None, end_date=None, refresh=False):
         return ["20260730"]
 
@@ -1264,6 +1290,15 @@ def test_next_facade_iter_transactions_yields_dataframe_chunks() -> None:
     chunks = list(client.iter_transactions("600036", "20170209", "20170209"))
 
     assert len(chunks) == 1
+    assert chunks[0][0] == "20170209"
+    assert isinstance(chunks[0][1], pd.DataFrame)
+
+
+def test_next_facade_iter_transaction_history_yields_dataframe_chunks() -> None:
+    client = NextStdQuotes(engine_client=FacadeRecorder())
+
+    chunks = list(client.iter_transaction_history("600036", before="20170209"))
+
     assert chunks[0][0] == "20170209"
     assert isinstance(chunks[0][1], pd.DataFrame)
 

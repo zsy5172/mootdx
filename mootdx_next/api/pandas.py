@@ -522,6 +522,29 @@ class PandasClient:
         ):
             yield date, transactions_to_frame(rows)
 
+    def iter_transaction_history(
+        self,
+        symbol="",
+        before=None,
+        *,
+        include_today=False,
+        include_empty=False,
+        refresh_calendar=False,
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> Iterator[tuple[str, pd.DataFrame]]:
+        for date, rows in self.client.iter_transaction_history(
+            str(symbol),
+            before,
+            include_today=bool(include_today),
+            include_empty=bool(include_empty),
+            refresh_calendar=bool(refresh_calendar),
+            page_size=int(page_size),
+            max_pages=None if max_pages is None else int(max_pages),
+        ):
+            yield date, transactions_to_frame(rows)
+
     def trading_days(self, start_date=None, end_date=None, refresh=False) -> list[str]:
         return list(
             self.client.trading_days(
@@ -1240,6 +1263,29 @@ class AsyncPandasClient:
             end_date,
             include_empty=bool(include_empty),
             trading_days_only=bool(trading_days_only),
+            refresh_calendar=bool(refresh_calendar),
+            page_size=int(page_size),
+            max_pages=None if max_pages is None else int(max_pages),
+        ):
+            yield date, transactions_to_frame(rows)
+
+    async def iter_transaction_history(
+        self,
+        symbol="",
+        before=None,
+        *,
+        include_today=False,
+        include_empty=False,
+        refresh_calendar=False,
+        page_size=2000,
+        max_pages=None,
+        **kwargs,
+    ) -> AsyncIterator[tuple[str, pd.DataFrame]]:
+        async for date, rows in self.client.iter_transaction_history(
+            str(symbol),
+            before,
+            include_today=bool(include_today),
+            include_empty=bool(include_empty),
             refresh_calendar=bool(refresh_calendar),
             page_size=int(page_size),
             max_pages=None if max_pages is None else int(max_pages),

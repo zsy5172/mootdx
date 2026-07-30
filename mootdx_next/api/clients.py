@@ -132,6 +132,7 @@ REQUEST_APIS = frozenset(
         "transactions",
         "transactions_day",
         "iter_transactions",
+        "iter_transaction_history",
         "is_trading_day",
         "trading_days",
         "finance",
@@ -224,6 +225,20 @@ def _xdxr_date(row: Mapping[str, object]) -> Date:
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ProtocolDecodeError("xdxr row has an invalid event date") from exc
+
+
+def _listing_month_start(rows: Iterable[Mapping[str, object]]) -> Date | None:
+    dates: list[Date] = []
+    for row in rows:
+        value = str(row.get("datetime", "")).strip()
+        try:
+            dates.append(datetime.strptime(value[:10], "%Y-%m-%d").date())
+        except ValueError as exc:
+            raise ProtocolDecodeError("monthly bar has an invalid datetime") from exc
+    if not dates:
+        return None
+    earliest = min(dates)
+    return earliest.replace(day=1)
 
 
 class SyncClient:
@@ -846,6 +861,64 @@ class SyncClient:
                 page_size=page_size,
                 max_pages=max_pages,
             )
+            if rows or include_empty:
+                yield date, rows
+
+    def iter_transaction_history(
+        self,
+        symbol: str,
+        before: str | int | datetime | Date | None = None,
+        *,
+        include_today: bool = False,
+        include_empty: bool = False,
+        refresh_calendar: bool = False,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> Iterator[tuple[str, list[dict[str, object]]]]:
+        """Yield complete daily transactions from the inferred listing month.
+
+        The first monthly bar determines the lower bound. Historical days use
+        the history command, while today's data is included only when callers
+        explicitly opt in and is then fetched through the live transaction
+        command. All network work remains lazy until the iterator is consumed.
+        """
+
+        if page_size <= 0 or page_size > HISTORY_TRANSACTION_MAX_OFFSET:
+            raise ValueError(
+                f"page_size must be between 1 and {HISTORY_TRANSACTION_MAX_OFFSET}"
+            )
+        monthly = self.bars_all(symbol, frequency=6)
+        start_date = _listing_month_start(monthly)
+        if start_date is None:
+            return
+
+        today = datetime.strptime(today_yyyymmdd(), "%Y%m%d").date()
+        latest = today if include_today else today - timedelta(days=1)
+        requested_end = latest if before is None else _normalize_as_of_date(before)
+        end_date = min(requested_end, latest)
+        if end_date < start_date:
+            return
+
+        dates = self.trading_days(
+            start_date.strftime("%Y%m%d"),
+            end_date.strftime("%Y%m%d"),
+            refresh=refresh_calendar,
+        )
+        today_value = today.strftime("%Y%m%d")
+        for date in dates:
+            if include_today and date == today_value:
+                rows = self.transaction_all(
+                    symbol,
+                    page_size=min(page_size, TRANSACTION_MAX_OFFSET),
+                    max_pages=max_pages,
+                )
+            else:
+                rows = self.transactions_day(
+                    symbol,
+                    date,
+                    page_size=page_size,
+                    max_pages=max_pages,
+                )
             if rows or include_empty:
                 yield date, rows
 
@@ -1807,6 +1880,56 @@ class AsyncClient:
                 page_size=page_size,
                 max_pages=max_pages,
             )
+            if rows or include_empty:
+                yield date, rows
+
+    async def iter_transaction_history(
+        self,
+        symbol: str,
+        before: str | int | datetime | Date | None = None,
+        *,
+        include_today: bool = False,
+        include_empty: bool = False,
+        refresh_calendar: bool = False,
+        page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
+        max_pages: int | None = None,
+    ) -> AsyncIterator[tuple[str, list[dict[str, object]]]]:
+        if page_size <= 0 or page_size > HISTORY_TRANSACTION_MAX_OFFSET:
+            raise ValueError(
+                f"page_size must be between 1 and {HISTORY_TRANSACTION_MAX_OFFSET}"
+            )
+        monthly = await self.bars_all(symbol, frequency=6)
+        start_date = _listing_month_start(monthly)
+        if start_date is None:
+            return
+
+        today = datetime.strptime(today_yyyymmdd(), "%Y%m%d").date()
+        latest = today if include_today else today - timedelta(days=1)
+        requested_end = latest if before is None else _normalize_as_of_date(before)
+        end_date = min(requested_end, latest)
+        if end_date < start_date:
+            return
+
+        dates = await self.trading_days(
+            start_date.strftime("%Y%m%d"),
+            end_date.strftime("%Y%m%d"),
+            refresh=refresh_calendar,
+        )
+        today_value = today.strftime("%Y%m%d")
+        for date in dates:
+            if include_today and date == today_value:
+                rows = await self.transaction_all(
+                    symbol,
+                    page_size=min(page_size, TRANSACTION_MAX_OFFSET),
+                    max_pages=max_pages,
+                )
+            else:
+                rows = await self.transactions_day(
+                    symbol,
+                    date,
+                    page_size=page_size,
+                    max_pages=max_pages,
+                )
             if rows or include_empty:
                 yield date, rows
 
