@@ -13,6 +13,8 @@ from mootdx.quotes import Quotes
 from mootdx_next import AsyncClient
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient
+from mootdx_next.analytics import forward_returns
+from mootdx_next.analytics import ma
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.session import is_trading_session
 
@@ -116,7 +118,21 @@ def test_live_historical_transaction_window_matrix(
 
 def test_live_information_and_block_matrix(live_client: SyncClient) -> None:
     assert isinstance(live_client.finance("600036"), dict)
-    assert isinstance(live_client.xdxr("600036"), list)
+    xdxr = live_client.xdxr("600036")
+    assert isinstance(xdxr, list)
+
+    grouped = live_client.xdxr_by_date("600036")
+    assert sum(len(rows) for rows in grouped.values()) == len(xdxr)
+
+    latest = live_client.bars("600036", frequency=9, start=0, offset=1)[0]
+    market_value = live_client.market_value(
+        "600036",
+        str(latest["datetime"])[:10],
+        float(latest["close"]),
+    )
+    assert market_value is not None
+    assert market_value["float_market_value"] > 0
+    assert market_value["total_market_value"] >= market_value["float_market_value"]
 
     categories = live_client.f10_categories("600036")
     assert isinstance(categories, list)
@@ -156,11 +172,44 @@ def test_live_call_auction_and_public_config_ecosystem(live_client: SyncClient) 
     assert all("raw_fields" in row for row in statistics2[:10])
 
 
+def test_live_analytics_and_lazy_history_iterator(live_client: SyncClient) -> None:
+    daily = pd.DataFrame.from_records(
+        live_client.bars("600036", frequency=9, start=0, offset=30)
+    )
+    assert ma(daily, 5).iloc[-1] == pytest.approx(daily["close"].tail(5).mean())
+    returns = forward_returns(daily, horizons=(1, 5))
+    assert returns.iloc[0]["return_5"] == pytest.approx(
+        daily.iloc[5]["close"] / daily.iloc[0]["close"] - 1
+    )
+
+    historical_date, rows = next(
+        live_client.iter_transaction_history(
+            "600036",
+            before="20020531",
+            page_size=2000,
+            max_pages=1,
+        )
+    )
+    assert historical_date <= "20020531"
+    assert rows
+
+
 def test_live_async_matrix() -> None:
     async def run() -> None:
         client = AsyncClient(servers=_servers(), max_retries=2)
         try:
-            quotes, limits, price_limit, bars, finance, index, categories, block = await asyncio.gather(
+            (
+                quotes,
+                limits,
+                price_limit,
+                bars,
+                finance,
+                index,
+                categories,
+                block,
+                grouped_xdxr,
+                market_value,
+            ) = await asyncio.gather(
                 client.quotes(["600036", "000001"]),
                 client.limit_prices(0, 10),
                 client.price_limit("600036"),
@@ -169,6 +218,8 @@ def test_live_async_matrix() -> None:
                 client.index_bars("000001", "day", 0, 2, 1),
                 client.f10_categories("600036"),
                 client.block("block_zs.dat"),
+                client.xdxr_by_date("600036"),
+                client.market_value("600036", "20200102", 37.0),
             )
             assert isinstance(quotes, list)
             assert isinstance(limits, list) and limits
@@ -178,6 +229,8 @@ def test_live_async_matrix() -> None:
             assert isinstance(index, list)
             assert isinstance(categories, list)
             assert isinstance(block, list)
+            assert grouped_xdxr
+            assert market_value is not None
             if categories:
                 assert isinstance(await client.f10_content("600036", categories[0]["name"]), str)
         finally:
