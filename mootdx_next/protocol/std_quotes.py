@@ -73,6 +73,12 @@ CALL_AUCTION_ROW_STRUCT = struct.Struct("<HfIiBB")
 
 
 def _get_volume(vol: int) -> float:
+    # The wire value zero is an exact zero.  The logarithmic decoder below
+    # otherwise treats it like a denormalized floating-point value and emits
+    # 2**-127, which turns empty bars into tiny non-zero volume/amount rows.
+    if vol == 0:
+        return 0.0
+
     logpoint = vol >> (8 * 3)
 
     hleax = (vol >> (8 * 2)) & 0xFF
