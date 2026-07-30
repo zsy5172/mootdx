@@ -25,6 +25,7 @@ def _bar(date: str, close: float = 10.0) -> dict[str, object]:
         "hour": 0,
         "minute": 0,
         "datetime": timestamp.strftime("%Y-%m-%d 00:00:00"),
+        "previous_close": close - 0.5,
     }
 
 
@@ -182,6 +183,8 @@ def test_history_entrypoints_share_results_without_becoming_aliases() -> None:
     assert k_data["volume"].equals(k_data["vol"])
     assert "code" in get_k_data.columns
     assert "datetime" not in get_k_data.columns
+    assert "previous_close" not in get_k_data.columns
+    assert "previous_close" not in k_data.columns
 
 
 def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:

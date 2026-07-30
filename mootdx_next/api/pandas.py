@@ -114,7 +114,10 @@ def _history_frame(
 
 
 def _get_k_data_shape(data: pd.DataFrame) -> pd.DataFrame:
-    result = data.drop(columns=["volume"], errors="ignore").copy()
+    # These entry points intentionally preserve the legacy Quotes API shape.
+    # ``previous_close`` belongs to the native next-engine bars API and must
+    # not leak into get_k_data()/k()/ohlc() compatibility results.
+    result = data.drop(columns=["volume", "previous_close"], errors="ignore").copy()
     base = [column for column in KLINE_VALUE_COLUMNS if column in result.columns]
     extras = [column for column in result.columns if column not in {*base, "code"}]
     trailing = ["code"] if "code" in result.columns else []
