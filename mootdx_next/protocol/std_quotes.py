@@ -637,7 +637,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_low_diff, pos = _get_price(body, pos)
                 (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
                 vol = _get_volume(vol_raw)
-                if frequency in {0, 1, 2, 3, 7, 8}:
+                if frequency in {0, 1, 2, 3, 4, 7, 8}:
                     # Standard security intraday bars encode volume in shares,
                     # while day-or-longer bars use lots.  Normalise the public
                     # ``vol``/``volume`` unit to lots across frequencies.
@@ -703,6 +703,11 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_low_diff, pos = _get_price(body, pos)
                 (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
                 vol = _get_volume(vol_raw)
+                if frequency not in {0, 1, 2, 3, 4, 7, 8}:
+                    # Index day-or-longer bars encode volume at 1/100 of the
+                    # public lot unit. Intraday categories contain the extra
+                    # factor already, matching the quote snapshot volume.
+                    vol *= 100
                 pos += 4
                 (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
                 amount = _get_volume(amount_raw)

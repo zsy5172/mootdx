@@ -97,10 +97,29 @@ def test_sync_client_rejects_invalid_history_params() -> None:
         client.bars(symbol="600036", frequency="bad")
     with pytest.raises(ValueError):
         client.bars(symbol="600036", start=-1)
+    with pytest.raises(ValueError, match="65535"):
+        client.bars(symbol="600036", start=65536)
     with pytest.raises(ValueError):
         client.bars(symbol="600036", offset=0)
     with pytest.raises(InvalidDateError):
         client.minutes(symbol="000001", date="2026/04/11")
+
+
+def test_sync_client_index_bars_honors_market_prefixes_and_rejects_conflicts() -> None:
+    transport = RecordingTransport(responses=[b"\x00\x00"] * 3)
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    assert client.index_bars("sh000001") == []
+    assert client.index_bars("sz399001") == []
+    assert client.index_bars("bj899050") == []
+    assert [int.from_bytes(payload[12:14], "little") for payload in transport.sent_payloads] == [1, 0, 2]
+
+    with pytest.raises(InvalidSymbolError, match="conflicts"):
+        client.index_bars("sh000001", market=0)
+    with pytest.raises(ValueError, match="65535"):
+        client.index_bars("sh000001", start=65536)
 
 
 def test_sync_client_minutes_supports_bj_symbol() -> None:

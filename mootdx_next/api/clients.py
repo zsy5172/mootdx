@@ -402,8 +402,8 @@ class SyncClient:
     ) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
-        if start < 0:
-            raise ValueError("start must be >= 0")
+        if start < 0 or start > BAR_MAX_START:
+            raise ValueError(f"start must be between 0 and {BAR_MAX_START}")
         if offset <= 0 or offset > 800:
             raise ValueError("offset must be between 1 and 800")
 
@@ -479,8 +479,8 @@ class SyncClient:
     ) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
-        if start < 0:
-            raise ValueError("start must be >= 0")
+        if start < 0 or start > BAR_MAX_START:
+            raise ValueError(f"start must be between 0 and {BAR_MAX_START}")
         if offset <= 0 or offset > 800:
             raise ValueError("offset must be between 1 and 800")
 
@@ -1654,9 +1654,22 @@ class AsyncClient:
 
 
 def _get_index_market(symbol: str, market: int | None = None) -> int:
+    normalized = symbol.strip().lower()
+    prefix = normalized[:2]
+    prefixed_market = {"sz": 0, "sh": 1, "bj": 2}.get(prefix)
+    if prefixed_market is not None:
+        if market is not None and int(market) != prefixed_market:
+            raise InvalidSymbolError(f"symbol prefix {prefix} conflicts with market {market}")
+        return prefixed_market
     if market is not None:
-        return int(market)
-    return 1 if symbol[:2] in ["00", "88", "99"] else 0
+        normalized_market = int(market)
+        if normalized_market not in {0, 1, 2}:
+            raise UnsupportedMarketError(f"unsupported index market: {market}")
+        return normalized_market
+    code = normalize_symbol(normalized)
+    if code.startswith("899"):
+        return 2
+    return 1 if code.startswith(("000", "88", "99")) else 0
 
 
 def _parse_block_content(data: bytes | bytearray) -> list[dict[str, object]]:

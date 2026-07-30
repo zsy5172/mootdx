@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,44 @@ def test_decode_bars_matches_bj_corpus_expected() -> None:
     protocol = StdQuoteProtocol()
 
     assert protocol.decode_bars(_body("daily_bj_430090_last10"), 9) == _expected("daily_bj_430090_last10")
+
+
+def _single_bar_body(*, frequency: int, index: bool) -> bytes:
+    body = bytearray(struct.pack("<H", 1))
+    if frequency in {0, 1, 2, 3, 7, 8}:
+        body.extend(struct.pack("<HH", (2026 - 2004) * 2048 + 7 * 100 + 30, 9 * 60 + 31))
+    else:
+        body.extend(struct.pack("<I", 20260730))
+    body.extend(b"\x00\x00\x00\x00")
+    body.extend(struct.pack("<I", 0x4A123456))
+    body.extend(struct.pack("<I", 0))
+    if index:
+        body.extend(struct.pack("<HH", 123, 45))
+    return bytes(body)
+
+
+def test_decode_index_daily_volume_uses_public_lot_unit() -> None:
+    protocol = StdQuoteProtocol()
+    security = protocol.decode_bars(_single_bar_body(frequency=9, index=False), 9)
+    index = protocol.decode_index_bars(_single_bar_body(frequency=9, index=True), 9)
+
+    assert index[0]["volume"] == security[0]["volume"] * 100
+
+
+def test_decode_index_intraday_volume_does_not_apply_daily_factor() -> None:
+    protocol = StdQuoteProtocol()
+    security = protocol.decode_bars(_single_bar_body(frequency=8, index=False), 8)
+    index = protocol.decode_index_bars(_single_bar_body(frequency=8, index=True), 8)
+
+    assert index[0]["volume"] == security[0]["volume"] * 100
+
+
+def test_decode_alternate_daily_volume_normalizes_share_encoding_to_lots() -> None:
+    protocol = StdQuoteProtocol()
+    alternate = protocol.decode_bars(_single_bar_body(frequency=4, index=False), 4)
+    regular = protocol.decode_bars(_single_bar_body(frequency=9, index=False), 9)
+
+    assert alternate[0]["volume"] * 100 == regular[0]["volume"]
 
 
 @pytest.mark.parametrize("body", [b"", b"\x01", b"\x01\x00short"])
