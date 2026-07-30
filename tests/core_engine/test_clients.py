@@ -82,6 +82,35 @@ def test_async_client_resolves_sync_client_inside_each_worker_thread(monkeypatch
     assert all(created_on == called_on for _, created_on, called_on in calls)
 
 
+def test_async_client_close_closes_every_worker_local_client(monkeypatch) -> None:
+    barrier = threading.Barrier(2)
+    instances = []
+
+    class ClosableThreadClient:
+        def __init__(self, **kwargs) -> None:
+            self.closed = False
+            instances.append(self)
+
+        def stock_count(self, market: int) -> int:
+            barrier.wait(timeout=5)
+            return market
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(clients_module, "SyncClient", ClosableThreadClient)
+    client = AsyncClient()
+
+    async def concurrent_requests() -> list[int]:
+        return await asyncio.gather(client.stock_count(0), client.stock_count(1))
+
+    assert asyncio.run(concurrent_requests()) == [0, 1]
+    assert len(instances) == 2
+    client.close()
+    assert client.closed
+    assert all(item.closed for item in instances)
+
+
 def test_sync_client_close_and_reconnect_toggle_state() -> None:
     client = SyncClient()
     assert client.closed is False

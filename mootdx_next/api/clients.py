@@ -504,6 +504,9 @@ class AsyncClient:
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
+        self._clients_lock = threading.Lock()
+        self._worker_clients: list[SyncClient] = []
+        self._closed = False
         self._sync_client_kwargs = {
             "transport": transport,
             "protocol": protocol,
@@ -517,25 +520,29 @@ class AsyncClient:
     def closed(self) -> bool:
         if self._explicit_sync_client is not None:
             return self._explicit_sync_client.closed
-        return bool(getattr(self._thread_local, "closed", False))
+        return self._closed
 
     def close(self) -> None:
         if self._explicit_sync_client is not None:
             self._explicit_sync_client.close()
             return
-        client = getattr(self._thread_local, "client", None)
-        if client is not None:
+        with self._clients_lock:
+            clients = self._worker_clients
+            self._worker_clients = []
+            self._closed = True
+        for client in clients:
             client.close()
-        self._thread_local.closed = True
 
     def reconnect(self) -> None:
         if self._explicit_sync_client is not None:
             self._explicit_sync_client.reconnect()
             return
-        client = getattr(self._thread_local, "client", None)
-        if client is not None:
-            client.reconnect()
-        self._thread_local.closed = False
+        with self._clients_lock:
+            clients = self._worker_clients
+            self._worker_clients = []
+            self._closed = False
+        for client in clients:
+            client.close()
 
     async def request(self, api: str, **kwargs: Any) -> object:
         return await asyncio.to_thread(self._call_sync, api, **kwargs)
@@ -633,10 +640,12 @@ class AsyncClient:
             return self._explicit_sync_client
 
         client = getattr(self._thread_local, "client", None)
-        if client is None or getattr(self._thread_local, "closed", False):
+        if client is None or client.closed:
             client = SyncClient(**self._sync_client_kwargs)
             self._thread_local.client = client
-            self._thread_local.closed = False
+            with self._clients_lock:
+                self._worker_clients.append(client)
+                self._closed = False
         return client
 
 
