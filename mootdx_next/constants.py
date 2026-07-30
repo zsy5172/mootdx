@@ -37,6 +37,14 @@ MAX_TRANSACTION_COUNT = 1800
 MAX_HISTORY_TRANSACTION_COUNT = 2000
 MAX_LIMIT_PRICE_COUNT = 2000
 
+# Live ExHq nodes cap a single K-line response at 700 rows.  The transaction
+# defaults match the upstream TDX client protocol and keep the response below
+# the 16-bit wire-frame length limit.
+MAX_EX_KLINE_COUNT = 700
+MAX_EX_TRANSACTION_COUNT = 1800
+MAX_EX_INSTRUMENT_COUNT = 1000
+MAX_EX_QUOTE_LIST_COUNT = 100
+
 BLOCK_SZ = "block_zs.dat"
 BLOCK_FG = "block_fg.dat"
 BLOCK_GN = "block_gn.dat"
