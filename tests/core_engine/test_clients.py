@@ -14,10 +14,21 @@ from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
 
 
-def test_sync_client_request_is_placeholder() -> None:
+def test_sync_client_request_dispatches_to_public_business_api() -> None:
+    class RequestClient(SyncClient):
+        def stock_count(self, market: int) -> int:
+            return market + 1
+
+    client = RequestClient()
+    assert client.request("stock_count", market=1) == 2
+
+
+def test_sync_client_request_rejects_unknown_or_lifecycle_api() -> None:
     client = SyncClient()
     with pytest.raises(NotImplementedError):
-        client.request("stock_count", market=0)
+        client.request("unknown_api")
+    with pytest.raises(NotImplementedError):
+        client.request("close")
 
 
 class DummyAsyncSyncClient:
@@ -26,6 +37,11 @@ class DummyAsyncSyncClient:
 
     def stock_count(self, market: int) -> int:
         return market + 1
+
+    def request(self, api: str, **kwargs):
+        if api != "stock_count":
+            raise NotImplementedError(api)
+        return self.stock_count(**kwargs)
 
     def close(self) -> None:
         self.closed = True
@@ -43,6 +59,12 @@ def test_async_client_request_rejects_unknown_api() -> None:
     client = AsyncClient(sync_client=DummyAsyncSyncClient())
     with pytest.raises(NotImplementedError):
         asyncio.run(client.request("unknown_api"))
+
+
+def test_async_client_request_rejects_lifecycle_api() -> None:
+    client = AsyncClient(sync_client=DummyAsyncSyncClient())
+    with pytest.raises(NotImplementedError):
+        asyncio.run(client.request("close"))
 
 
 def test_async_client_close_and_reconnect_toggle_state() -> None:

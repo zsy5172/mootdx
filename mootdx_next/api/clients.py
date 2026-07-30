@@ -63,6 +63,40 @@ TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
 HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 
+REQUEST_APIS = frozenset(
+    {
+        "stock_count",
+        "stocks",
+        "quotes",
+        "limit_prices",
+        "price_limit",
+        "bars",
+        "index_bars",
+        "minutes",
+        "minute",
+        "call_auction",
+        "transaction",
+        "transactions",
+        "finance",
+        "block_file_raw",
+        "report_file",
+        "zhb_files",
+        "tdx_block_indexes",
+        "tdx_block_aliases",
+        "block_with_index",
+        "sp_blocks",
+        "tdx_industries",
+        "ipo_subscriptions",
+        "stock_statistics",
+        "stock_statistics2",
+        "block",
+        "xdxr",
+        "f10_categories",
+        "f10_content",
+    }
+)
+
+
 def _default_servers() -> list[ServerEndpoint]:
     return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS]
 
@@ -113,7 +147,9 @@ class SyncClient:
         self._closed = False
 
     def request(self, api: str, **kwargs: Any) -> object:
-        raise NotImplementedError("SyncClient.request() is not implemented in Week 1")
+        if api not in REQUEST_APIS:
+            raise NotImplementedError(f"SyncClient.request() does not support api: {api}")
+        return getattr(self, api)(**kwargs)
 
     def stock_count(self, market: int) -> int:
         if market not in {0, 1, 2}:
@@ -751,7 +787,7 @@ class AsyncClient:
             client.close()
 
     async def request(self, api: str, **kwargs: Any) -> object:
-        return await asyncio.to_thread(self._call_sync, api, **kwargs)
+        return await asyncio.to_thread(self._call_sync, "request", api, **kwargs)
 
     async def stock_count(self, market: int) -> int:
         return int(await asyncio.to_thread(self._call_sync, "stock_count", market))

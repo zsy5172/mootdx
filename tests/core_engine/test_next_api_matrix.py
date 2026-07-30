@@ -543,7 +543,7 @@ class AsyncCallCase:
 
 
 ASYNC_CALL_CASES = (
-    AsyncCallCase("request", ("stock_count",), {"market": 1}, "stock_count", (), {"market": 1}),
+    AsyncCallCase("request", ("stock_count",), {"market": 1}, "request", ("stock_count",), {"market": 1}),
     AsyncCallCase("stock_count", (1,), {}, "stock_count", (1,), {}),
     AsyncCallCase("stocks", (1,), {}, "stocks", (1,), {}),
     AsyncCallCase("quotes", (["600036", "000001"],), {}, "quotes", (["600036", "000001"],), {}),
