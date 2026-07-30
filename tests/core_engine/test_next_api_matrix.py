@@ -60,7 +60,11 @@ SYNC_PUBLIC_API = {
     "limit_prices",
     "price_limit",
     "bars",
+    "bars_until",
+    "bars_all",
     "index_bars",
+    "index_bars_until",
+    "index_bars_all",
     "minutes",
     "minute",
     "call_auction",
@@ -101,6 +105,8 @@ ASYNC_PUBLIC_API = {
     "limit_prices",
     "price_limit",
     "bars",
+    "bars_until",
+    "bars_all",
     "minutes",
     "minute",
     "call_auction",
@@ -109,6 +115,8 @@ ASYNC_PUBLIC_API = {
     "finance",
     "xdxr",
     "index_bars",
+    "index_bars_until",
+    "index_bars_all",
     "block",
     "block_file_raw",
     "report_file",
@@ -136,6 +144,8 @@ PANDAS_PUBLIC_API = {
     "limit_prices",
     "price_limit",
     "bars",
+    "bars_until",
+    "bars_all",
     "stock_count",
     "stock_page",
     "stocks",
@@ -157,6 +167,8 @@ PANDAS_PUBLIC_API = {
     "xdxr",
     "finance",
     "index_bars",
+    "index_bars_until",
+    "index_bars_all",
     "index",
     "block",
     "block_file_raw",
@@ -314,6 +326,10 @@ class SyncCallCase:
     protocol_apis: tuple[str, ...]
 
 
+def _never_bar(_row: object) -> bool:
+    return False
+
+
 SYNC_CALL_CASES = (
     SyncCallCase("stock_count", {"market": 0}, ("stock_count",)),
     SyncCallCase("stock_page", {"market": 1, "start": 1000}, ("stock_list_page",)),
@@ -328,8 +344,24 @@ SYNC_CALL_CASES = (
     SyncCallCase("price_limit", {"symbol": "600036", "refresh": True}, ("limit_prices",)),
     SyncCallCase("bars", {"symbol": "sh600036", "frequency": "day", "start": 20, "offset": 15}, ("bars",)),
     SyncCallCase(
+        "bars_until",
+        {"symbol": "sh600036", "predicate": _never_bar, "frequency": "day"},
+        ("bars",),
+    ),
+    SyncCallCase("bars_all", {"symbol": "sh600036", "frequency": "day"}, ("bars",)),
+    SyncCallCase(
         "index_bars",
         {"symbol": "399001", "frequency": "5m", "start": 20, "offset": 15, "market": 0},
+        ("index_bars",),
+    ),
+    SyncCallCase(
+        "index_bars_until",
+        {"symbol": "sh000001", "predicate": _never_bar, "frequency": "day", "market": 1},
+        ("index_bars",),
+    ),
+    SyncCallCase(
+        "index_bars_all",
+        {"symbol": "sh000001", "frequency": "day", "market": 1},
         ("index_bars",),
     ),
     SyncCallCase("minutes", {"symbol": "sz000001", "date": "2017-10-10"}, ("minutes",)),
@@ -584,6 +616,22 @@ ASYNC_CALL_CASES = (
     AsyncCallCase("limit_prices", (20, 15), {}, "limit_prices", (20, 15), {}),
     AsyncCallCase("price_limit", ("600036", True), {}, "price_limit", ("600036", True), {}),
     AsyncCallCase("bars", ("600036", "day", 20, 15), {}, "bars", ("600036", "day", 20, 15), {}),
+    AsyncCallCase(
+        "bars_until",
+        ("600036", _never_bar, "day", 400, 2),
+        {},
+        "bars_until",
+        ("600036", _never_bar, "day", 400, 2),
+        {},
+    ),
+    AsyncCallCase(
+        "bars_all",
+        ("600036", "day", 400, 2),
+        {},
+        "bars_all",
+        ("600036", "day", 400, 2),
+        {},
+    ),
     AsyncCallCase("minutes", ("600036", "2017-10-10"), {}, "minutes", ("600036", "2017-10-10"), {}),
     AsyncCallCase("minute", ("600036",), {}, "minute", ("600036",), {}),
     AsyncCallCase("transaction", ("600036", 20, 15), {}, "transaction", ("600036", 20, 15), {}),
@@ -603,6 +651,22 @@ ASYNC_CALL_CASES = (
         {},
         "index_bars",
         ("000001", "day", 20, 15, 1),
+        {},
+    ),
+    AsyncCallCase(
+        "index_bars_until",
+        ("sh000001", _never_bar, "day", 1, 400, 2),
+        {},
+        "index_bars_until",
+        ("sh000001", _never_bar, "day", 1, 400, 2),
+        {},
+    ),
+    AsyncCallCase(
+        "index_bars_all",
+        ("sh000001", "day", 1, 400, 2),
+        {},
+        "index_bars_all",
+        ("sh000001", "day", 1, 400, 2),
         {},
     ),
     AsyncCallCase("block", ("block_zs.dat",), {}, "block", ("block_zs.dat",), {}),
@@ -666,6 +730,12 @@ class FacadeRecorder:
             }
         ]
 
+    def bars_until(self, symbol, predicate, frequency=9, page_size=800, max_pages=None):
+        return self.bars(symbol, frequency, 0, page_size)
+
+    def bars_all(self, symbol, frequency=9, page_size=800, max_pages=None):
+        return self.bars(symbol, frequency, 0, page_size)
+
     def stock_count(self, market):
         return 1
 
@@ -723,6 +793,27 @@ class FacadeRecorder:
     def index_bars(self, symbol, frequency=9, start=0, offset=800, market=None):
         return self.bars(symbol, frequency, start, offset)
 
+    def index_bars_until(
+        self,
+        symbol,
+        predicate,
+        frequency=9,
+        market=None,
+        page_size=800,
+        max_pages=None,
+    ):
+        return self.index_bars(symbol, frequency, 0, page_size, market)
+
+    def index_bars_all(
+        self,
+        symbol,
+        frequency=9,
+        market=None,
+        page_size=800,
+        max_pages=None,
+    ):
+        return self.index_bars(symbol, frequency, 0, page_size, market)
+
     def block(self, tofile):
         return [{"blockname": "测试", "code": "600036"}]
 
@@ -739,6 +830,8 @@ FACADE_CASES = (
     FacadeCase("limit_prices", {"start": 0, "count": 1}, pd.DataFrame),
     FacadeCase("price_limit", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("bars", {"symbol": "600036", "frequency": "day", "start": 20, "offset": 900}, pd.DataFrame),
+    FacadeCase("bars_until", {"symbol": "600036", "predicate": _never_bar}, pd.DataFrame),
+    FacadeCase("bars_all", {"symbol": "600036", "max_pages": 1}, pd.DataFrame),
     FacadeCase("stock_count", {"market": 2}, int),
     FacadeCase("stock_page", {"market": 1, "start": 1000}, pd.DataFrame),
     FacadeCase("stocks", {"market": 1}, pd.DataFrame),
@@ -761,6 +854,12 @@ FACADE_CASES = (
     FacadeCase("xdxr", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("finance", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("index_bars", {"symbol": "000001", "frequency": "5m", "offset": 1}, pd.DataFrame),
+    FacadeCase(
+        "index_bars_until",
+        {"symbol": "sh000001", "predicate": _never_bar, "market": 1},
+        pd.DataFrame,
+    ),
+    FacadeCase("index_bars_all", {"symbol": "sh000001", "market": 1, "max_pages": 1}, pd.DataFrame),
     FacadeCase("index", {"symbol": "399001", "frequency": "day", "market": 0, "offset": 1}, pd.DataFrame),
     FacadeCase("block", {"tofile": "block_zs.dat"}, pd.DataFrame),
     FacadeCase(

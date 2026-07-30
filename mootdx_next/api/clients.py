@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import struct
 import threading
+from collections.abc import Callable
 from collections.abc import Mapping
 from typing import Any
 
@@ -66,6 +67,9 @@ DEFAULT_MAX_REPORT_FILE_SIZE = 256 * 1024 * 1024
 TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
 HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
+BAR_PAGE_SIZE = 800
+BAR_MAX_START = 0xFFFF
+BarPredicate = Callable[[Mapping[str, object]], bool]
 
 REQUEST_APIS = frozenset(
     {
@@ -81,7 +85,11 @@ REQUEST_APIS = frozenset(
         "limit_prices",
         "price_limit",
         "bars",
+        "bars_until",
+        "bars_all",
         "index_bars",
+        "index_bars_until",
+        "index_bars_all",
         "minutes",
         "minute",
         "call_auction",
@@ -361,6 +369,42 @@ class SyncClient:
         envelope = self._send(context, payload)
         return list(self.protocol.decode("bars", envelope, frequency=normalized_frequency))
 
+    def bars_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        frequency: int | str = 9,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        normalized_frequency = normalize_frequency(frequency)
+        return self._bars_until(
+            lambda start, count: self.bars(
+                symbol,
+                frequency=normalized_frequency,
+                start=start,
+                offset=count,
+            ),
+            predicate,
+            page_size=page_size,
+            max_pages=max_pages,
+        )
+
+    def bars_all(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self.bars_until(
+            symbol,
+            lambda _row: False,
+            frequency=frequency,
+            page_size=page_size,
+            max_pages=max_pages,
+        )
+
     def index_bars(
         self,
         symbol: str,
@@ -401,6 +445,46 @@ class SyncClient:
         )
         envelope = self._send(context, payload)
         return list(self.protocol.decode("index_bars", envelope, frequency=normalized_frequency))
+
+    def index_bars_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        frequency: int | str = 9,
+        market: int | None = None,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        normalized_frequency = normalize_frequency(frequency)
+        return self._bars_until(
+            lambda start, count: self.index_bars(
+                symbol,
+                frequency=normalized_frequency,
+                start=start,
+                offset=count,
+                market=market,
+            ),
+            predicate,
+            page_size=page_size,
+            max_pages=max_pages,
+        )
+
+    def index_bars_all(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        market: int | None = None,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self.index_bars_until(
+            symbol,
+            lambda _row: False,
+            frequency=frequency,
+            market=market,
+            page_size=page_size,
+            max_pages=max_pages,
+        )
 
     def minutes(self, symbol: str, date: str | int) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
@@ -772,6 +856,55 @@ class SyncClient:
         )
         return [item.symbol for item in snapshot if item.security_type == security_type]
 
+    @staticmethod
+    def _bars_until(
+        fetch: Callable[[int, int], list[dict[str, object]]],
+        predicate: BarPredicate,
+        *,
+        page_size: int,
+        max_pages: int | None,
+    ) -> list[dict[str, object]]:
+        if not callable(predicate):
+            raise TypeError("predicate must be callable")
+        if page_size <= 0 or page_size > BAR_PAGE_SIZE:
+            raise ValueError(f"page_size must be between 1 and {BAR_PAGE_SIZE}")
+        available_pages = BAR_MAX_START // page_size + 1
+        if max_pages is None:
+            page_limit = available_pages
+        else:
+            if max_pages <= 0:
+                raise ValueError("max_pages must be greater than zero")
+            page_limit = min(int(max_pages), available_pages)
+
+        combined: list[dict[str, object]] = []
+        previous_signature: tuple[object, object, int] | None = None
+        for page_index in range(page_limit):
+            start = page_index * page_size
+            page = [dict(row) for row in fetch(start, page_size)]
+            if not page:
+                break
+            signature = (page[0].get("datetime"), page[-1].get("datetime"), len(page))
+            if signature == previous_signature:
+                raise ProtocolDecodeError("bar pagination did not advance")
+            previous_signature = signature
+
+            matched_index: int | None = None
+            for index in range(len(page) - 1, -1, -1):
+                if predicate(page[index]):
+                    matched_index = index
+                    break
+            if matched_index is not None:
+                combined = page[matched_index:] + combined
+                break
+
+            combined = page + combined
+            if len(page) < page_size:
+                break
+
+        for index in range(1, len(combined)):
+            combined[index]["previous_close"] = combined[index - 1].get("close")
+        return combined
+
     def _load_security_directory(self) -> tuple[Security, ...]:
         securities: list[Security] = []
         for market in (1, 0, 2):
@@ -968,6 +1101,44 @@ class AsyncClient:
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "bars", symbol, frequency, start, offset))
 
+    async def bars_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        frequency: int | str = 9,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "bars_until",
+                symbol,
+                predicate,
+                frequency,
+                page_size,
+                max_pages,
+            )
+        )
+
+    async def bars_all(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "bars_all",
+                symbol,
+                frequency,
+                page_size,
+                max_pages,
+            )
+        )
+
     async def minutes(self, symbol: str, date: str | int) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "minutes", symbol, date))
 
@@ -1012,6 +1183,48 @@ class AsyncClient:
                 start,
                 offset,
                 market,
+            )
+        )
+
+    async def index_bars_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        frequency: int | str = 9,
+        market: int | None = None,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "index_bars_until",
+                symbol,
+                predicate,
+                frequency,
+                market,
+                page_size,
+                max_pages,
+            )
+        )
+
+    async def index_bars_all(
+        self,
+        symbol: str,
+        frequency: int | str = 9,
+        market: int | None = None,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "index_bars_all",
+                symbol,
+                frequency,
+                market,
+                page_size,
+                max_pages,
             )
         )
 

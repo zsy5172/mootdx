@@ -249,6 +249,48 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def bars_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        frequency=9,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.bars_until(
+                    str(symbol),
+                    predicate,
+                    frequency=normalize_frequency(frequency),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def bars_all(
+        self,
+        symbol="000001",
+        frequency=9,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.bars_all(
+                    str(symbol),
+                    frequency=normalize_frequency(frequency),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def stock_count(self, market=MARKET_SH) -> int:
         if market not in {0, 1, 2}:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
@@ -404,6 +446,52 @@ class PandasClient:
                 market=market,
             )
             return bars_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def index_bars_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        frequency=9,
+        market=None,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.index_bars_until(
+                    str(symbol),
+                    predicate,
+                    frequency=normalize_frequency(frequency),
+                    market=market,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def index_bars_all(
+        self,
+        symbol="000001",
+        frequency=9,
+        market=None,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.index_bars_all(
+                    str(symbol),
+                    frequency=normalize_frequency(frequency),
+                    market=market,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -658,6 +746,48 @@ class AsyncPandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    async def bars_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        frequency=9,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.bars_until(
+                    str(symbol),
+                    predicate,
+                    frequency=normalize_frequency(frequency),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def bars_all(
+        self,
+        symbol="000001",
+        frequency=9,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.bars_all(
+                    str(symbol),
+                    frequency=normalize_frequency(frequency),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     async def stock_count(self, market=MARKET_SH) -> int:
         if market not in {0, 1, 2}:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
@@ -819,6 +949,52 @@ class AsyncPandasClient:
                 market=market,
             )
             return bars_to_frame(rows)
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def index_bars_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        frequency=9,
+        market=None,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.index_bars_until(
+                    str(symbol),
+                    predicate,
+                    frequency=normalize_frequency(frequency),
+                    market=market,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def index_bars_all(
+        self,
+        symbol="000001",
+        frequency=9,
+        market=None,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.index_bars_all(
+                    str(symbol),
+                    frequency=normalize_frequency(frequency),
+                    market=market,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
