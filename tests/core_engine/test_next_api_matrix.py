@@ -48,6 +48,7 @@ SYNC_PUBLIC_API = {
     "reconnect",
     "request",
     "stock_count",
+    "stock_page",
     "stocks",
     "quotes",
     "limit_prices",
@@ -83,6 +84,7 @@ ASYNC_PUBLIC_API = {
     "reconnect",
     "request",
     "stock_count",
+    "stock_page",
     "stocks",
     "quotes",
     "limit_prices",
@@ -124,6 +126,7 @@ PANDAS_PUBLIC_API = {
     "price_limit",
     "bars",
     "stock_count",
+    "stock_page",
     "stocks",
     "stock_all",
     "minute",
@@ -296,6 +299,7 @@ class SyncCallCase:
 
 SYNC_CALL_CASES = (
     SyncCallCase("stock_count", {"market": 0}, ("stock_count",)),
+    SyncCallCase("stock_page", {"market": 1, "start": 1000}, ("stock_list_page",)),
     SyncCallCase("stocks", {"market": 1}, ("stock_count",)),
     SyncCallCase("quotes", {"symbol": ["600036", "sz000001"]}, ("quotes",)),
     SyncCallCase("limit_prices", {"start": 20, "count": 15}, ("limit_prices",)),
@@ -545,6 +549,7 @@ class AsyncCallCase:
 ASYNC_CALL_CASES = (
     AsyncCallCase("request", ("stock_count",), {"market": 1}, "request", ("stock_count",), {"market": 1}),
     AsyncCallCase("stock_count", (1,), {}, "stock_count", (1,), {}),
+    AsyncCallCase("stock_page", (1, 1000, True), {}, "stock_page", (1, 1000, True), {}),
     AsyncCallCase("stocks", (1,), {}, "stocks", (1,), {}),
     AsyncCallCase("quotes", (["600036", "000001"],), {}, "quotes", (["600036", "000001"],), {}),
     AsyncCallCase("limit_prices", (20, 15), {}, "limit_prices", (20, 15), {}),
@@ -635,6 +640,9 @@ class FacadeRecorder:
     def stock_count(self, market):
         return 1
 
+    def stock_page(self, market, start=0, refresh=False):
+        return self.stocks(market, refresh=refresh)
+
     def stocks(self, market, refresh=False):
         code = {0: "000001", 1: "600036", 2: "920001"}[market]
         return [{"market": market, "code": code, "name": "测试证券"}]
@@ -680,6 +688,7 @@ FACADE_CASES = (
     FacadeCase("price_limit", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("bars", {"symbol": "600036", "frequency": "day", "start": 20, "offset": 900}, pd.DataFrame),
     FacadeCase("stock_count", {"market": 2}, int),
+    FacadeCase("stock_page", {"market": 1, "start": 1000}, pd.DataFrame),
     FacadeCase("stocks", {"market": 1}, pd.DataFrame),
     FacadeCase("stock_all", {}, pd.DataFrame),
     FacadeCase("minute", {"symbol": "600036"}, pd.DataFrame),

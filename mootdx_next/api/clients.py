@@ -66,6 +66,7 @@ LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 REQUEST_APIS = frozenset(
     {
         "stock_count",
+        "stock_page",
         "stocks",
         "quotes",
         "limit_prices",
@@ -163,6 +164,30 @@ class SyncClient:
         envelope = self._send(context, payload)
         return int(self.protocol.decode("stock_count", envelope))
 
+    def stock_page(
+        self,
+        market: int,
+        start: int = 0,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError(f"unsupported market for stock_page: {market}")
+        if start < 0 or start > 0xFFFF:
+            raise ValueError("start must be between 0 and 65535")
+
+        if market == 2:
+            snapshot = self.bse_registry.get(refresh=bool(refresh))
+            return [item.to_stock_dict() for item in snapshot[start : start + 1000]]
+
+        context = RequestContext(api="stock_list_page", params={"market": market, "start": start})
+        payload = self.protocol.encode("stock_list_page", market=market, start=start)
+        envelope = self._send(context, payload)
+        page = self.protocol.decode("stock_list_page", envelope)
+        for row in page:
+            row["market"] = market
+            row["source"] = "tdx"
+        return list(page)
+
     def stocks(self, market: int, refresh: bool = False) -> list[dict[str, object]]:
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError(f"unsupported market for stocks: {market}")
@@ -176,14 +201,7 @@ class SyncClient:
 
         rows: list[dict[str, object]] = []
         for start in range(0, count, 1000):
-            context = RequestContext(api="stock_list_page", params={"market": market, "start": start})
-            payload = self.protocol.encode("stock_list_page", market=market, start=start)
-            envelope = self._send(context, payload)
-            page = self.protocol.decode("stock_list_page", envelope)
-            for row in page:
-                row["market"] = market
-                row["source"] = "tdx"
-            rows.extend(page)
+            rows.extend(self.stock_page(market, start=start))
 
         return rows
 
@@ -791,6 +809,22 @@ class AsyncClient:
 
     async def stock_count(self, market: int) -> int:
         return int(await asyncio.to_thread(self._call_sync, "stock_count", market))
+
+    async def stock_page(
+        self,
+        market: int,
+        start: int = 0,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "stock_page",
+                market,
+                start,
+                refresh,
+            )
+        )
 
     async def stocks(self, market: int, refresh: bool = False) -> list[dict[str, object]]:
         if refresh:

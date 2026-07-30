@@ -166,6 +166,22 @@ def test_sync_client_stocks_aggregates_multiple_pages() -> None:
     assert not pool.discarded
 
 
+def test_sync_client_stock_page_returns_one_normalized_page() -> None:
+    page = _build_stock_list_body(
+        [{"code": "600000", "name": "PFBANK", "pre_close_raw": 123456789}]
+    )
+    transport = RecordingTransport(responses=[page])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
+
+    rows = client.stock_page(1, start=1000)
+
+    assert rows[0]["market"] == 1
+    assert rows[0]["source"] == "tdx"
+    assert struct.unpack("<HH", transport.sent_payloads[0][-4:]) == (1, 1000)
+
+
 def test_sync_client_stocks_returns_empty_when_count_is_zero() -> None:
     transport = RecordingTransport(responses=[struct.pack("<H", 0)])
     pool = RecordingConnectionPool(transport)
@@ -181,6 +197,12 @@ def test_sync_client_rejects_invalid_market() -> None:
 
     with pytest.raises(UnsupportedMarketError):
         client.stock_count(9)
+
+    with pytest.raises(UnsupportedMarketError):
+        client.stock_page(9)
+
+    with pytest.raises(ValueError):
+        client.stock_page(1, start=-1)
 
     with pytest.raises(UnsupportedMarketError):
         client.stocks(9)
@@ -215,6 +237,7 @@ def test_sync_client_bse_stocks_use_injected_registry_without_tdx_request() -> N
     )
 
     assert client.stock_count(2) == 1
+    assert client.stock_page(2, start=1) == []
     assert client.stocks(2) == [
         {
             "market": 2,

@@ -254,6 +254,13 @@ class PandasClient:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
         return self.client.stock_count(int(market))
 
+    def stock_page(self, market=MARKET_SH, start=0, refresh=False) -> pd.DataFrame:
+        if market not in {0, 1, 2}:
+            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场"))
+        return stocks_to_frame(
+            self.client.stock_page(int(market), start=int(start), refresh=bool(refresh))
+        )
+
     def stocks(self, market=MARKET_SH, refresh=False) -> pd.DataFrame:
         if market not in {0, 1, 2}:
             self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场"))
@@ -636,6 +643,13 @@ class AsyncPandasClient:
         if market not in {0, 1, 2}:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
         return await self.client.stock_count(int(market))
+
+    async def stock_page(self, market=MARKET_SH, start=0, refresh=False) -> pd.DataFrame:
+        if market not in {0, 1, 2}:
+            self._raise_mapped(UnsupportedMarketError("市场代码错误, 目前只支持沪深北市场"))
+        return stocks_to_frame(
+            await self.client.stock_page(int(market), start=int(start), refresh=bool(refresh))
+        )
 
     async def stocks(self, market=MARKET_SH, refresh=False) -> pd.DataFrame:
         if market not in {0, 1, 2}:
