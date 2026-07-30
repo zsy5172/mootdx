@@ -56,6 +56,26 @@ def bars_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows, datetime_column="datetime")
 
 
+def call_auction_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    frame = _frame_from_records(
+        rows,
+        columns=[
+            "time",
+            "hour",
+            "minute",
+            "second",
+            "price",
+            "matched",
+            "unmatched",
+            "side",
+            "side_name",
+        ],
+    )
+    if "time" in frame.columns:
+        frame.index = pd.Index(frame["time"], name="time")
+    return frame
+
+
 def minutes_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows, date_column="date", add_volume_alias=True)
 
@@ -84,3 +104,42 @@ def f10_categories_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
 
 def block_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows)
+
+
+def ex_markets_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    return _frame_from_records(rows, columns=["market", "category", "name", "short_name"])
+
+
+def ex_instruments_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    return _frame_from_records(
+        rows,
+        columns=["start", "category", "market", "code", "name", "description"],
+    )
+
+
+def ex_quote_to_frame(row: dict[str, object] | None) -> pd.DataFrame:
+    if not row:
+        return _empty_frame()
+    return pd.DataFrame.from_records([row])
+
+
+def ex_quotes_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    return _frame_from_records(rows)
+
+
+def ex_bars_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    return _frame_from_records(rows, datetime_column="datetime")
+
+
+def ex_minutes_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    frame = _frame_from_records(rows)
+    if "time" in frame.columns:
+        frame.index = pd.Index(frame["time"], name="time")
+    return frame
+
+
+def ex_transactions_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
+    frame = _frame_from_records(rows, datetime_column="datetime")
+    if "datetime" not in frame.columns and "time" in frame.columns:
+        frame.index = pd.Index(frame["time"], name="time")
+    return frame
