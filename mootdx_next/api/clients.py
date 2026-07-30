@@ -51,6 +51,10 @@ from mootdx_next.params import today_yyyymmdd
 from mootdx_next.protocol import StdQuoteProtocol
 from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
+from mootdx_next.securities import classify_security
+from mootdx_next.securities import Security
+from mootdx_next.securities import SecurityRegistry
+from mootdx_next.securities import security_registry as default_security_registry
 from mootdx_next.symbols import get_stock_market
 from mootdx_next.symbols import get_stock_markets
 from mootdx_next.symbols import normalize_symbol
@@ -68,6 +72,11 @@ REQUEST_APIS = frozenset(
         "stock_count",
         "stock_page",
         "stocks",
+        "securities",
+        "security",
+        "stock_codes",
+        "etf_codes",
+        "index_codes",
         "quotes",
         "limit_prices",
         "price_limit",
@@ -102,6 +111,18 @@ def _default_servers() -> list[ServerEndpoint]:
     return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS]
 
 
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
 class SyncClient:
     def __init__(
         self,
@@ -114,6 +135,7 @@ class SyncClient:
         config_registry: ZhbRegistry | None = None,
         bse_registry: BseRegistry | None = None,
         bse_provider: BseProvider | None = None,
+        security_registry: SecurityRegistry | None = None,
     ) -> None:
         if bse_registry is not None and bse_provider is not None:
             raise ValueError("bse_registry and bse_provider are mutually exclusive")
@@ -126,6 +148,7 @@ class SyncClient:
             if bse_registry is not None
             else BseRegistry(bse_provider) if bse_provider is not None else default_bse_registry
         )
+        self.security_registry = security_registry or default_security_registry
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -204,6 +227,40 @@ class SyncClient:
             rows.extend(self.stock_page(market, start=start))
 
         return rows
+
+    def securities(self, refresh: bool = False) -> list[dict[str, object]]:
+        snapshot = self.security_registry.get(
+            self._load_security_directory,
+            refresh=bool(refresh),
+        )
+        return [item.to_dict() for item in snapshot]
+
+    def security(self, symbol: str, refresh: bool = False) -> dict[str, object] | None:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+        normalized_symbol = symbol.strip()
+        market = int(get_stock_market(normalized_symbol, string=False))
+        code = normalize_symbol(normalized_symbol)
+        if len(code) != 6 or not code.isdigit():
+            raise InvalidSymbolError("security requires a six-digit numeric symbol")
+        snapshot = self.security_registry.get(
+            self._load_security_directory,
+            refresh=bool(refresh),
+        )
+        matched = next(
+            (item for item in snapshot if item.market == market and item.code == code),
+            None,
+        )
+        return None if matched is None else matched.to_dict()
+
+    def stock_codes(self, refresh: bool = False) -> list[str]:
+        return self._security_codes("stock", refresh=refresh)
+
+    def etf_codes(self, refresh: bool = False) -> list[str]:
+        return self._security_codes("etf", refresh=refresh)
+
+    def index_codes(self, refresh: bool = False) -> list[str]:
+        return self._security_codes("index", refresh=refresh)
 
     def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
         normalized = normalize_symbol_input(symbol)
@@ -708,6 +765,45 @@ class SyncClient:
                 break
         return rows
 
+    def _security_codes(self, security_type: str, *, refresh: bool) -> list[str]:
+        snapshot = self.security_registry.get(
+            self._load_security_directory,
+            refresh=bool(refresh),
+        )
+        return [item.symbol for item in snapshot if item.security_type == security_type]
+
+    def _load_security_directory(self) -> tuple[Security, ...]:
+        securities: list[Security] = []
+        for market in (1, 0, 2):
+            for row in self.stocks(market):
+                code = str(row.get("code", ""))
+                securities.append(
+                    Security(
+                        market=market,
+                        code=code,
+                        name=str(row.get("name", "")),
+                        security_type=classify_security(market, code),
+                        volunit=_optional_int(row.get("volunit")),
+                        decimal_point=_optional_int(row.get("decimal_point")),
+                        pre_close=_optional_float(row.get("pre_close")),
+                        source=str(row.get("source", "tdx")),
+                    )
+                )
+        if not any(item.market == 2 and item.code == "899050" for item in securities):
+            securities.insert(
+                0,
+                Security(
+                    market=2,
+                    code="899050",
+                    name="北证50",
+                    security_type="index",
+                    volunit=100,
+                    decimal_point=2,
+                    source="synthetic",
+                ),
+            )
+        return tuple(securities)
+
     def _send(self, context: RequestContext, payload: bytes):
         if self._closed:
             self._closed = False
@@ -758,6 +854,7 @@ class AsyncClient:
         config_registry: ZhbRegistry | None = None,
         bse_registry: BseRegistry | None = None,
         bse_provider: BseProvider | None = None,
+        security_registry: SecurityRegistry | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -774,6 +871,7 @@ class AsyncClient:
             "config_registry": config_registry,
             "bse_registry": bse_registry,
             "bse_provider": bse_provider,
+            "security_registry": security_registry,
         }
 
     @property
@@ -830,6 +928,22 @@ class AsyncClient:
         if refresh:
             return list(await asyncio.to_thread(self._call_sync, "stocks", market, refresh=True))
         return list(await asyncio.to_thread(self._call_sync, "stocks", market))
+
+    async def securities(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "securities", refresh))
+
+    async def security(self, symbol: str, refresh: bool = False) -> dict[str, object] | None:
+        result = await asyncio.to_thread(self._call_sync, "security", symbol, refresh)
+        return None if result is None else dict(result)
+
+    async def stock_codes(self, refresh: bool = False) -> list[str]:
+        return list(await asyncio.to_thread(self._call_sync, "stock_codes", refresh))
+
+    async def etf_codes(self, refresh: bool = False) -> list[str]:
+        return list(await asyncio.to_thread(self._call_sync, "etf_codes", refresh))
+
+    async def index_codes(self, refresh: bool = False) -> list[str]:
+        return list(await asyncio.to_thread(self._call_sync, "index_codes", refresh))
 
     async def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "quotes", symbol))

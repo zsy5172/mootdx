@@ -271,6 +271,25 @@ class PandasClient:
         )
         return stocks_to_frame(rows)
 
+    def securities(self, refresh=False) -> pd.DataFrame:
+        return stocks_to_frame(self.client.securities(refresh=bool(refresh)))
+
+    def security(self, symbol="", refresh=False) -> pd.DataFrame:
+        try:
+            row = self.client.security(str(symbol), refresh=bool(refresh))
+            return stocks_to_frame([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def stock_codes(self, refresh=False) -> list[str]:
+        return self.client.stock_codes(refresh=bool(refresh))
+
+    def etf_codes(self, refresh=False) -> list[str]:
+        return self.client.etf_codes(refresh=bool(refresh))
+
+    def index_codes(self, refresh=False) -> list[str]:
+        return self.client.index_codes(refresh=bool(refresh))
+
     def stock_all(self) -> pd.DataFrame:
         return pd.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
 
@@ -660,6 +679,25 @@ class AsyncPandasClient:
             else await self.client.stocks(int(market))
         )
         return stocks_to_frame(rows)
+
+    async def securities(self, refresh=False) -> pd.DataFrame:
+        return stocks_to_frame(await self.client.securities(refresh=bool(refresh)))
+
+    async def security(self, symbol="", refresh=False) -> pd.DataFrame:
+        try:
+            row = await self.client.security(str(symbol), refresh=bool(refresh))
+            return stocks_to_frame([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def stock_codes(self, refresh=False) -> list[str]:
+        return await self.client.stock_codes(refresh=bool(refresh))
+
+    async def etf_codes(self, refresh=False) -> list[str]:
+        return await self.client.etf_codes(refresh=bool(refresh))
+
+    async def index_codes(self, refresh=False) -> list[str]:
+        return await self.client.index_codes(refresh=bool(refresh))
 
     async def stock_all(self) -> pd.DataFrame:
         sh, sz = await asyncio.gather(self.stocks(0), self.stocks(1))

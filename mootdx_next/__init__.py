@@ -105,6 +105,11 @@ from mootdx_next.reader import Reader
 from mootdx_next.reader import StdReader
 from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
+from mootdx_next.securities import classify_security
+from mootdx_next.securities import invalidate_securities
+from mootdx_next.securities import Security
+from mootdx_next.securities import SecurityRegistry
+from mootdx_next.securities import security_snapshot
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 __all__ = [
@@ -125,6 +130,7 @@ __all__ = [
     "BlockReader",
     "block_to_frame",
     "call_auction_to_frame",
+    "classify_security",
     "CandidateRegistry",
     "ConfigArchiveError",
     "ConfigFileError",
@@ -162,6 +168,7 @@ __all__ = [
     "invalidate_bse_securities",
     "invalidate_hq_candidates",
     "invalidate_price_limit_cache",
+    "invalidate_securities",
     "invalidate_zhb_cache",
     "limit_prices_to_frame",
     "MootdxNextError",
@@ -190,6 +197,9 @@ __all__ = [
     "SchedulerError",
     "ServerEndpoint",
     "ServerCandidate",
+    "Security",
+    "SecurityRegistry",
+    "security_snapshot",
     "ServerHealthSnapshot",
     "ServerPool",
     "StdQuoteProtocol",

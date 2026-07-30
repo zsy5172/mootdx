@@ -35,6 +35,7 @@ from mootdx_next.models import ResponseEnvelope
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.models import TransportMetrics
 from mootdx_next.params import FREQUENCY_ALIASES
+from mootdx_next.securities import SecurityRegistry
 from mootdx_next.reader import ExtReader
 from mootdx_next.reader import Reader
 from mootdx_next.reader import StdReader
@@ -50,6 +51,11 @@ SYNC_PUBLIC_API = {
     "stock_count",
     "stock_page",
     "stocks",
+    "securities",
+    "security",
+    "stock_codes",
+    "etf_codes",
+    "index_codes",
     "quotes",
     "limit_prices",
     "price_limit",
@@ -86,6 +92,11 @@ ASYNC_PUBLIC_API = {
     "stock_count",
     "stock_page",
     "stocks",
+    "securities",
+    "security",
+    "stock_codes",
+    "etf_codes",
+    "index_codes",
     "quotes",
     "limit_prices",
     "price_limit",
@@ -128,6 +139,11 @@ PANDAS_PUBLIC_API = {
     "stock_count",
     "stock_page",
     "stocks",
+    "securities",
+    "security",
+    "stock_codes",
+    "etf_codes",
+    "index_codes",
     "stock_all",
     "minute",
     "call_auction",
@@ -286,6 +302,7 @@ def _matrix_client() -> tuple[SyncClient, MatrixProtocol, MatrixTransport]:
         connection_pool=pool,
         scheduler=scheduler,
         bse_registry=BseRegistry(EmptyBseProvider()),
+        security_registry=SecurityRegistry(),
     )
     return client, protocol, transport
 
@@ -301,6 +318,11 @@ SYNC_CALL_CASES = (
     SyncCallCase("stock_count", {"market": 0}, ("stock_count",)),
     SyncCallCase("stock_page", {"market": 1, "start": 1000}, ("stock_list_page",)),
     SyncCallCase("stocks", {"market": 1}, ("stock_count",)),
+    SyncCallCase("securities", {}, ("stock_count", "stock_count")),
+    SyncCallCase("security", {"symbol": "600036"}, ("stock_count", "stock_count")),
+    SyncCallCase("stock_codes", {}, ("stock_count", "stock_count")),
+    SyncCallCase("etf_codes", {}, ("stock_count", "stock_count")),
+    SyncCallCase("index_codes", {}, ("stock_count", "stock_count")),
     SyncCallCase("quotes", {"symbol": ["600036", "sz000001"]}, ("quotes",)),
     SyncCallCase("limit_prices", {"start": 20, "count": 15}, ("limit_prices",)),
     SyncCallCase("price_limit", {"symbol": "600036", "refresh": True}, ("limit_prices",)),
@@ -515,6 +537,8 @@ class AsyncDispatchRecorder:
                 return 1
             if name == "finance":
                 return {"code": "600036"}
+            if name == "security":
+                return {"market": 1, "code": "600036", "symbol": "sh600036"}
             if name == "price_limit":
                 return {
                     "market": 1,
@@ -551,6 +575,11 @@ ASYNC_CALL_CASES = (
     AsyncCallCase("stock_count", (1,), {}, "stock_count", (1,), {}),
     AsyncCallCase("stock_page", (1, 1000, True), {}, "stock_page", (1, 1000, True), {}),
     AsyncCallCase("stocks", (1,), {}, "stocks", (1,), {}),
+    AsyncCallCase("securities", (True,), {}, "securities", (True,), {}),
+    AsyncCallCase("security", ("600036", True), {}, "security", ("600036", True), {}),
+    AsyncCallCase("stock_codes", (True,), {}, "stock_codes", (True,), {}),
+    AsyncCallCase("etf_codes", (True,), {}, "etf_codes", (True,), {}),
+    AsyncCallCase("index_codes", (True,), {}, "index_codes", (True,), {}),
     AsyncCallCase("quotes", (["600036", "000001"],), {}, "quotes", (["600036", "000001"],), {}),
     AsyncCallCase("limit_prices", (20, 15), {}, "limit_prices", (20, 15), {}),
     AsyncCallCase("price_limit", ("600036", True), {}, "price_limit", ("600036", True), {}),
@@ -647,6 +676,29 @@ class FacadeRecorder:
         code = {0: "000001", 1: "600036", 2: "920001"}[market]
         return [{"market": market, "code": code, "name": "测试证券"}]
 
+    def securities(self, refresh=False):
+        return [
+            {
+                "market": 1,
+                "code": "600036",
+                "symbol": "sh600036",
+                "name": "招商银行",
+                "security_type": "stock",
+            }
+        ]
+
+    def security(self, symbol, refresh=False):
+        return self.securities(refresh=refresh)[0] if symbol == "600036" else None
+
+    def stock_codes(self, refresh=False):
+        return ["sh600036"]
+
+    def etf_codes(self, refresh=False):
+        return ["sh510300"]
+
+    def index_codes(self, refresh=False):
+        return ["sh000001"]
+
     def minutes(self, symbol, date):
         return [{"date": f"{date} 09:30", "price": 10.0}]
 
@@ -690,6 +742,11 @@ FACADE_CASES = (
     FacadeCase("stock_count", {"market": 2}, int),
     FacadeCase("stock_page", {"market": 1, "start": 1000}, pd.DataFrame),
     FacadeCase("stocks", {"market": 1}, pd.DataFrame),
+    FacadeCase("securities", {}, pd.DataFrame),
+    FacadeCase("security", {"symbol": "600036"}, pd.DataFrame),
+    FacadeCase("stock_codes", {}, list),
+    FacadeCase("etf_codes", {}, list),
+    FacadeCase("index_codes", {}, list),
     FacadeCase("stock_all", {}, pd.DataFrame),
     FacadeCase("minute", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("minutes", {"symbol": "600036", "date": "2017-10-10"}, pd.DataFrame),
