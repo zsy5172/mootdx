@@ -391,7 +391,7 @@ class StdQuoteProtocol(AbstractProtocol):
                     "code": code.decode("utf-8", errors="ignore"),
                     "volunit": volunit,
                     "decimal_point": decimal_point,
-                    "name": name_bytes.decode("gbk", errors="ignore"),
+                    "name": _decode_gbk_string(name_bytes),
                     "pre_close": _get_volume(pre_close_raw),
                 }
             )

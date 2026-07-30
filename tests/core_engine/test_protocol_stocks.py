@@ -25,6 +25,16 @@ def _request_bytes(case_id: str, step_id: str) -> bytes:
     ).read_bytes()
 
 
+def _without_name_padding(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        {
+            **row,
+            "name": str(row["name"]).split("\x00", 1)[0],
+        }
+        for row in rows
+    ]
+
+
 def test_encode_stock_list_page_matches_corpus_request() -> None:
     protocol = StdQuoteProtocol()
 
@@ -39,7 +49,7 @@ def test_decode_single_stock_list_page_matches_expected_slice() -> None:
 
     rows = protocol.decode_stock_list_page(body)
 
-    assert rows == expected["result"]["records"][: len(rows)]
+    assert rows == _without_name_padding(expected["result"]["records"][: len(rows)])
 
 
 def test_decode_multiple_stock_list_pages_matches_expected_slice() -> None:
@@ -53,7 +63,13 @@ def test_decode_multiple_stock_list_pages_matches_expected_slice() -> None:
         ]
     )
 
-    assert rows == expected["result"]["records"][: len(rows)]
+    assert rows == _without_name_padding(expected["result"]["records"][: len(rows)])
+
+
+def test_decode_stock_list_page_strips_fixed_width_name_padding() -> None:
+    body = struct.pack("<H6sH8s4sBI4s", 1, b"588000", 100, b"ETF\x00\x00\x00\x00\x00", b"\x00" * 4, 3, 0, b"\x00" * 4)
+
+    assert StdQuoteProtocol().decode_stock_list_page(body)[0]["name"] == "ETF"
 
 
 def test_decode_stock_list_page_zero_rows_returns_empty_list() -> None:
