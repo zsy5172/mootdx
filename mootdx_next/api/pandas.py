@@ -303,6 +303,74 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def minute_bars_241(
+        self,
+        symbol="000001",
+        start=0,
+        offset=KLINE_PAGE_SIZE,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.minute_bars_241(
+                    str(symbol),
+                    start=int(start),
+                    offset=int(offset),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def minute_bars_241_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.minute_bars_241_until(
+                    str(symbol),
+                    predicate,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def minute_bars_241_all(
+        self,
+        symbol="000001",
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                self.client.minute_bars_241_all(
+                    str(symbol),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def stock_count(self, market=MARKET_SH) -> int:
         if market not in {0, 1, 2}:
             self._raise_mapped(UnsupportedMarketError("市场代码错误"))
@@ -930,6 +998,74 @@ class AsyncPandasClient:
                     frequency=normalize_frequency(frequency),
                     page_size=int(page_size),
                     max_pages=None if max_pages is None else int(max_pages),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def minute_bars_241(
+        self,
+        symbol="000001",
+        start=0,
+        offset=KLINE_PAGE_SIZE,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.minute_bars_241(
+                    str(symbol),
+                    start=int(start),
+                    offset=int(offset),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def minute_bars_241_until(
+        self,
+        symbol="000001",
+        predicate=lambda _row: False,
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.minute_bars_241_until(
+                    str(symbol),
+                    predicate,
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
+                )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def minute_bars_241_all(
+        self,
+        symbol="000001",
+        page_size=KLINE_PAGE_SIZE,
+        max_pages=None,
+        transaction_max_pages=None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            return bars_to_frame(
+                await self.client.minute_bars_241_all(
+                    str(symbol),
+                    page_size=int(page_size),
+                    max_pages=None if max_pages is None else int(max_pages),
+                    transaction_max_pages=(
+                        None if transaction_max_pages is None else int(transaction_max_pages)
+                    ),
                 )
             )
         except VALIDATION_ERRORS as exc:

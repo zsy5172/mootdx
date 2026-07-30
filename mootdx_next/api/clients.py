@@ -53,6 +53,7 @@ from mootdx_next.limits import get_price_limit_snapshot
 from mootdx_next.limits import refresh_price_limit_snapshot
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.minute_bars import rebuild_minute_bars_241
 from mootdx_next.params import normalize_date
 from mootdx_next.params import normalize_frequency
 from mootdx_next.params import today_yyyymmdd
@@ -112,6 +113,9 @@ REQUEST_APIS = frozenset(
         "bars",
         "bars_until",
         "bars_all",
+        "minute_bars_241",
+        "minute_bars_241_until",
+        "minute_bars_241_all",
         "index_bars",
         "index_bars_until",
         "index_bars_all",
@@ -500,6 +504,59 @@ class SyncClient:
             frequency=frequency,
             page_size=page_size,
             max_pages=max_pages,
+        )
+
+    def minute_bars_241(
+        self,
+        symbol: str,
+        start: int = 0,
+        offset: int = BAR_PAGE_SIZE,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        rows = self.bars(symbol, frequency=8, start=start, offset=offset)
+        return self._rebuild_minute_bars_241(
+            symbol,
+            rows,
+            transaction_max_pages=transaction_max_pages,
+        )
+
+    def minute_bars_241_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        rows = self.bars_until(
+            symbol,
+            predicate,
+            frequency=8,
+            page_size=page_size,
+            max_pages=max_pages,
+        )
+        return self._rebuild_minute_bars_241(
+            symbol,
+            rows,
+            transaction_max_pages=transaction_max_pages,
+        )
+
+    def minute_bars_241_all(
+        self,
+        symbol: str,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self.minute_bars_241_until(
+            symbol,
+            lambda _row: False,
+            page_size=page_size,
+            max_pages=max_pages,
+            transaction_max_pages=transaction_max_pages,
         )
 
     def index_bars(
@@ -1195,6 +1252,36 @@ class SyncClient:
         )
         return [item.symbol for item in snapshot if item.security_type == security_type]
 
+    def _rebuild_minute_bars_241(
+        self,
+        symbol: str,
+        rows: list[dict[str, object]],
+        *,
+        transaction_max_pages: int | None,
+    ) -> list[dict[str, object]]:
+        dates = {
+            str(row.get("datetime", ""))[:10].replace("-", "")
+            for row in rows
+            if str(row.get("datetime", ""))[11:16] == "09:31"
+        }
+        transactions_by_date: dict[str, list[dict[str, object]]] = {}
+        today = today_yyyymmdd()
+        for date in sorted(dates):
+            if date == today:
+                transactions_by_date[date] = self.transaction_all(
+                    symbol,
+                    page_size=TRANSACTION_MAX_OFFSET,
+                    max_pages=transaction_max_pages,
+                )
+            else:
+                transactions_by_date[date] = self.transactions_day(
+                    symbol,
+                    date,
+                    page_size=HISTORY_TRANSACTION_MAX_OFFSET,
+                    max_pages=transaction_max_pages,
+                )
+        return rebuild_minute_bars_241(rows, transactions_by_date)
+
     @staticmethod
     def _collect_transaction_pages(
         fetch: Callable[[int, int], list[dict[str, object]]],
@@ -1531,6 +1618,65 @@ class AsyncClient:
                 frequency,
                 page_size,
                 max_pages,
+            )
+        )
+
+    async def minute_bars_241(
+        self,
+        symbol: str,
+        start: int = 0,
+        offset: int = BAR_PAGE_SIZE,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "minute_bars_241",
+                symbol,
+                start,
+                offset,
+                transaction_max_pages=transaction_max_pages,
+            )
+        )
+
+    async def minute_bars_241_until(
+        self,
+        symbol: str,
+        predicate: BarPredicate,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "minute_bars_241_until",
+                symbol,
+                predicate,
+                page_size,
+                max_pages,
+                transaction_max_pages=transaction_max_pages,
+            )
+        )
+
+    async def minute_bars_241_all(
+        self,
+        symbol: str,
+        page_size: int = BAR_PAGE_SIZE,
+        max_pages: int | None = None,
+        *,
+        transaction_max_pages: int | None = None,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "minute_bars_241_all",
+                symbol,
+                page_size,
+                max_pages,
+                transaction_max_pages=transaction_max_pages,
             )
         )
 

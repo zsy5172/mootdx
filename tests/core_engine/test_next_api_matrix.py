@@ -63,6 +63,9 @@ SYNC_PUBLIC_API = {
     "bars",
     "bars_until",
     "bars_all",
+    "minute_bars_241",
+    "minute_bars_241_until",
+    "minute_bars_241_all",
     "index_bars",
     "index_bars_until",
     "index_bars_all",
@@ -118,6 +121,9 @@ ASYNC_PUBLIC_API = {
     "bars",
     "bars_until",
     "bars_all",
+    "minute_bars_241",
+    "minute_bars_241_until",
+    "minute_bars_241_all",
     "minutes",
     "minute",
     "call_auction",
@@ -167,6 +173,9 @@ PANDAS_PUBLIC_API = {
     "bars",
     "bars_until",
     "bars_all",
+    "minute_bars_241",
+    "minute_bars_241_until",
+    "minute_bars_241_all",
     "stock_count",
     "stock_page",
     "stocks",
@@ -381,6 +390,13 @@ SYNC_CALL_CASES = (
         ("bars",),
     ),
     SyncCallCase("bars_all", {"symbol": "sh600036", "frequency": "day"}, ("bars",)),
+    SyncCallCase("minute_bars_241", {"symbol": "sh600036", "offset": 15}, ("bars",)),
+    SyncCallCase(
+        "minute_bars_241_until",
+        {"symbol": "sh600036", "predicate": _never_bar},
+        ("bars",),
+    ),
+    SyncCallCase("minute_bars_241_all", {"symbol": "sh600036"}, ("bars",)),
     SyncCallCase(
         "index_bars",
         {"symbol": "399001", "frequency": "5m", "start": 20, "offset": 15, "market": 0},
@@ -730,6 +746,30 @@ ASYNC_CALL_CASES = (
         ("600036", "day", 400, 2),
         {},
     ),
+    AsyncCallCase(
+        "minute_bars_241",
+        ("600036", 20, 15),
+        {"transaction_max_pages": 2},
+        "minute_bars_241",
+        ("600036", 20, 15),
+        {"transaction_max_pages": 2},
+    ),
+    AsyncCallCase(
+        "minute_bars_241_until",
+        ("600036", _never_bar, 400, 2),
+        {"transaction_max_pages": 3},
+        "minute_bars_241_until",
+        ("600036", _never_bar, 400, 2),
+        {"transaction_max_pages": 3},
+    ),
+    AsyncCallCase(
+        "minute_bars_241_all",
+        ("600036", 400, 2),
+        {"transaction_max_pages": 3},
+        "minute_bars_241_all",
+        ("600036", 400, 2),
+        {"transaction_max_pages": 3},
+    ),
     AsyncCallCase("minutes", ("600036", "2017-10-10"), {}, "minutes", ("600036", "2017-10-10"), {}),
     AsyncCallCase("minute", ("600036",), {}, "minute", ("600036",), {}),
     AsyncCallCase("transaction", ("600036", 20, 15), {}, "transaction", ("600036", 20, 15), {}),
@@ -935,6 +975,34 @@ class FacadeRecorder:
     def bars_all(self, symbol, frequency=9, page_size=800, max_pages=None):
         return self.bars(symbol, frequency, 0, page_size)
 
+    def minute_bars_241(
+        self,
+        symbol,
+        start=0,
+        offset=800,
+        transaction_max_pages=None,
+    ):
+        return self.bars(symbol, 8, start, offset)
+
+    def minute_bars_241_until(
+        self,
+        symbol,
+        predicate,
+        page_size=800,
+        max_pages=None,
+        transaction_max_pages=None,
+    ):
+        return self.bars(symbol, 8, 0, page_size)
+
+    def minute_bars_241_all(
+        self,
+        symbol,
+        page_size=800,
+        max_pages=None,
+        transaction_max_pages=None,
+    ):
+        return self.bars(symbol, 8, 0, page_size)
+
     def stock_count(self, market):
         return 1
 
@@ -1079,6 +1147,13 @@ FACADE_CASES = (
     FacadeCase("bars", {"symbol": "600036", "frequency": "day", "start": 20, "offset": 900}, pd.DataFrame),
     FacadeCase("bars_until", {"symbol": "600036", "predicate": _never_bar}, pd.DataFrame),
     FacadeCase("bars_all", {"symbol": "600036", "max_pages": 1}, pd.DataFrame),
+    FacadeCase("minute_bars_241", {"symbol": "600036", "offset": 15}, pd.DataFrame),
+    FacadeCase(
+        "minute_bars_241_until",
+        {"symbol": "600036", "predicate": _never_bar, "max_pages": 1},
+        pd.DataFrame,
+    ),
+    FacadeCase("minute_bars_241_all", {"symbol": "600036", "max_pages": 1}, pd.DataFrame),
     FacadeCase("stock_count", {"market": 2}, int),
     FacadeCase("stock_page", {"market": 1, "start": 1000}, pd.DataFrame),
     FacadeCase("stocks", {"market": 1}, pd.DataFrame),

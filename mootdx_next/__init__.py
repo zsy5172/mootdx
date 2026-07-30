@@ -86,6 +86,7 @@ from mootdx_next.models import ResponseHeader
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.models import ServerHealthSnapshot
 from mootdx_next.models import TransportMetrics
+from mootdx_next.minute_bars import rebuild_minute_bars_241
 from mootdx_next.localfiles import BlockReader
 from mootdx_next.localfiles import CustomerBlockReader
 from mootdx_next.localfiles import ExtBarReader
@@ -200,6 +201,7 @@ __all__ = [
     "refresh_ex_candidates",
     "refresh_bse_securities",
     "refresh_hq_candidates",
+    "rebuild_minute_bars_241",
     "ResponseEnvelope",
     "ResponseHeader",
     "SchedulerError",
