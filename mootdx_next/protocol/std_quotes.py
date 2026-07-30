@@ -1112,6 +1112,9 @@ class StdQuoteProtocol(AbstractProtocol):
 
         try:
             for _ in range(num):
+                market = body[pos]
+                code = body[pos + 1 : pos + 7].decode("ascii", "ignore")
+                record_reserved = body[pos + 7]
                 pos += 8
                 year, month, day, hour, minute, pos = _get_datetime(9, body, pos)
                 category = body[pos]
@@ -1127,28 +1130,62 @@ class StdQuoteProtocol(AbstractProtocol):
                 peigujia = None
                 fenshu = None
                 xingquanjia = None
+                raw_c1: int | float
+                raw_c2: int | float
+                raw_c3: int | float
+                raw_c4: int | float
+                c1: int | float | None
+                c2: int | float | None
+                c3: int | float | None
+                c4: int | float | None
 
                 if category == 1:
-                    fenhong, peigujia, songzhuangu, peigu = XDXR_FLOAT4_STRUCT.unpack_from(body, pos)
+                    raw_c1, raw_c2, raw_c3, raw_c4 = XDXR_FLOAT4_STRUCT.unpack_from(body, pos)
+                    fenhong, peigujia, songzhuangu, peigu = raw_c1, raw_c2, raw_c3, raw_c4
+                    c1, c2, c3, c4 = raw_c1, raw_c2, raw_c3, raw_c4
                 elif category in {11, 12}:
-                    _, _, suogu, _ = XDXR_MIXED_STRUCT.unpack_from(body, pos)
+                    raw_c1, raw_c2, raw_c3, raw_c4 = XDXR_MIXED_STRUCT.unpack_from(body, pos)
+                    suogu = raw_c3
+                    c1, c2, c3, c4 = raw_c1, raw_c2, raw_c3, raw_c4
                 elif category in {13, 14}:
-                    xingquanjia, _, fenshu, _ = XDXR_WARRANT_STRUCT.unpack_from(body, pos)
+                    raw_c1, raw_c2, raw_c3, raw_c4 = XDXR_WARRANT_STRUCT.unpack_from(body, pos)
+                    xingquanjia, fenshu = raw_c1, raw_c3
+                    c1, c2, c3, c4 = raw_c1, raw_c2, raw_c3, raw_c4
                 else:
-                    panqian_raw, qianzong_raw, panhou_raw, houzong_raw = XDXR_UINT4_STRUCT.unpack_from(body, pos)
-                    panqianliutong = 0 if panqian_raw == 0 else _get_volume(panqian_raw)
-                    panhouliutong = 0 if panhou_raw == 0 else _get_volume(panhou_raw)
-                    qianzongguben = 0 if qianzong_raw == 0 else _get_volume(qianzong_raw)
-                    houzongguben = 0 if houzong_raw == 0 else _get_volume(houzong_raw)
+                    raw_c1, raw_c2, raw_c3, raw_c4 = XDXR_UINT4_STRUCT.unpack_from(body, pos)
+                    panqianliutong = 0 if raw_c1 == 0 else _get_volume(raw_c1)
+                    qianzongguben = 0 if raw_c2 == 0 else _get_volume(raw_c2)
+                    panhouliutong = 0 if raw_c3 == 0 else _get_volume(raw_c3)
+                    houzongguben = 0 if raw_c4 == 0 else _get_volume(raw_c4)
+                    c1 = panqianliutong * 10000
+                    c2 = qianzongguben * 10000
+                    c3 = panhouliutong * 10000
+                    c4 = houzongguben * 10000
 
                 pos += 16
+                datetime_value = f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}"
                 rows.append(
                     {
+                        "market": market,
+                        "code": code,
+                        "symbol": f"{_market_prefix(market)}{code}",
+                        "datetime": datetime_value,
                         "year": year,
                         "month": month,
                         "day": day,
+                        "hour": hour,
+                        "minute": minute,
                         "category": category,
                         "name": XDXR_CATEGORY_MAPPING.get(category, str(category)),
+                        "record_reserved": record_reserved,
+                        "raw_c1": raw_c1,
+                        "raw_c2": raw_c2,
+                        "raw_c3": raw_c3,
+                        "raw_c4": raw_c4,
+                        "c1": c1,
+                        "c2": c2,
+                        "c3": c3,
+                        "c4": c4,
                         "fenhong": fenhong,
                         "peigujia": peigujia,
                         "songzhuangu": songzhuangu,
@@ -1158,6 +1195,14 @@ class StdQuoteProtocol(AbstractProtocol):
                         "panhouliutong": panhouliutong,
                         "qianzongguben": qianzongguben,
                         "houzongguben": houzongguben,
+                        "panqianliutong_wan_shares": panqianliutong,
+                        "panqianliutong_shares": None if panqianliutong is None else panqianliutong * 10000,
+                        "panhouliutong_wan_shares": panhouliutong,
+                        "panhouliutong_shares": None if panhouliutong is None else panhouliutong * 10000,
+                        "qianzongguben_wan_shares": qianzongguben,
+                        "qianzongguben_shares": None if qianzongguben is None else qianzongguben * 10000,
+                        "houzongguben_wan_shares": houzongguben,
+                        "houzongguben_shares": None if houzongguben is None else houzongguben * 10000,
                         "fenshu": fenshu,
                         "xingquanjia": xingquanjia,
                     }

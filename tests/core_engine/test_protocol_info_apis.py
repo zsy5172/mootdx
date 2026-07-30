@@ -55,7 +55,15 @@ def test_decode_xdxr_matches_corpus_expected() -> None:
     expected = _result("xdxr", "sh_600036")
     actual = xdxr_to_frame(protocol.decode_xdxr(_body("xdxr", "sh_600036", "01_xdxr")))
     expected_df = pd.DataFrame(expected["records"])
-    assert_frame_equal(actual, expected_df, check_dtype=False)
+    assert_frame_equal(actual.loc[:, expected_df.columns], expected_df, check_dtype=False)
+    assert set(actual["market"]) == {1}
+    assert set(actual["code"]) == {"600036"}
+    assert set(actual["symbol"]) == {"sh600036"}
+    assert actual["datetime"].str.startswith("20").all()
+
+    equity = actual.loc[actual["houzongguben"].notna()].iloc[-1]
+    assert equity["houzongguben_wan_shares"] == equity["houzongguben"]
+    assert equity["houzongguben_shares"] == pytest.approx(equity["houzongguben"] * 10000)
 
 
 def test_encode_f10_categories_matches_corpus_request() -> None:
