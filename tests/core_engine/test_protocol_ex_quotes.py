@@ -142,10 +142,17 @@ def test_decode_single_quote_and_compatibility_extension() -> None:
         assert quote["market"] == 31
         assert quote["code"] == "00700"
         assert quote["price"] == pytest.approx(466.4)
-        assert quote["open_interest"] == 12
+        assert quote["open_volume"] == 12
+        assert quote["open_interest"] == 999
         assert quote["position"] == 999
         assert quote["bid1"] == pytest.approx(460.0)
         assert quote["ask_vol5"] == 204
+
+    hk_quote = _decode(protocol, "quote", body, market_category=2)
+    assert hk_quote["open_volume"] is None
+    assert hk_quote["open_interest"] is None
+    assert hk_quote["open_volume_raw"] == 12
+    assert hk_quote["open_interest_raw"] == 999
 
 
 def test_decode_bars_minute_and_daily_time_encodings() -> None:
@@ -154,15 +161,38 @@ def test_decode_bars_minute_and_daily_time_encodings() -> None:
     minute_body = b"\x00" * 18 + struct.pack("<H", 1)
     minute_body += struct.pack("<HH", _compressed_date(2026, 7, 29), 9 * 60 + 35)
     minute_body += body_values
-    minute_rows = _decode(protocol, "bars", minute_body, category=0)
+    minute_rows = _decode(protocol, "bars", minute_body, category=0, market_category=3)
     assert minute_rows[0]["datetime"] == "2026-07-29 09:35"
     assert minute_rows[0]["trade"] == 456
+    assert minute_rows[0]["position"] == 123
+    assert minute_rows[0]["amount"] is None
+    assert minute_rows[0]["context_kind"] == "position"
 
     daily_body = b"\x00" * 18 + struct.pack("<H", 1)
     daily_body += struct.pack("<I", 20260729) + body_values
     daily_rows = _decode(protocol, "bars", daily_body, category=9)
     assert daily_rows[0]["datetime"] == "2026-07-29 15:00"
     assert daily_rows[0]["settlement_price"] == pytest.approx(10.2)
+
+
+def test_decode_bars_uses_market_category_for_amount_or_position() -> None:
+    amount = 123456.0
+    context_raw = struct.unpack("<I", struct.pack("<f", amount))[0]
+    body_values = struct.pack("<ffffIIf", 10.0, 11.0, 9.0, 10.5, context_raw, 456, 10.2)
+    body = b"\x00" * 18 + struct.pack("<H", 1)
+    body += struct.pack("<I", 20260729) + body_values
+    protocol = ExQuoteProtocol()
+
+    hk = _decode(protocol, "bars", body, category=9, market_category=2)[0]
+    futures = _decode(protocol, "bars", body, category=9, market_category=3)[0]
+
+    assert hk["amount"] == pytest.approx(amount)
+    assert hk["position"] is None
+    assert hk["context_kind"] == "amount"
+    assert futures["position"] == context_raw
+    assert futures["open_interest"] == context_raw
+    assert futures["amount"] is None
+    assert futures["context_kind"] == "position"
 
 
 def test_decode_current_and_historical_minutes_without_inventing_date() -> None:
@@ -179,9 +209,15 @@ def test_decode_current_and_historical_minutes_without_inventing_date() -> None:
         "price": pytest.approx(466.4),
         "average_price": pytest.approx(465.8),
         "volume": 100,
+        "market_category": None,
+        "open_interest_raw": 200,
         "open_interest": 200,
     }
     assert "date" not in current[0]
+
+    hk = _decode(protocol, "minute", b"\x00" * 10 + struct.pack("<H", 1) + row, market_category=2)
+    assert hk[0]["open_interest"] is None
+    assert hk[0]["open_interest_raw"] == 200
 
 
 def test_decode_transactions_scales_real_price_and_dates_only_history() -> None:
@@ -263,6 +299,8 @@ def test_decode_range_bars_and_quote_lists() -> None:
     futures_body += EX_QUOTE_LIST_FUTURES_STRUCT.pack(*futures_values) + b"\x00" * 150
     futures = _decode(protocol, "quotes", futures_body, category=3)
     assert futures[0]["price"] == pytest.approx(7480.0)
+    assert futures[0]["open_volume"] == 11
+    assert futures[0]["open_interest"] == 999
     assert futures[0]["bid1"] == pytest.approx(7479.8)
     assert futures[0]["bid_vol1"] == 15
     assert futures[0]["ask1"] == pytest.approx(7480.2)

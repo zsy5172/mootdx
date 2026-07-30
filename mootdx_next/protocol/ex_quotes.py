@@ -24,6 +24,7 @@ EX_TRADE_ROW_STRUCT = struct.Struct("<HIIiH")
 EX_RANGE_BAR_STRUCT = struct.Struct("<HHffffIIf")
 EX_QUOTE_LIST_HK_STRUCT = struct.Struct("<IfffffIfIIfIIIIfffffIIIIIfffffIIIII")
 EX_QUOTE_LIST_FUTURES_STRUCT = struct.Struct("<IfffffIIIIfIIfIfIIIIIIIIIfIIIIIIIII")
+POSITION_MARKET_CATEGORIES = frozenset({3, 11, 12})
 
 
 class ExQuoteProtocol(AbstractProtocol):
@@ -87,15 +88,30 @@ class ExQuoteProtocol(AbstractProtocol):
         if api == "instruments":
             return self.decode_instruments(body)
         if api == "quote":
-            return self.decode_quote(body)
+            return self.decode_quote(
+                body,
+                market_category=_optional_market_category(kwargs.get("market_category")),
+            )
         if api == "quotes":
             return self.decode_quote_list(body, int(kwargs["category"]))
         if api == "bars":
-            return self.decode_bars(body, int(kwargs["category"]))
+            return self.decode_bars(
+                body,
+                int(kwargs["category"]),
+                market_category=_optional_market_category(kwargs.get("market_category")),
+            )
         if api == "minute":
-            return self.decode_minutes(body, history=False)
+            return self.decode_minutes(
+                body,
+                history=False,
+                market_category=_optional_market_category(kwargs.get("market_category")),
+            )
         if api == "minutes":
-            return self.decode_minutes(body, history=True)
+            return self.decode_minutes(
+                body,
+                history=True,
+                market_category=_optional_market_category(kwargs.get("market_category")),
+            )
         if api == "transaction":
             return self.decode_transactions(body, market=int(kwargs["market"]), trading_date=None)
         if api == "transactions":
@@ -105,7 +121,10 @@ class ExQuoteProtocol(AbstractProtocol):
                 trading_date=int(kwargs["date"]),
             )
         if api == "bars_range":
-            return self.decode_bars_range(body)
+            return self.decode_bars_range(
+                body,
+                market_category=_optional_market_category(kwargs.get("market_category")),
+            )
         raise NotImplementedError(f"unsupported extended protocol api: {api}")
 
     @staticmethod
@@ -280,7 +299,11 @@ class ExQuoteProtocol(AbstractProtocol):
         return rows
 
     @staticmethod
-    def decode_quote(body: bytes) -> dict[str, object] | None:
+    def decode_quote(
+        body: bytes,
+        *,
+        market_category: int | None = None,
+    ) -> dict[str, object] | None:
         if not body:
             return None
         expected = 14 + EX_QUOTE_BODY_STRUCT.size
@@ -297,20 +320,25 @@ class ExQuoteProtocol(AbstractProtocol):
         if any(not math.isfinite(float(value)) for value in floats):
             raise ProtocolDecodeError("quote contains a non-finite price")
 
+        has_position = market_category is None or market_category in POSITION_MARKET_CATEGORIES
         row: dict[str, object] = {
             "market": market,
+            "market_category": market_category,
             "code": _gbk(raw_code),
             "pre_close": values[0],
             "open": values[1],
             "high": values[2],
             "low": values[3],
             "price": values[4],
-            "open_interest": values[5],
+            "open_volume_raw": values[5],
+            "open_volume": values[5] if has_position else None,
             "volume": values[7],
             "current_volume": values[8],
             "inner_volume": values[10],
             "outer_volume": values[11],
-            "position": values[13],
+            "open_interest_raw": values[13],
+            "open_interest": values[13] if has_position else None,
+            "position": values[13] if has_position else None,
         }
         for level in range(5):
             row[f"bid{level + 1}"] = values[14 + level]
@@ -320,7 +348,12 @@ class ExQuoteProtocol(AbstractProtocol):
         return row
 
     @staticmethod
-    def decode_bars(body: bytes, category: int) -> list[dict[str, object]]:
+    def decode_bars(
+        body: bytes,
+        category: int,
+        *,
+        market_category: int | None = None,
+    ) -> list[dict[str, object]]:
         if len(body) < 20:
             raise ProtocolDecodeError(f"bars body too short: {len(body)}")
         try:
@@ -337,6 +370,12 @@ class ExQuoteProtocol(AbstractProtocol):
             if any(not math.isfinite(float(value)) for value in (*values[:4], values[6])):
                 raise ProtocolDecodeError(f"bars row {index} contains a non-finite price")
             (amount,) = struct.unpack_from("<f", body, pos + 20)
+            position_raw = int(values[4])
+            position, normalized_amount, context_kind = _bar_context_values(
+                position_raw,
+                amount,
+                market_category,
+            )
             rows.append(
                 {
                     "datetime": f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}",
@@ -349,17 +388,28 @@ class ExQuoteProtocol(AbstractProtocol):
                     "high": values[1],
                     "low": values[2],
                     "close": values[3],
-                    "position": values[4],
+                    "market_category": market_category,
+                    "context_kind": context_kind,
+                    "context_raw": position_raw,
+                    "position_raw": position_raw,
+                    "amount_raw": amount,
+                    "position": position,
+                    "open_interest": position,
                     "trade": values[5],
                     "settlement_price": values[6],
-                    "amount": amount,
+                    "amount": normalized_amount,
                 }
             )
             pos += 32
         return rows
 
     @staticmethod
-    def decode_minutes(body: bytes, *, history: bool) -> list[dict[str, object]]:
+    def decode_minutes(
+        body: bytes,
+        *,
+        history: bool,
+        market_category: int | None = None,
+    ) -> list[dict[str, object]]:
         header_size = 20 if history else 12
         if len(body) < header_size:
             raise ProtocolDecodeError(f"minutes body too short: {len(body)}")
@@ -372,8 +422,8 @@ class ExQuoteProtocol(AbstractProtocol):
         rows: list[dict[str, object]] = []
         pos = header_size
         for index in range(count):
-            raw_time, price, average_price, volume, open_interest = EX_MINUTE_ROW_STRUCT.unpack_from(
-                body, pos
+            raw_time, price, average_price, volume, open_interest_raw = (
+                EX_MINUTE_ROW_STRUCT.unpack_from(body, pos)
             )
             pos += EX_MINUTE_ROW_STRUCT.size
             hour, minute = divmod(raw_time, 60)
@@ -387,7 +437,14 @@ class ExQuoteProtocol(AbstractProtocol):
                     "price": price,
                     "average_price": average_price,
                     "volume": volume,
-                    "open_interest": open_interest,
+                    "market_category": market_category,
+                    "open_interest_raw": open_interest_raw,
+                    "open_interest": (
+                        open_interest_raw
+                        if market_category is None
+                        or market_category in POSITION_MARKET_CATEGORIES
+                        else None
+                    ),
                 }
             )
         return rows
@@ -455,7 +512,11 @@ class ExQuoteProtocol(AbstractProtocol):
         return rows
 
     @staticmethod
-    def decode_bars_range(body: bytes) -> list[dict[str, object]]:
+    def decode_bars_range(
+        body: bytes,
+        *,
+        market_category: int | None = None,
+    ) -> list[dict[str, object]]:
         if len(body) < 14:
             raise ProtocolDecodeError(f"bars_range body too short: {len(body)}")
         try:
@@ -468,11 +529,18 @@ class ExQuoteProtocol(AbstractProtocol):
         pos = 14
         for index in range(count):
             values = EX_RANGE_BAR_STRUCT.unpack_from(body, pos)
+            (amount_raw,) = struct.unpack_from("<f", body, pos + 20)
             pos += EX_RANGE_BAR_STRUCT.size
             year, month, day = _decode_compressed_date(values[0])
             hour, minute = divmod(values[1], 60)
             if hour > 23 or any(not math.isfinite(float(value)) for value in (*values[2:6], values[8])):
                 raise ProtocolDecodeError(f"invalid bars_range row {index}")
+            position_raw = int(values[6])
+            position, amount, context_kind = _bar_context_values(
+                position_raw,
+                amount_raw,
+                market_category,
+            )
             rows.append(
                 {
                     "datetime": f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}",
@@ -485,7 +553,14 @@ class ExQuoteProtocol(AbstractProtocol):
                     "high": values[3],
                     "low": values[4],
                     "close": values[5],
-                    "position": values[6],
+                    "market_category": market_category,
+                    "context_kind": context_kind,
+                    "context_raw": position_raw,
+                    "position_raw": position_raw,
+                    "amount_raw": amount_raw,
+                    "position": position,
+                    "open_interest": position,
+                    "amount": amount,
                     "trade": values[7],
                     "settlement_price": values[8],
                 }
@@ -656,6 +731,29 @@ def _decode_hk_quote_list_row(
     return row
 
 
+def _optional_market_category(value: object) -> int | None:
+    if value is None:
+        return None
+    category = int(value)
+    if not 0 <= category <= 0xFF:
+        raise UnsupportedMarketError(f"invalid extended market category: {category}")
+    return category
+
+
+def _bar_context_values(
+    position_raw: int,
+    amount_raw: float,
+    market_category: int | None,
+) -> tuple[int | None, float | None, str]:
+    if not math.isfinite(amount_raw):
+        raise ProtocolDecodeError("extended bar context contains a non-finite float")
+    if market_category is None:
+        return position_raw, amount_raw, "unknown"
+    if market_category in POSITION_MARKET_CATEGORIES:
+        return position_raw, None, "position"
+    return None, amount_raw, "amount"
+
+
 def _decode_futures_quote_list_row(
     body: bytes,
     pos: int,
@@ -672,12 +770,13 @@ def _decode_futures_quote_list_row(
         "high": values[3],
         "low": values[4],
         "price": values[5],
-        "open_interest": values[6],
+        "open_volume": values[6],
         "volume": values[8],
         "current_volume": values[9],
         "amount": values[10],
         "inner_volume": values[11],
         "outer_volume": values[12],
+        "open_interest": values[14],
         "position": values[14],
         "bid1": values[15],
         "bid_vol1": values[20],

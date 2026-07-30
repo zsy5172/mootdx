@@ -72,6 +72,8 @@ from mootdx_next.errors import TransportError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.errors import UnsafeArchiveError
+from mootdx_next.ex_markets import ExMarket
+from mootdx_next.ex_markets import ExMarketRegistry
 from mootdx_next.financial import AsyncFinancialFileClient
 from mootdx_next.financial import FinancialFile
 from mootdx_next.financial import FinancialFileClient
@@ -155,6 +157,8 @@ __all__ = [
     "Customize",
     "EmptyResponseError",
     "ExPandasClient",
+    "ExMarket",
+    "ExMarketRegistry",
     "ExQuoteProtocol",
     "ExSyncClient",
     "ex_candidate_snapshot",

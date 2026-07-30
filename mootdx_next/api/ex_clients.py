@@ -11,6 +11,10 @@ from mootdx_next.constants import MAX_EX_QUOTE_LIST_COUNT
 from mootdx_next.constants import MAX_EX_TRANSACTION_COUNT
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import TransportError
+from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.ex_markets import ExMarket
+from mootdx_next.ex_markets import ExMarketRegistry
+from mootdx_next.ex_markets import ex_market_registry as default_ex_market_registry
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.interfaces import AbstractScheduler
 from mootdx_next.interfaces import AbstractTransport
@@ -44,10 +48,12 @@ class ExSyncClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        market_registry: ExMarketRegistry | None = None,
     ) -> None:
         self.transport = transport
         self.protocol = protocol or ExQuoteProtocol()
         self.max_retries = max_retries
+        self.market_registry = market_registry or default_ex_market_registry
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else _ex_transport_factory
@@ -74,8 +80,9 @@ class ExSyncClient:
             raise NotImplementedError(f"ExSyncClient.request() does not support api: {api}")
         return getattr(self, api)(**kwargs)
 
-    def markets(self) -> list[dict[str, object]]:
-        return list(self._request("markets"))
+    def markets(self, refresh: bool = False) -> list[dict[str, object]]:
+        snapshot = self.market_registry.get(self._load_markets, refresh=bool(refresh))
+        return [item.to_dict() for item in snapshot]
 
     def instrument_count(self) -> int:
         return int(self._request("instrument_count"))
@@ -98,8 +105,20 @@ class ExSyncClient:
                 break
         return rows
 
-    def quote(self, market: int, symbol: str) -> dict[str, object] | None:
-        result = self._request("quote", market=int(market), code=str(symbol))
+    def quote(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        market_category: int | None = None,
+    ) -> dict[str, object] | None:
+        resolved_market_category = self._resolve_market_category(market, market_category)
+        result = self._request(
+            "quote",
+            market=int(market),
+            code=str(symbol),
+            market_category=resolved_market_category,
+        )
         return None if result is None else dict(result)
 
     def quotes(
@@ -129,9 +148,12 @@ class ExSyncClient:
         frequency: int | str = 9,
         start: int = 0,
         offset: int = MAX_EX_KLINE_COUNT,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
         self._validate_window(start, offset, MAX_EX_KLINE_COUNT)
         category = normalize_frequency(frequency)
+        resolved_market_category = self._resolve_market_category(market, market_category)
         return list(
             self._request(
                 "bars",
@@ -140,21 +162,45 @@ class ExSyncClient:
                 code=str(symbol),
                 start=start,
                 count=offset,
+                market_category=resolved_market_category,
             )
         )
 
-    def minute(self, market: int, symbol: str) -> list[dict[str, object]]:
-        return list(self._request("minute", market=int(market), code=str(symbol)))
+    def minute(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        market_category: int | None = None,
+    ) -> list[dict[str, object]]:
+        resolved_market_category = self._resolve_market_category(market, market_category)
+        return list(
+            self._request(
+                "minute",
+                market=int(market),
+                code=str(symbol),
+                market_category=resolved_market_category,
+            )
+        )
 
     def minutes(
         self,
         market: int,
         symbol: str,
         date: str | int,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
         trading_date = int(normalize_date(date))
+        resolved_market_category = self._resolve_market_category(market, market_category)
         return list(
-            self._request("minutes", market=int(market), code=str(symbol), date=trading_date)
+            self._request(
+                "minutes",
+                market=int(market),
+                code=str(symbol),
+                date=trading_date,
+                market_category=resolved_market_category,
+            )
         )
 
     def transaction(
@@ -202,11 +248,14 @@ class ExSyncClient:
         symbol: str,
         start: str | int,
         end: str | int,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
         start_date = int(normalize_date(start))
         end_date = int(normalize_date(end))
         if start_date > end_date:
             raise ValueError("start must be on or before end")
+        resolved_market_category = self._resolve_market_category(market, market_category)
         return list(
             self._request(
                 "bars_range",
@@ -214,6 +263,7 @@ class ExSyncClient:
                 code=str(symbol),
                 start_date=start_date,
                 end_date=end_date,
+                market_category=resolved_market_category,
             )
         )
 
@@ -222,6 +272,32 @@ class ExSyncClient:
         payload = self.protocol.encode(api, **kwargs)
         envelope = self._send(context, payload)
         return self.protocol.decode(api, envelope, **kwargs)
+
+    def _load_markets(self) -> tuple[ExMarket, ...]:
+        rows = self._request("markets")
+        return tuple(
+            ExMarket(
+                market=int(row["market"]),
+                category=int(row["category"]),
+                name=str(row.get("name", "")),
+                short_name=str(row.get("short_name", "")),
+            )
+            for row in rows
+        )
+
+    def _resolve_market_category(self, market: int, category: int | None) -> int:
+        if category is not None:
+            result = int(category)
+            if not 0 <= result <= 0xFF:
+                raise ValueError("market_category must be between 0 and 255")
+            return result
+        item = self.market_registry.find(int(market))
+        if item is None:
+            self.market_registry.get(self._load_markets)
+            item = self.market_registry.find(int(market))
+        if item is None:
+            raise UnsupportedMarketError(f"unknown extended market: {market}")
+        return item.category
 
     def _send(self, context: RequestContext, payload: bytes):
         if self._closed:
@@ -276,6 +352,7 @@ class AsyncExClient:
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
         sync_client: ExSyncClient | None = None,
+        market_registry: ExMarketRegistry | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -289,6 +366,7 @@ class AsyncExClient:
             "connection_pool": connection_pool,
             "servers": servers,
             "max_retries": max_retries,
+            "market_registry": market_registry,
         }
 
     @property
@@ -322,7 +400,9 @@ class AsyncExClient:
     async def request(self, api: str, **kwargs: Any) -> object:
         return await asyncio.to_thread(self._call_sync, "request", api, **kwargs)
 
-    async def markets(self) -> list[dict[str, object]]:
+    async def markets(self, refresh: bool = False) -> list[dict[str, object]]:
+        if refresh:
+            return list(await asyncio.to_thread(self._call_sync, "markets", refresh=True))
         return list(await asyncio.to_thread(self._call_sync, "markets"))
 
     async def instrument_count(self) -> int:
@@ -334,8 +414,15 @@ class AsyncExClient:
     async def instruments(self, page_size: int = 1000) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "instruments", page_size))
 
-    async def quote(self, market: int, symbol: str) -> dict[str, object] | None:
-        result = await asyncio.to_thread(self._call_sync, "quote", market, symbol)
+    async def quote(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        market_category: int | None = None,
+    ) -> dict[str, object] | None:
+        kwargs = {} if market_category is None else {"market_category": market_category}
+        result = await asyncio.to_thread(self._call_sync, "quote", market, symbol, **kwargs)
         return None if result is None else dict(result)
 
     async def quotes(
@@ -358,23 +445,52 @@ class AsyncExClient:
         frequency: int | str = 9,
         start: int = 0,
         offset: int = MAX_EX_KLINE_COUNT,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
+        kwargs = {} if market_category is None else {"market_category": market_category}
         return list(
             await asyncio.to_thread(
-                self._call_sync, "bars", market, symbol, frequency, start, offset
+                self._call_sync,
+                "bars",
+                market,
+                symbol,
+                frequency,
+                start,
+                offset,
+                **kwargs,
             )
         )
 
-    async def minute(self, market: int, symbol: str) -> list[dict[str, object]]:
-        return list(await asyncio.to_thread(self._call_sync, "minute", market, symbol))
+    async def minute(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        market_category: int | None = None,
+    ) -> list[dict[str, object]]:
+        kwargs = {} if market_category is None else {"market_category": market_category}
+        return list(await asyncio.to_thread(self._call_sync, "minute", market, symbol, **kwargs))
 
     async def minutes(
         self,
         market: int,
         symbol: str,
         date: str | int,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
-        return list(await asyncio.to_thread(self._call_sync, "minutes", market, symbol, date))
+        kwargs = {} if market_category is None else {"market_category": market_category}
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "minutes",
+                market,
+                symbol,
+                date,
+                **kwargs,
+            )
+        )
 
     async def transaction(
         self,
@@ -409,10 +525,19 @@ class AsyncExClient:
         symbol: str,
         start: str | int,
         end: str | int,
+        *,
+        market_category: int | None = None,
     ) -> list[dict[str, object]]:
+        kwargs = {} if market_category is None else {"market_category": market_category}
         return list(
             await asyncio.to_thread(
-                self._call_sync, "bars_range", market, symbol, start, end
+                self._call_sync,
+                "bars_range",
+                market,
+                symbol,
+                start,
+                end,
+                **kwargs,
             )
         )
 

@@ -147,8 +147,9 @@ class ExPandasClient:
     def validate(market: object, symbol: object) -> tuple[int, str]:
         return _normalize_ex_symbol(market, symbol)
 
-    def markets(self, **kwargs: Any) -> pd.DataFrame:
-        return ex_markets_to_frame(self.client.markets())
+    def markets(self, refresh: bool = False, **kwargs: Any) -> pd.DataFrame:
+        rows = self.client.markets(refresh=True) if refresh else self.client.markets()
+        return ex_markets_to_frame(rows)
 
     def instrument(self, start: int = 0, offset: int = 100, **kwargs: Any) -> pd.DataFrame:
         return ex_instruments_to_frame(self.client.instrument(int(start), int(offset)))
@@ -162,7 +163,9 @@ class ExPandasClient:
     def quote(self, market: object = "", symbol: object = "", **kwargs: Any) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
-            return ex_quote_to_frame(self.client.quote(normalized_market, code))
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
+            return ex_quote_to_frame(self.client.quote(normalized_market, code, **context))
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -189,6 +192,8 @@ class ExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
             return ex_bars_to_frame(
                 self.client.bars(
                     normalized_market,
@@ -196,6 +201,7 @@ class ExPandasClient:
                     frequency,
                     int(start),
                     int(offset),
+                    **context,
                 )
             )
         except EX_VALIDATION_ERRORS as exc:
@@ -204,7 +210,9 @@ class ExPandasClient:
     def minute(self, market: object = "", symbol: object = "", **kwargs: Any) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
-            return ex_minutes_to_frame(self.client.minute(normalized_market, code))
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
+            return ex_minutes_to_frame(self.client.minute(normalized_market, code, **context))
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -217,7 +225,9 @@ class ExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
-            return ex_minutes_to_frame(self.client.minutes(normalized_market, code, date))
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
+            return ex_minutes_to_frame(self.client.minutes(normalized_market, code, date, **context))
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -270,8 +280,16 @@ class ExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
             return ex_bars_to_frame(
-                self.client.bars_range(normalized_market, code, start, end)
+                self.client.bars_range(
+                    normalized_market,
+                    code,
+                    start,
+                    end,
+                    **context,
+                )
             )
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -357,8 +375,9 @@ class AsyncExPandasClient:
     def validate(market: object, symbol: object) -> tuple[int, str]:
         return _normalize_ex_symbol(market, symbol)
 
-    async def markets(self, **kwargs: Any) -> pd.DataFrame:
-        return ex_markets_to_frame(await self.client.markets())
+    async def markets(self, refresh: bool = False, **kwargs: Any) -> pd.DataFrame:
+        rows = await self.client.markets(refresh=True) if refresh else await self.client.markets()
+        return ex_markets_to_frame(rows)
 
     async def instrument(self, start: int = 0, offset: int = 100, **kwargs: Any) -> pd.DataFrame:
         return ex_instruments_to_frame(await self.client.instrument(int(start), int(offset)))
@@ -372,7 +391,9 @@ class AsyncExPandasClient:
     async def quote(self, market: object = "", symbol: object = "", **kwargs: Any) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
-            return ex_quote_to_frame(await self.client.quote(normalized_market, code))
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
+            return ex_quote_to_frame(await self.client.quote(normalized_market, code, **context))
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -399,6 +420,8 @@ class AsyncExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
             return ex_bars_to_frame(
                 await self.client.bars(
                     normalized_market,
@@ -406,6 +429,7 @@ class AsyncExPandasClient:
                     frequency,
                     int(start),
                     int(offset),
+                    **context,
                 )
             )
         except EX_VALIDATION_ERRORS as exc:
@@ -414,7 +438,9 @@ class AsyncExPandasClient:
     async def minute(self, market: object = "", symbol: object = "", **kwargs: Any) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
-            return ex_minutes_to_frame(await self.client.minute(normalized_market, code))
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
+            return ex_minutes_to_frame(await self.client.minute(normalized_market, code, **context))
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -427,8 +453,10 @@ class AsyncExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
             return ex_minutes_to_frame(
-                await self.client.minutes(normalized_market, code, date)
+                await self.client.minutes(normalized_market, code, date, **context)
             )
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -487,8 +515,16 @@ class AsyncExPandasClient:
     ) -> pd.DataFrame:
         try:
             normalized_market, code = self.validate(market, symbol)
+            market_category = kwargs.get("market_category")
+            context = {} if market_category is None else {"market_category": market_category}
             return ex_bars_to_frame(
-                await self.client.bars_range(normalized_market, code, start, end)
+                await self.client.bars_range(
+                    normalized_market,
+                    code,
+                    start,
+                    end,
+                    **context,
+                )
             )
         except EX_VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)

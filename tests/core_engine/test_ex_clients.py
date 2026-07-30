@@ -10,6 +10,7 @@ import pytest
 import mootdx_next.api.ex_clients as ex_clients_module
 from mootdx_next.api.ex_clients import AsyncExClient
 from mootdx_next.api.ex_clients import ExSyncClient
+from mootdx_next.ex_markets import ExMarketRegistry
 from mootdx_next.models import ResponseEnvelope
 from tests.core_engine.test_sync_client_stock_apis import RecordingConnectionPool
 from tests.core_engine.test_sync_client_stock_apis import RecordingScheduler
@@ -68,6 +69,8 @@ class ExMatrixProtocol:
             return [{"start": start + index} for index in range(count)]
         if api == "quote":
             return {"market": kwargs["market"], "code": kwargs["code"]}
+        if api == "markets":
+            return [{"market": 31, "category": 2, "name": "香港主板", "short_name": "KH"}]
         return [{"api": api}]
 
 
@@ -77,7 +80,12 @@ def _client() -> tuple[ExSyncClient, ExMatrixProtocol]:
     pool = RecordingConnectionPool(transport)
     scheduler = RecordingScheduler(server=pool.server)
     return (
-        ExSyncClient(protocol=protocol, connection_pool=pool, scheduler=scheduler),
+        ExSyncClient(
+            protocol=protocol,
+            connection_pool=pool,
+            scheduler=scheduler,
+            market_registry=ExMarketRegistry(),
+        ),
         protocol,
     )
 
@@ -101,9 +109,9 @@ EX_CALL_CASES = (
     ),
     ExCallCase(
         "quote",
-        {"market": 31, "symbol": "00700"},
+        {"market": 31, "symbol": "00700", "market_category": 2},
         "quote",
-        {"market": 31, "code": "00700"},
+        {"market": 31, "code": "00700", "market_category": 2},
     ),
     ExCallCase(
         "quotes",
@@ -113,21 +121,40 @@ EX_CALL_CASES = (
     ),
     ExCallCase(
         "bars",
-        {"market": 31, "symbol": "00700", "frequency": "day", "start": 20, "offset": 15},
+        {
+            "market": 31,
+            "symbol": "00700",
+            "frequency": "day",
+            "start": 20,
+            "offset": 15,
+            "market_category": 2,
+        },
         "bars",
-        {"category": 9, "market": 31, "code": "00700", "start": 20, "count": 15},
+        {
+            "category": 9,
+            "market": 31,
+            "code": "00700",
+            "start": 20,
+            "count": 15,
+            "market_category": 2,
+        },
     ),
     ExCallCase(
         "minute",
-        {"market": 31, "symbol": "00700"},
+        {"market": 31, "symbol": "00700", "market_category": 2},
         "minute",
-        {"market": 31, "code": "00700"},
+        {"market": 31, "code": "00700", "market_category": 2},
     ),
     ExCallCase(
         "minutes",
-        {"market": 31, "symbol": "00700", "date": "2026-07-29"},
+        {
+            "market": 31,
+            "symbol": "00700",
+            "date": "2026-07-29",
+            "market_category": 2,
+        },
         "minutes",
-        {"market": 31, "code": "00700", "date": 20260729},
+        {"market": 31, "code": "00700", "date": 20260729, "market_category": 2},
     ),
     ExCallCase(
         "transaction",
@@ -149,9 +176,21 @@ EX_CALL_CASES = (
     ),
     ExCallCase(
         "bars_range",
-        {"market": 31, "symbol": "00700", "start": "2026-01-01", "end": 20260729},
+        {
+            "market": 31,
+            "symbol": "00700",
+            "start": "2026-01-01",
+            "end": 20260729,
+            "market_category": 2,
+        },
         "bars_range",
-        {"market": 31, "code": "00700", "start_date": 20260101, "end_date": 20260729},
+        {
+            "market": 31,
+            "code": "00700",
+            "start_date": 20260101,
+            "end_date": 20260729,
+            "market_category": 2,
+        },
     ),
 )
 
@@ -178,6 +217,16 @@ def test_instruments_paginates_to_reported_total() -> None:
         {"start": 1000, "count": 1000},
         {"start": 2000, "count": 1},
     ]
+
+
+def test_bars_resolves_market_category_from_cached_market_directory() -> None:
+    client, protocol = _client()
+
+    rows = client.bars(31, "00700", market_category=None)
+
+    assert rows
+    assert [api for api, _ in protocol.encode_calls] == ["markets", "bars"]
+    assert protocol.decode_calls[-1][1]["market_category"] == 2
 
 
 @pytest.mark.parametrize(
