@@ -6,6 +6,9 @@ from mootdx_next.api.ex_pandas import AsyncExPandasClient
 from mootdx_next.api.ex_pandas import ExPandasClient
 from mootdx_next.api.pandas import AsyncPandasClient
 from mootdx_next.api.pandas import PandasClient
+from mootdx_next.analytics import aggregate_bars
+from mootdx_next.analytics import summarize_trade_sides
+from mootdx_next.analytics import trades_to_minute_bars
 from mootdx_next.candidates import CandidateRegistry
 from mootdx_next.candidates import ex_candidate_snapshot
 from mootdx_next.candidates import get_ex_candidates
@@ -137,6 +140,7 @@ __all__ = [
     "AsyncFinancialFileClient",
     "AsyncPandasClient",
     "AdjustmentError",
+    "aggregate_bars",
     "BseError",
     "BseHttpProvider",
     "BseRegistry",
@@ -241,6 +245,7 @@ __all__ = [
     "StdReader",
     "SyncClient",
     "SyncSocketTransport",
+    "summarize_trade_sides",
     "TransportConnectionError",
     "TransportError",
     "TransportMetrics",
@@ -256,6 +261,7 @@ __all__ = [
     "stocks_to_frame",
     "transaction_to_frame",
     "transactions_to_frame",
+    "trades_to_minute_bars",
     "xdxr_to_frame",
     "decode_gbbq",
     "extract_gbbq_member",
