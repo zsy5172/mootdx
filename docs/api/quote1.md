@@ -420,3 +420,41 @@ client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='hfq')
 client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_qfq')
 client.ohlc(symbol="600300", begin="2017-07-03", end="2017-07-10", adjust='tdx_hfq')
 ```
+
+## 15. 集合竞价
+
+```python
+from mootdx.quotes import Quotes
+
+client = Quotes.factory(market='std')
+client.call_auction(symbol='600036')
+```
+
+结果包含 `time`、`price`、`matched`、`unmatched`、`side` 和 `side_name`。`side` 为 `1` 表示买方未
+匹配，为 `-1` 表示卖方未匹配，为 `0` 表示平衡。协议没有返回交易日期，因此不会用本机日期合成
+`datetime`。
+
+## 16. 公共报表、板块和盘后配置
+
+```python
+# 通达信公共文件
+client.block_file_raw('block_gn.dat')
+client.report_file('zhb.zip')
+client.zhb_files(refresh=False)
+
+# 板块指数和附带指数 ID 的成分
+client.tdx_block_indexes()
+client.tdx_block_aliases()
+client.block_with_index('block_gn.dat')
+
+# 大型指数/专业板块、行业归属、新股申购和盘后统计
+client.sp_blocks(name='中证2000')
+client.tdx_industries()
+client.ipo_subscriptions()
+client.stock_statistics()
+client.stock_statistics2()
+```
+
+`zhb.zip` 只在内存中安全解压，使用进程级线程安全快照缓存 10 分钟。`refresh=True` 可主动刷新。
+`stock_statistics()` 和 `stock_statistics2()` 是服务器发布的盘后快照；尚未通过客户端界面验证语义的
+列保留在 `raw_fields`，不会用推测名称冒充已知资金指标。
