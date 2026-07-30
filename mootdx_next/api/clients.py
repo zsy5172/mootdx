@@ -65,6 +65,8 @@ from mootdx_next.securities import SecurityRegistry
 from mootdx_next.securities import security_registry as default_security_registry
 from mootdx_next.symbols import get_stock_market
 from mootdx_next.symbols import get_stock_markets
+from mootdx_next.symbols import get_security_coefficient
+from mootdx_next.symbols import get_security_type
 from mootdx_next.symbols import normalize_symbol
 from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.transport.socket_transport import SyncSocketTransport
@@ -77,6 +79,19 @@ LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 BarPredicate = Callable[[Mapping[str, object]], bool]
+DIRECT_PRICE_TYPES = frozenset(
+    {
+        "SH_A_STOCK",
+        "SH_B_STOCK",
+        "SH_INDEX",
+        "SH_FUND",
+        "SZ_A_STOCK",
+        "SZ_B_STOCK",
+        "SZ_INDEX",
+        "SZ_FUND",
+        "BJ_STOCK",
+    }
+)
 
 REQUEST_APIS = frozenset(
     {
@@ -343,7 +358,17 @@ class SyncClient:
         context = RequestContext(api="quotes", params={"symbol": normalized})
         payload = self.protocol.encode("quotes", symbols=symbols)
         envelope = self._send(context, payload)
-        return list(self.protocol.decode("quotes", envelope))
+        price_coefficients = {
+            (int(market), str(code)): self._price_coefficient(int(market), str(code))
+            for market, code in symbols
+        }
+        return list(
+            self.protocol.decode(
+                "quotes",
+                envelope,
+                price_coefficients=price_coefficients,
+            )
+        )
 
     def limit_prices(
         self,
@@ -561,6 +586,7 @@ class SyncClient:
 
         normalized_date = normalize_date(date)
         code = normalize_symbol(normalized_symbol)
+        price_coefficient = self._price_coefficient(market, code)
         context = RequestContext(
             api="minutes",
             params={"symbol": normalized_symbol, "market": market, "date": normalized_date},
@@ -574,6 +600,7 @@ class SyncClient:
                 market=market,
                 code=code,
                 date=normalized_date,
+                price_coefficient=price_coefficient,
             )
         )
 
@@ -617,6 +644,7 @@ class SyncClient:
             raise UnsupportedMarketError("unsupported market for transaction: only sh/sz/bj are supported")
 
         code = normalize_symbol(normalized_symbol)
+        price_coefficient = self._price_coefficient(market, code)
         context = RequestContext(
             api="transaction",
             params={"symbol": normalized_symbol, "market": market, "start": start, "offset": offset},
@@ -629,6 +657,7 @@ class SyncClient:
                 envelope,
                 market=market,
                 code=code,
+                price_coefficient=price_coefficient,
             )
         )
 
@@ -666,6 +695,7 @@ class SyncClient:
 
         normalized_date = normalize_date(date)
         code = normalize_symbol(normalized_symbol)
+        price_coefficient = self._price_coefficient(market, code)
         context = RequestContext(
             api="transactions",
             params={
@@ -692,6 +722,7 @@ class SyncClient:
                 market=market,
                 code=code,
                 date=normalized_date,
+                price_coefficient=price_coefficient,
             )
         )
 
@@ -1181,6 +1212,18 @@ class SyncClient:
                 ),
             )
         return tuple(securities)
+
+    def _price_coefficient(self, market: int, code: str) -> float:
+        security = self.security_registry.find(market, code)
+        if security is None and get_security_type(market, code) not in DIRECT_PRICE_TYPES:
+            self.security_registry.get(self._load_security_directory)
+            security = self.security_registry.find(market, code)
+
+        if security is not None and security.decimal_point is not None:
+            decimal_point = int(security.decimal_point)
+            if 0 <= decimal_point <= 10:
+                return 10.0 ** -decimal_point
+        return get_security_coefficient(market, code)
 
     def _send(self, context: RequestContext, payload: bytes):
         if self._closed:

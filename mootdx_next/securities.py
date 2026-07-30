@@ -5,6 +5,8 @@ import time
 from collections.abc import Callable
 from collections.abc import Iterable
 from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
 
 from mootdx_next.constants import MARKET_BJ
 from mootdx_next.constants import MARKET_SH
@@ -72,6 +74,7 @@ class SecurityRegistry:
         self._time_fn = time_fn
         self._condition = threading.Condition()
         self._snapshot: SecuritySnapshot = ()
+        self._by_key: Mapping[tuple[int, str], Security] = MappingProxyType({})
         self._expires_at = 0.0
         self._loaded = False
         self._refreshing = False
@@ -100,6 +103,9 @@ class SecurityRegistry:
 
         with self._condition:
             self._snapshot = snapshot
+            self._by_key = MappingProxyType(
+                {(item.market, item.code): item for item in snapshot}
+            )
             self._expires_at = self._time_fn() + self._ttl_seconds
             self._loaded = True
             self._refreshing = False
@@ -116,6 +122,14 @@ class SecurityRegistry:
     def snapshot(self) -> SecuritySnapshot:
         with self._condition:
             return self._snapshot
+
+    def find(self, market: int, code: str) -> Security | None:
+        """Return metadata from the fresh immutable snapshot without loading it."""
+
+        with self._condition:
+            if not self._loaded or self._time_fn() >= self._expires_at:
+                return None
+            return self._by_key.get((int(market), str(code)))
 
     @staticmethod
     def _normalize(values: Iterable[Security]) -> SecuritySnapshot:

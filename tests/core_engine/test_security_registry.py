@@ -43,11 +43,17 @@ def test_registry_reuses_refreshes_and_invalidates_immutable_snapshot() -> None:
     registry = SecurityRegistry(ttl_seconds=10, time_fn=clock)
     first = registry.get(loader)
     assert isinstance(first, tuple)
+    assert registry.find(1, first[0].code) is first[0]
+    assert registry.find(0, first[0].code) is None
     assert registry.get(loader) is first
     assert calls == 1
 
     clock.value += 10
-    assert registry.get(loader) is not first
+    assert registry.find(1, first[0].code) is None
+    second = registry.get(loader)
+    assert second is not first
+    assert registry.find(1, first[0].code) is None
+    assert registry.find(1, second[0].code) is second[0]
     registry.invalidate()
     assert registry.get(loader)[0].code == "600038"
     assert registry.refresh(loader)[0].code == "600039"

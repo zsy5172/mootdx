@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import struct
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -287,7 +288,7 @@ class StdQuoteProtocol(AbstractProtocol):
         if api == "stock_list_page":
             return self.decode_stock_list_page(body)
         if api == "quotes":
-            return self.decode_quotes(body)
+            return self.decode_quotes(body, price_coefficients=kwargs.get("price_coefficients"))
         if api == "limit_prices":
             return self.decode_limit_prices(body)
         if api == "call_auction":
@@ -302,12 +303,14 @@ class StdQuoteProtocol(AbstractProtocol):
                 int(kwargs["market"]),
                 str(kwargs["code"]),
                 date=kwargs["date"],
+                price_coefficient=kwargs.get("price_coefficient"),
             )
         if api == "transaction":
             return self.decode_transaction(
                 body,
                 market=int(kwargs["market"]),
                 code=str(kwargs["code"]),
+                price_coefficient=kwargs.get("price_coefficient"),
             )
         if api == "transactions":
             return self.decode_history_transactions(
@@ -315,6 +318,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 market=int(kwargs["market"]),
                 code=str(kwargs["code"]),
                 date=kwargs["date"],
+                price_coefficient=kwargs.get("price_coefficient"),
             )
         if api == "finance":
             return self.decode_finance(body)
@@ -467,7 +471,12 @@ class StdQuoteProtocol(AbstractProtocol):
 
         return rows
 
-    def decode_quotes(self, body: bytes) -> list[dict[str, object]]:
+    def decode_quotes(
+        self,
+        body: bytes,
+        *,
+        price_coefficients: Mapping[tuple[int, str], float] | None = None,
+    ) -> list[dict[str, object]]:
         if len(body) < 4:
             raise ProtocolDecodeError(f"quotes body too short: {len(body)}")
 
@@ -534,7 +543,13 @@ class StdQuoteProtocol(AbstractProtocol):
                 pos += 4
 
                 decoded_code = code.decode("utf-8")
-                coefficient = _get_security_coefficient(market, decoded_code)
+                coefficient = (
+                    price_coefficients.get((market, decoded_code))
+                    if price_coefficients is not None
+                    else None
+                )
+                if coefficient is None:
+                    coefficient = _get_security_coefficient(market, decoded_code)
                 rows.append(
                     {
                         "market": market,
@@ -822,6 +837,7 @@ class StdQuoteProtocol(AbstractProtocol):
         code: str,
         *,
         date: str | int | None = None,
+        price_coefficient: float | None = None,
     ) -> list[dict[str, object]]:
         if len(body) < 2:
             raise ProtocolDecodeError(f"minutes body too short: {len(body)}")
@@ -833,7 +849,11 @@ class StdQuoteProtocol(AbstractProtocol):
 
         pos = 6
         last_price = 0
-        coefficient = _get_security_coefficient(market, code)
+        coefficient = (
+            _get_security_coefficient(market, code)
+            if price_coefficient is None
+            else float(price_coefficient)
+        )
         rows: list[dict[str, object]] = []
 
         try:
@@ -877,6 +897,7 @@ class StdQuoteProtocol(AbstractProtocol):
         *,
         market: int = 1,
         code: str = "600000",
+        price_coefficient: float | None = None,
     ) -> list[dict[str, object]]:
         if len(body) < 2:
             raise ProtocolDecodeError(f"transaction body too short: {len(body)}")
@@ -889,7 +910,11 @@ class StdQuoteProtocol(AbstractProtocol):
         pos = 2
         last_price = 0
         rows: list[dict[str, object]] = []
-        coefficient = _get_security_coefficient(market, code)
+        coefficient = (
+            _get_security_coefficient(market, code)
+            if price_coefficient is None
+            else float(price_coefficient)
+        )
 
         try:
             for _ in range(num):
@@ -948,6 +973,7 @@ class StdQuoteProtocol(AbstractProtocol):
         market: int = 1,
         code: str = "600000",
         date: str | int | None = None,
+        price_coefficient: float | None = None,
     ) -> list[dict[str, object]]:
         if len(body) < 6:
             raise ProtocolDecodeError(f"transactions body too short: {len(body)}")
@@ -960,7 +986,11 @@ class StdQuoteProtocol(AbstractProtocol):
         pos = 6
         last_price = 0
         rows: list[dict[str, object]] = []
-        coefficient = _get_security_coefficient(market, code)
+        coefficient = (
+            _get_security_coefficient(market, code)
+            if price_coefficient is None
+            else float(price_coefficient)
+        )
         date_prefix = _format_yyyymmdd(date) if date is not None else None
 
         try:
