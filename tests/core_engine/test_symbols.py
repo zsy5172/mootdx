@@ -9,8 +9,12 @@ from mootdx.utils import get_stock_market as legacy_stock_market
 from mootdx.utils import get_stock_markets as legacy_stock_markets
 from mootdx.utils import normalize_stock_symbol
 from mootdx_next.errors import InvalidSymbolError
+from mootdx_next.symbols import get_security_coefficient
 from mootdx_next.symbols import get_stock_market
 from mootdx_next.symbols import get_stock_markets
+from mootdx_next.symbols import is_etf
+from mootdx_next.symbols import is_index
+from mootdx_next.symbols import is_stock
 from mootdx_next.symbols import normalize_symbol
 
 
@@ -54,3 +58,24 @@ def test_symbol_market_prefix_overrides_number_inference() -> None:
     assert get_stock_market('BJ.600036') == MARKET_BJ
     assert legacy_stock_market('SZ.600036') == MARKET_SZ
     assert legacy_stock_market('BJ.600036') == MARKET_BJ
+
+
+@pytest.mark.parametrize("code", ["sh510300", "sh520000", "sh530000", "sh560000", "sh588000", "sz159915"])
+def test_security_classification_recognizes_etf_ranges(code: str) -> None:
+    assert is_etf(code)
+    assert not is_stock(code)
+
+
+def test_security_classification_distinguishes_stocks_and_indexes() -> None:
+    assert is_stock("sh600036")
+    assert is_stock("sz000001")
+    assert is_stock("bj920786")
+    assert is_index("sh000001")
+    assert is_index("sz399001")
+    assert is_index("bj899050")
+
+
+def test_security_price_coefficient_uses_three_decimals_for_etfs() -> None:
+    assert get_security_coefficient(1, "588000") == 0.001
+    assert get_security_coefficient(0, "159915") == 0.001
+    assert get_security_coefficient(1, "600036") == 0.01

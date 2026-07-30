@@ -6,6 +6,114 @@ from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import InvalidSymbolError
 
 
+SH_ETF_PREFIXES = ("50", "51", "52", "53", "56", "58")
+SZ_ETF_PREFIXES = ("15", "16", "18")
+
+
+def _normalized_market_and_code(symbol: str, market: int | None = None) -> tuple[int, str]:
+    prefix, code = _split_symbol(symbol)
+    resolved_market = get_stock_market(symbol, string=False) if market is None else int(market)
+    if prefix is not None:
+        prefixed_market = {"sz": MARKET_SZ, "sh": MARKET_SH, "bj": MARKET_BJ}[prefix]
+        if market is not None and prefixed_market != resolved_market:
+            raise InvalidSymbolError(f"symbol prefix {prefix} conflicts with market {market}")
+        resolved_market = prefixed_market
+    return int(resolved_market), code
+
+
+def is_etf(symbol: str, market: int | None = None) -> bool:
+    """Return whether *symbol* uses a known Shanghai/Shenzhen fund code range."""
+
+    resolved_market, code = _normalized_market_and_code(symbol, market)
+    if len(code) != 6 or not code.isdigit():
+        return False
+    if resolved_market == MARKET_SH:
+        return code.startswith(SH_ETF_PREFIXES)
+    if resolved_market == MARKET_SZ:
+        return code.startswith(SZ_ETF_PREFIXES)
+    return False
+
+
+def is_index(symbol: str, market: int | None = None) -> bool:
+    """Return whether *symbol* is in a known standard-market index range."""
+
+    resolved_market, code = _normalized_market_and_code(symbol, market)
+    if len(code) != 6 or not code.isdigit():
+        return False
+    if resolved_market == MARKET_SH:
+        return code.startswith("000") or code == "999999" or code.startswith("88")
+    if resolved_market == MARKET_SZ:
+        return code.startswith("399")
+    if resolved_market == MARKET_BJ:
+        return code.startswith("899")
+    return False
+
+
+def is_stock(symbol: str, market: int | None = None) -> bool:
+    """Return whether *symbol* is an A-share code rather than a fund or index."""
+
+    resolved_market, code = _normalized_market_and_code(symbol, market)
+    if len(code) != 6 or not code.isdigit():
+        return False
+    if resolved_market == MARKET_SH:
+        return code.startswith(("60", "68"))
+    if resolved_market == MARKET_SZ:
+        return code.startswith("0") or code.startswith("30")
+    if resolved_market == MARKET_BJ:
+        return code.startswith(("4", "8", "92"))
+    return False
+
+
+def get_security_type(market: int, code: str) -> str:
+    """Classify a standard-market code for protocol price scaling."""
+
+    code_head = str(code)[:2]
+    if market == MARKET_SZ:
+        if code_head in {"00", "30"}:
+            return "SZ_A_STOCK"
+        if code_head == "20":
+            return "SZ_B_STOCK"
+        if code_head == "39":
+            return "SZ_INDEX"
+        if str(code).startswith(SZ_ETF_PREFIXES):
+            return "SZ_FUND"
+        if code_head in {"10", "11", "12", "13", "14"}:
+            return "SZ_BOND"
+    elif market == MARKET_SH:
+        if code_head in {"60", "68"}:
+            return "SH_A_STOCK"
+        if code_head == "90":
+            return "SH_B_STOCK"
+        if code_head in {"00", "88", "99"}:
+            return "SH_INDEX"
+        if str(code).startswith(SH_ETF_PREFIXES):
+            return "SH_FUND"
+        if code_head in {"01", "10", "11", "12", "13", "14", "20"}:
+            return "SH_BOND"
+    elif market == MARKET_BJ:
+        return "BJ_STOCK"
+    return "UNKNOWN"
+
+
+def get_security_coefficient(market: int, code: str) -> float:
+    """Return the yuan multiplier for quote/minute/tick integer prices."""
+
+    coefficients = {
+        "SH_A_STOCK": 0.01,
+        "SH_B_STOCK": 0.001,
+        "SH_INDEX": 0.01,
+        "SH_FUND": 0.001,
+        "SH_BOND": 0.0001,
+        "SZ_A_STOCK": 0.01,
+        "SZ_B_STOCK": 0.01,
+        "SZ_INDEX": 0.01,
+        "SZ_FUND": 0.001,
+        "SZ_BOND": 0.0001,
+        "BJ_STOCK": 0.01,
+    }
+    return coefficients.get(get_security_type(int(market), str(code)), 0.01)
+
+
 def _split_symbol(symbol: str) -> tuple[str | None, str]:
     if not isinstance(symbol, str):
         raise InvalidSymbolError("stock code need str type")

@@ -17,6 +17,7 @@ from mootdx_next.constants import MARKET_SZ
 from mootdx_next.errors import AdjustmentError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.symbols import get_stock_market
+from mootdx_next.symbols import is_etf
 from mootdx_next.symbols import normalize_symbol
 
 ADJUSTMENT_ALIASES = {
@@ -39,8 +40,6 @@ AGGREGATED_FREQUENCIES = {5, 6, 10, 11}
 DAILY_FREQUENCY = 9
 PRICE_COLUMNS = ('open', 'high', 'low', 'close')
 ADJUSTABLE_PRICE_COLUMNS = (*PRICE_COLUMNS, 'price')
-SZ_FUND_PREFIXES = ('15', '16', '18')
-SH_FUND_PREFIXES = ('50', '51', '52', '56', '588', '589')
 
 
 class AdjustmentClient(Protocol):
@@ -640,12 +639,7 @@ class AdjustmentService:
     def _is_fund_symbol(symbol: str | None) -> bool:
         if not symbol:
             return False
-        normalized = symbol.strip().lower()
-        if normalized.startswith('sz'):
-            return normalize_symbol(normalized).startswith(SZ_FUND_PREFIXES)
-        if normalized.startswith('sh'):
-            return normalize_symbol(normalized).startswith(SH_FUND_PREFIXES)
-        return False
+        return is_etf(symbol.strip().lower())
 
     @classmethod
     def _tdx_price_decimals(cls, symbol: str) -> int:
