@@ -1,17 +1,36 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import struct
 import threading
+from collections.abc import Mapping
 from typing import Any
 
+from mootdx_next.config_files import get_zhb_file
+from mootdx_next.config_files import parse_ipo_subscriptions
+from mootdx_next.config_files import parse_sp_blocks
+from mootdx_next.config_files import parse_stock_statistics
+from mootdx_next.config_files import parse_stock_statistics2
+from mootdx_next.config_files import parse_tdx_block_aliases
+from mootdx_next.config_files import parse_tdx_block_indexes
+from mootdx_next.config_files import parse_tdx_industries
+from mootdx_next.config_files import SP_BLOCK_FILENAME
+from mootdx_next.config_files import TDX_BK_FILENAME
+from mootdx_next.config_files import TDX_HY_FILENAME
+from mootdx_next.config_files import TDX_STAT2_FILENAME
+from mootdx_next.config_files import TDX_STAT_FILENAME
+from mootdx_next.config_files import TDX_ZS_FILENAME
+from mootdx_next.config_files import XGSG_FILENAME
+from mootdx_next.config_files import ZHB_FILENAME
+from mootdx_next.config_files import ZhbRegistry
+from mootdx_next.config_files import zhb_registry
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
 from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import PoolExhaustedError
+from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
@@ -36,6 +55,7 @@ from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 BLOCK_CHUNK_SIZE = 0x7530
+DEFAULT_MAX_REPORT_FILE_SIZE = 256 * 1024 * 1024
 TRANSACTION_MAX_OFFSET = MAX_TRANSACTION_COUNT
 HISTORY_TRANSACTION_MAX_OFFSET = MAX_HISTORY_TRANSACTION_COUNT
 LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
@@ -54,10 +74,12 @@ class SyncClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        config_registry: ZhbRegistry | None = None,
     ) -> None:
         self.transport = transport
         self.protocol = protocol or StdQuoteProtocol()
         self.max_retries = max_retries
+        self.config_registry = config_registry or zhb_registry
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -372,7 +394,8 @@ class SyncClient:
         envelope = self._send(context, payload)
         return dict(self.protocol.decode("finance", envelope))
 
-    def block(self, block_file: str = "block.dat") -> list[dict[str, object]]:
+    def block_file_raw(self, block_file: str) -> bytes:
+        block_file = _validate_remote_filename(block_file)
         context = RequestContext(api="block_info_meta", params={"block_file": block_file})
         meta_payload = self.protocol.encode("block_info_meta", block_file=block_file)
         meta_envelope = self._send(context, meta_payload)
@@ -380,16 +403,130 @@ class SyncClient:
         size = int(meta["size"])
 
         if size <= 0:
-            return []
+            return b""
 
         content = bytearray()
-        chunks = math.ceil(size / BLOCK_CHUNK_SIZE)
-        for seg in range(chunks):
-            start = seg * BLOCK_CHUNK_SIZE
-            piece_context = RequestContext(api="block_info", params={"block_file": block_file, "start": start, "size": size})
-            payload = self.protocol.encode("block_info", block_file=block_file, start=start, size=size)
+        for start in range(0, size, BLOCK_CHUNK_SIZE):
+            chunk_size = min(BLOCK_CHUNK_SIZE, size - start)
+            piece_context = RequestContext(
+                api="block_info",
+                params={"block_file": block_file, "start": start, "size": chunk_size},
+            )
+            payload = self.protocol.encode(
+                "block_info",
+                block_file=block_file,
+                start=start,
+                size=chunk_size,
+            )
             envelope = self._send(piece_context, payload)
-            content.extend(self.protocol.decode("block_info", envelope))
+            piece = bytes(self.protocol.decode("block_info", envelope))
+            if len(piece) != chunk_size:
+                raise ProtocolDecodeError(
+                    f"block file {block_file} truncated at offset {start}: "
+                    f"expected {chunk_size} bytes, got {len(piece)}"
+                )
+            content.extend(piece)
+
+        return bytes(content)
+
+    def report_file(
+        self,
+        filename: str,
+        max_bytes: int = DEFAULT_MAX_REPORT_FILE_SIZE,
+    ) -> bytes:
+        filename = _validate_remote_filename(filename)
+        if max_bytes <= 0:
+            raise ValueError("max_bytes must be greater than zero")
+
+        content = bytearray()
+        for start in range(0, max_bytes, BLOCK_CHUNK_SIZE):
+            chunk_size = min(BLOCK_CHUNK_SIZE, max_bytes - start)
+            context = RequestContext(
+                api="report_file",
+                params={"filename": filename, "start": start, "size": chunk_size},
+            )
+            payload = self.protocol.encode(
+                "block_info",
+                block_file=filename,
+                start=start,
+                size=chunk_size,
+            )
+            envelope = self._send(context, payload)
+            piece = bytes(self.protocol.decode("block_info", envelope))
+            content.extend(piece)
+            if len(piece) < chunk_size:
+                return bytes(content)
+
+        raise ProtocolDecodeError(f"report file {filename} exceeds max_bytes={max_bytes}")
+
+    def zhb_files(self, refresh: bool = False) -> Mapping[str, bytes]:
+        snapshot = self.config_registry.get(
+            lambda: self.report_file(ZHB_FILENAME),
+            refresh=bool(refresh),
+        )
+        return snapshot.files
+
+    def tdx_block_indexes(self, refresh: bool = False) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        return parse_tdx_block_indexes(get_zhb_file(files, TDX_ZS_FILENAME))
+
+    def tdx_block_aliases(self, refresh: bool = False) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        return parse_tdx_block_aliases(get_zhb_file(files, TDX_BK_FILENAME))
+
+    def block_with_index(
+        self,
+        block_file: str = "block_gn.dat",
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        rows = self.block(block_file)
+        indexes = self.tdx_block_indexes(refresh=refresh)
+        aliases = self.tdx_block_aliases(refresh=False)
+        name_to_index = {str(item["name"]): str(item["code"]) for item in indexes}
+        short_to_full = {str(item["short_name"]): str(item["full_name"]) for item in aliases}
+
+        result: list[dict[str, object]] = []
+        for row in rows:
+            item = dict(row)
+            name = str(item.get("blockname", ""))
+            full_name = short_to_full.get(name, name)
+            item["block_index"] = name_to_index.get(name, name_to_index.get(full_name, ""))
+            result.append(item)
+        return result
+
+    def sp_blocks(
+        self,
+        name: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        rows = parse_sp_blocks(get_zhb_file(files, SP_BLOCK_FILENAME))
+        if name is None:
+            return rows
+        normalized = str(name).strip()
+        if not normalized:
+            raise ValueError("name cannot be blank")
+        return [row for row in rows if row["blockname"] == normalized]
+
+    def tdx_industries(self) -> list[dict[str, object]]:
+        return parse_tdx_industries(self.block_file_raw(TDX_HY_FILENAME))
+
+    def ipo_subscriptions(self, refresh: bool = False) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        return parse_ipo_subscriptions(get_zhb_file(files, XGSG_FILENAME))
+
+    def stock_statistics(self, refresh: bool = False) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        return parse_stock_statistics(get_zhb_file(files, TDX_STAT_FILENAME))
+
+    def stock_statistics2(self, refresh: bool = False) -> list[dict[str, object]]:
+        files = self.zhb_files(refresh=refresh)
+        return parse_stock_statistics2(get_zhb_file(files, TDX_STAT2_FILENAME))
+
+    def block(self, block_file: str = "block.dat") -> list[dict[str, object]]:
+        content = self.block_file_raw(block_file)
+        if not content:
+            return []
 
         return _parse_block_content(content)
 
@@ -520,6 +657,7 @@ class AsyncClient:
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
         sync_client: SyncClient | None = None,
+        config_registry: ZhbRegistry | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -533,6 +671,7 @@ class AsyncClient:
             "connection_pool": connection_pool,
             "servers": servers,
             "max_retries": max_retries,
+            "config_registry": config_registry,
         }
 
     @property
@@ -645,6 +784,53 @@ class AsyncClient:
     async def block(self, block_file: str = "block.dat") -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "block", block_file))
 
+    async def block_file_raw(self, block_file: str) -> bytes:
+        return bytes(await asyncio.to_thread(self._call_sync, "block_file_raw", block_file))
+
+    async def report_file(
+        self,
+        filename: str,
+        max_bytes: int = DEFAULT_MAX_REPORT_FILE_SIZE,
+    ) -> bytes:
+        return bytes(await asyncio.to_thread(self._call_sync, "report_file", filename, max_bytes))
+
+    async def zhb_files(self, refresh: bool = False) -> Mapping[str, bytes]:
+        return await asyncio.to_thread(self._call_sync, "zhb_files", refresh)
+
+    async def tdx_block_indexes(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "tdx_block_indexes", refresh))
+
+    async def tdx_block_aliases(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "tdx_block_aliases", refresh))
+
+    async def block_with_index(
+        self,
+        block_file: str = "block_gn.dat",
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(self._call_sync, "block_with_index", block_file, refresh)
+        )
+
+    async def sp_blocks(
+        self,
+        name: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "sp_blocks", name, refresh))
+
+    async def tdx_industries(self) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "tdx_industries"))
+
+    async def ipo_subscriptions(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "ipo_subscriptions", refresh))
+
+    async def stock_statistics(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "stock_statistics", refresh))
+
+    async def stock_statistics2(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "stock_statistics2", refresh))
+
     async def f10_categories(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "f10_categories", symbol))
 
@@ -679,30 +865,47 @@ def _get_index_market(symbol: str, market: int | None = None) -> int:
 
 def _parse_block_content(data: bytes | bytearray) -> list[dict[str, object]]:
     if len(data) < 386:
-        return []
+        raise ProtocolDecodeError(f"block file body too short: {len(data)}")
 
     pos = 384
     try:
         (num,) = struct.unpack("<H", data[pos : pos + 2])
-    except struct.error:
-        return []
+    except struct.error as exc:
+        raise ProtocolDecodeError("failed to decode block file count") from exc
 
     pos += 2
+    expected_size = pos + num * 2813
+    if len(data) != expected_size:
+        raise ProtocolDecodeError(
+            f"invalid block file size: expected {expected_size} bytes for {num} blocks, got {len(data)}"
+        )
+
     rows: list[dict[str, object]] = []
 
-    for _ in range(num):
+    for block_index in range(num):
         block_name_raw = data[pos : pos + 9]
         pos += 9
-        stock_count, block_type = struct.unpack("<HH", data[pos : pos + 4])
+        try:
+            stock_count, block_type = struct.unpack("<HH", data[pos : pos + 4])
+        except struct.error as exc:
+            raise ProtocolDecodeError(f"failed to decode block {block_index} header") from exc
         pos += 4
+        if stock_count > 400:
+            raise ProtocolDecodeError(
+                f"invalid stock count {stock_count} in block {block_index}; maximum is 400"
+            )
         block_stock_begin = pos
+        block_name = block_name_raw.decode("gbk", "ignore").rstrip("\x00")
 
         for code_index in range(stock_count):
-            code = data[pos : pos + 7].decode("utf-8", "ignore").rstrip("\x00")
+            raw_code = data[pos : pos + 7]
+            if len(raw_code) != 7:
+                raise ProtocolDecodeError(f"block {block_index} code {code_index} is truncated")
+            code = raw_code.decode("ascii", "ignore").rstrip("\x00")
             pos += 7
             rows.append(
                 {
-                    "blockname": block_name_raw.decode("gbk", "ignore").rstrip("\x00"),
+                    "blockname": block_name,
                     "block_type": block_type,
                     "code_index": code_index,
                     "code": code,
@@ -712,3 +915,15 @@ def _parse_block_content(data: bytes | bytearray) -> list[dict[str, object]]:
         pos = block_stock_begin + 2800
 
     return rows
+
+
+def _validate_remote_filename(filename: str) -> str:
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValueError("filename cannot be blank")
+    normalized = filename.strip().replace("\\", "/")
+    encoded = normalized.encode("utf-8")
+    if b"\x00" in encoded:
+        raise ValueError("filename cannot contain NUL bytes")
+    if len(encoded) > 100:
+        raise ValueError("filename must fit within 100 UTF-8 bytes")
+    return normalized

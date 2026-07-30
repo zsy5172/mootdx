@@ -1192,7 +1192,17 @@ class StdQuoteProtocol(AbstractProtocol):
         if len(body) < 4:
             raise ProtocolDecodeError(f"block info body too short: {len(body)}")
 
-        return body[4:]
+        try:
+            (chunk_size,) = U32_STRUCT.unpack_from(body, 0)
+        except struct.error as exc:
+            raise ProtocolDecodeError("failed to decode block info chunk size") from exc
+
+        chunk = body[4:]
+        if chunk_size > len(chunk):
+            raise ProtocolDecodeError(
+                f"block info chunk truncated: expected {chunk_size} bytes, got {len(chunk)}"
+            )
+        return chunk[:chunk_size]
 
 
 def _get_datetime(category: int, buffer: bytes, pos: int) -> tuple[int, int, int, int, int, int]:

@@ -54,13 +54,20 @@ def test_decode_block_info_meta_and_piece() -> None:
     protocol = StdQuoteProtocol()
     content = _build_block_content()
     meta_body = struct.pack("<I1s32s1s", len(content), b"\x00", b"x" * 32, b"\x00")
-    piece_body = b"\x00\x00\x00\x00" + content
+    piece_body = struct.pack("<I", len(content)) + content
 
     meta = protocol.decode_block_info_meta(meta_body)
     piece = protocol.decode_block_info(piece_body)
 
     assert meta["size"] == len(content)
     assert piece == content
+
+
+def test_decode_block_info_rejects_truncated_declared_chunk() -> None:
+    protocol = StdQuoteProtocol()
+
+    with pytest.raises(ProtocolDecodeError, match="truncated"):
+        protocol.decode_block_info(struct.pack("<I", 5) + b"abc")
 
 
 @pytest.mark.parametrize("body", [b"", b"\x01", b"\x01\x00short"])

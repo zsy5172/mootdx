@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 from typing import NoReturn
@@ -388,6 +389,45 @@ class PandasClient:
     def block(self, tofile="block.dat", **kwargs) -> pd.DataFrame:
         return block_to_frame(self.client.block(str(tofile)))
 
+    def block_file_raw(self, filename="block.dat", **kwargs) -> bytes:
+        return self.client.block_file_raw(str(filename))
+
+    def report_file(self, filename="zhb.zip", max_bytes=None, **kwargs) -> bytes:
+        if max_bytes is None:
+            return self.client.report_file(str(filename))
+        return self.client.report_file(str(filename), max_bytes=int(max_bytes))
+
+    def zhb_files(self, refresh=False, **kwargs) -> Mapping[str, bytes]:
+        return self.client.zhb_files(refresh=bool(refresh))
+
+    def tdx_block_indexes(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.tdx_block_indexes(refresh=bool(refresh)))
+
+    def tdx_block_aliases(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.tdx_block_aliases(refresh=bool(refresh)))
+
+    def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            self.client.block_with_index(str(tofile), refresh=bool(refresh))
+        )
+
+    def sp_blocks(self, name=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            self.client.sp_blocks(name=name, refresh=bool(refresh))
+        )
+
+    def tdx_industries(self, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.tdx_industries())
+
+    def ipo_subscriptions(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.ipo_subscriptions(refresh=bool(refresh)))
+
+    def stock_statistics(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.stock_statistics(refresh=bool(refresh)))
+
+    def stock_statistics2(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.stock_statistics2(refresh=bool(refresh)))
+
     def get_k_data(
         self,
         code: str,
@@ -732,6 +772,55 @@ class AsyncPandasClient:
 
     async def block(self, tofile="block.dat", **kwargs) -> pd.DataFrame:
         return block_to_frame(await self.client.block(str(tofile)))
+
+    async def block_file_raw(self, filename="block.dat", **kwargs) -> bytes:
+        return await self.client.block_file_raw(str(filename))
+
+    async def report_file(self, filename="zhb.zip", max_bytes=None, **kwargs) -> bytes:
+        if max_bytes is None:
+            return await self.client.report_file(str(filename))
+        return await self.client.report_file(str(filename), max_bytes=int(max_bytes))
+
+    async def zhb_files(self, refresh=False, **kwargs) -> Mapping[str, bytes]:
+        return await self.client.zhb_files(refresh=bool(refresh))
+
+    async def tdx_block_indexes(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.tdx_block_indexes(refresh=bool(refresh))
+        )
+
+    async def tdx_block_aliases(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.tdx_block_aliases(refresh=bool(refresh))
+        )
+
+    async def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            await self.client.block_with_index(str(tofile), refresh=bool(refresh))
+        )
+
+    async def sp_blocks(self, name=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.sp_blocks(name=name, refresh=bool(refresh))
+        )
+
+    async def tdx_industries(self, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(await self.client.tdx_industries())
+
+    async def ipo_subscriptions(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.ipo_subscriptions(refresh=bool(refresh))
+        )
+
+    async def stock_statistics(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.stock_statistics(refresh=bool(refresh))
+        )
+
+    async def stock_statistics2(self, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.stock_statistics2(refresh=bool(refresh))
+        )
 
     async def get_k_data(
         self,

@@ -74,6 +74,14 @@ class AdjustmentError(MootdxNextError):
     """Raised when price adjustment data cannot be calculated safely."""
 
 
+class ConfigFileError(MootdxNextError):
+    """Raised when a TDX report/configuration file is missing or malformed."""
+
+
+class ConfigArchiveError(ConfigFileError):
+    """Raised when a TDX configuration archive is invalid or unsafe."""
+
+
 class FinancialError(MootdxNextError):
     """Base exception for TDX financial-file operations."""
 
