@@ -363,6 +363,9 @@ def next_matrix(session: nox.Session) -> None:
         "pytest",
         "tests/core_engine/test_next_api_matrix.py",
         "tests/core_engine/test_next_adapter_matrix.py",
+        "tests/core_engine/test_protocol_ex_quotes.py",
+        "tests/core_engine/test_ex_clients.py",
+        "tests/core_engine/test_ex_pandas_clients.py",
         "tests/core_engine/test_report_file_client.py",
         "tests/compat/test_matrix.py",
         "tests/compat/test_reader_baseline.py",
@@ -372,12 +375,14 @@ def next_matrix(session: nox.Session) -> None:
 
 @nox.session(python=["3.13"])
 def next_live_matrix(session: nox.Session) -> None:
-    session.install("-e", NEXT_INSTALL, "pytest~=9.0.3")
+    session.install("-e", LEGACY_INSTALL, "pytest~=9.0.3")
     session.run(
         "pytest",
         "tests/core_engine/test_next_full_live_matrix.py",
+        "tests/core_engine/test_next_ex_live_smoke.py",
+        "tests/compat/test_ex_live_equivalence.py",
         "-q",
-        env={"MOOTDX_RUN_LIVE_MATRIX": "1"},
+        env={"MOOTDX_RUN_LIVE_MATRIX": "1", "MOOTDX_NEXT_EX_LIVE": "1"},
     )
 
 

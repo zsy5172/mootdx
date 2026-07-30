@@ -126,6 +126,36 @@ def test_live_information_and_block_matrix(live_client: SyncClient) -> None:
     assert isinstance(live_client.block("block_zs.dat"), list)
 
 
+def test_live_call_auction_and_public_config_ecosystem(live_client: SyncClient) -> None:
+    auction = live_client.call_auction("600036")
+    assert isinstance(auction, list)
+    if auction:
+        assert {"time", "price", "matched", "unmatched", "side", "side_name"} <= set(
+            auction[0]
+        )
+
+    raw_block = live_client.block_file_raw("block_gn.dat")
+    archive = live_client.report_file("zhb.zip")
+    files = live_client.zhb_files(refresh=True)
+    indexes = live_client.tdx_block_indexes()
+    aliases = live_client.tdx_block_aliases()
+    indexed_components = live_client.block_with_index("block_gn.dat")
+    sp_blocks = live_client.sp_blocks()
+    industries = live_client.tdx_industries()
+    subscriptions = live_client.ipo_subscriptions()
+    statistics = live_client.stock_statistics()
+    statistics2 = live_client.stock_statistics2()
+
+    assert len(raw_block) > 384
+    assert archive.startswith(b"PK")
+    assert "tdxzs.cfg" in files
+    assert indexes and aliases and indexed_components
+    assert sp_blocks and industries and subscriptions
+    assert statistics and statistics2
+    assert all("raw_fields" in row for row in statistics[:10])
+    assert all("raw_fields" in row for row in statistics2[:10])
+
+
 def test_live_async_matrix() -> None:
     async def run() -> None:
         client = AsyncClient(servers=_servers(), max_retries=2)
