@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pandas as pd
 import pytest
 
+from mootdx_next.adapters import xdxr_by_date_to_frame
 from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import TransportTimeoutError
@@ -46,6 +48,13 @@ class XdxrClient(SyncClient):
                 "category": 1,
                 "fenhong": 1.0,
             },
+            {
+                "year": 2023,
+                "month": 6,
+                "day": 1,
+                "category": 11,
+                "suogu": 0.5,
+            },
             _equity_event("2024-01-02", category=5, float_shares=1500, total_shares=2500),
         ]
 
@@ -81,6 +90,46 @@ def test_turnover_accepts_explicit_share_and_lot_units() -> None:
     assert client.turnover("600036", "20260730", 150, volume_unit="shares") == pytest.approx(10)
     assert client.turnover("600036", "20260730", 1.5, volume_unit="lots") == pytest.approx(10)
     assert client.turnover("600036", "20100101", 100) is None
+
+
+def test_xdxr_by_date_preserves_multiple_same_day_events_and_filters() -> None:
+    client = XdxrClient()
+
+    grouped = client.xdxr_by_date("600036")
+    filtered = client.xdxr_by_date("600036", categories=(1,))
+
+    assert list(grouped) == ["2020-01-02", "2023-06-01", "2024-01-02"]
+    assert [row["category"] for row in grouped["2023-06-01"]] == [1, 11]
+    assert [row["category"] for row in filtered["2023-06-01"]] == [1]
+    frame = xdxr_by_date_to_frame(grouped)
+    assert frame.index.name == "event_date"
+    assert list(frame.loc["2023-06-01", "category"]) == [1, 11]
+    assert isinstance(xdxr_by_date_to_frame({}).index, pd.DatetimeIndex)
+
+
+def test_market_value_uses_share_units_and_yuan_price() -> None:
+    client = XdxrClient()
+
+    result = client.market_value("600036", "20260730", 39.5)
+
+    assert result is not None
+    assert result["float_shares"] == 1500
+    assert result["total_shares"] == 2500
+    assert result["float_market_value"] == pytest.approx(59250)
+    assert result["total_market_value"] == pytest.approx(98750)
+    assert client.market_value("600036", "20100101", 39.5) is None
+
+
+@pytest.mark.parametrize("price", [0, -1, float("nan"), float("inf"), True])
+def test_market_value_rejects_invalid_prices(price) -> None:
+    with pytest.raises(ValueError):
+        XdxrClient().market_value("600036", "20260730", price)
+
+
+@pytest.mark.parametrize("categories", [(True,), (-1,), (256,)])
+def test_xdxr_by_date_rejects_invalid_categories(categories) -> None:
+    with pytest.raises(ValueError):
+        XdxrClient().xdxr_by_date("600036", categories)
 
 
 @pytest.mark.parametrize(

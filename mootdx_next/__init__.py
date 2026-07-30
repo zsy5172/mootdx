@@ -57,6 +57,7 @@ from mootdx_next.adapters import stocks_to_frame
 from mootdx_next.adapters import transaction_to_frame
 from mootdx_next.adapters import transactions_to_frame
 from mootdx_next.adapters import xdxr_to_frame
+from mootdx_next.adapters import xdxr_by_date_to_frame
 from mootdx_next.errors import AdjustmentError
 from mootdx_next.errors import BseError
 from mootdx_next.errors import BseResponseError
@@ -285,6 +286,7 @@ __all__ = [
     "transactions_to_frame",
     "trades_to_minute_bars",
     "xdxr_to_frame",
+    "xdxr_by_date_to_frame",
     "decode_gbbq",
     "extract_gbbq_member",
     "ZhbRegistry",

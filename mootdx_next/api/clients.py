@@ -151,8 +151,10 @@ REQUEST_APIS = frozenset(
         "gbbq_all",
         "gbbq",
         "xdxr",
+        "xdxr_by_date",
         "iter_xdxr",
         "equity_at",
+        "market_value",
         "turnover",
         "adjustment_factors",
         "f10_categories",
@@ -225,6 +227,20 @@ def _xdxr_date(row: Mapping[str, object]) -> Date:
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ProtocolDecodeError("xdxr row has an invalid event date") from exc
+
+
+def _xdxr_categories(values: Iterable[int] | None) -> frozenset[int] | None:
+    if values is None:
+        return None
+    categories: set[int] = set()
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("categories must contain integers between 0 and 255")
+        category = value
+        if not 0 <= category <= 0xFF:
+            raise ValueError("categories must contain integers between 0 and 255")
+        categories.add(category)
+    return frozenset(categories)
 
 
 def _listing_month_start(rows: Iterable[Mapping[str, object]]) -> Date | None:
@@ -1150,6 +1166,24 @@ class SyncClient:
         envelope = self._send(context, payload)
         return list(self.protocol.decode("xdxr", envelope))
 
+    def xdxr_by_date(
+        self,
+        symbol: str,
+        categories: Iterable[int] | None = None,
+    ) -> dict[str, list[dict[str, object]]]:
+        selected = _xdxr_categories(categories)
+        grouped: dict[str, list[dict[str, object]]] = {}
+        dated_rows = sorted(
+            ((_xdxr_date(row), row) for row in self.xdxr(symbol)),
+            key=lambda item: (item[0], _optional_int(item[1].get("category")) or 0),
+        )
+        for event_date, row in dated_rows:
+            category = _optional_int(row.get("category"))
+            if selected is not None and category not in selected:
+                continue
+            grouped.setdefault(event_date.strftime("%Y-%m-%d"), []).append(dict(row))
+        return grouped
+
     def iter_xdxr(
         self,
         symbols: Iterable[str] | str | None = None,
@@ -1200,6 +1234,36 @@ class SyncClient:
             "name": row.get("name"),
             "float_shares": float_shares,
             "total_shares": total_shares,
+        }
+
+    def market_value(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+        price: int | float,
+    ) -> dict[str, object] | None:
+        if isinstance(price, bool):
+            raise ValueError("price must be a positive finite number")
+        try:
+            normalized_price = float(price)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("price must be a positive finite number") from exc
+        if normalized_price <= 0 or not math.isfinite(normalized_price):
+            raise ValueError("price must be a positive finite number")
+        equity = self.equity_at(symbol, as_of)
+        if equity is None:
+            return None
+        float_shares = _optional_float(equity.get("float_shares"))
+        total_shares = _optional_float(equity.get("total_shares"))
+        return {
+            **equity,
+            "price": normalized_price,
+            "float_market_value": (
+                None if float_shares is None else normalized_price * float_shares
+            ),
+            "total_market_value": (
+                None if total_shares is None else normalized_price * total_shares
+            ),
         }
 
     def turnover(
@@ -1985,6 +2049,17 @@ class AsyncClient:
     async def xdxr(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))
 
+    async def xdxr_by_date(
+        self,
+        symbol: str,
+        categories: Iterable[int] | None = None,
+    ) -> dict[str, list[dict[str, object]]]:
+        result = await asyncio.to_thread(self._call_sync, "xdxr_by_date", symbol, categories)
+        return {
+            str(date): [dict(row) for row in rows]
+            for date, rows in result.items()
+        }
+
     async def iter_xdxr(
         self,
         symbols: Iterable[str] | str | None = None,
@@ -2012,6 +2087,21 @@ class AsyncClient:
         as_of: str | int | datetime | Date,
     ) -> dict[str, object] | None:
         result = await asyncio.to_thread(self._call_sync, "equity_at", symbol, as_of)
+        return None if result is None else dict(result)
+
+    async def market_value(
+        self,
+        symbol: str,
+        as_of: str | int | datetime | Date,
+        price: int | float,
+    ) -> dict[str, object] | None:
+        result = await asyncio.to_thread(
+            self._call_sync,
+            "market_value",
+            symbol,
+            as_of,
+            price,
+        )
         return None if result is None else dict(result)
 
     async def turnover(

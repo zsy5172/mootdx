@@ -20,6 +20,7 @@ from mootdx_next.adapters.pandas import stocks_to_frame
 from mootdx_next.adapters.pandas import transaction_to_frame
 from mootdx_next.adapters.pandas import transactions_to_frame
 from mootdx_next.adapters.pandas import xdxr_to_frame
+from mootdx_next.adapters.pandas import xdxr_by_date_to_frame
 
 __all__ = [
     "bars_to_frame",
@@ -42,4 +43,5 @@ __all__ = [
     "transaction_to_frame",
     "transactions_to_frame",
     "xdxr_to_frame",
+    "xdxr_by_date_to_frame",
 ]

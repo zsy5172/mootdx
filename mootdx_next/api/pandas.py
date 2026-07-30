@@ -23,6 +23,7 @@ from mootdx_next.adapters import stocks_to_frame
 from mootdx_next.adapters import transaction_to_frame
 from mootdx_next.adapters import transactions_to_frame
 from mootdx_next.adapters import xdxr_to_frame
+from mootdx_next.adapters import xdxr_by_date_to_frame
 from mootdx_next.adjustments import AGGREGATED_FREQUENCIES
 from mootdx_next.adjustments import AdjustmentService
 from mootdx_next.adjustments import AsyncAdjustmentService
@@ -611,6 +612,14 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def xdxr_by_date(self, symbol="", categories=None, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_by_date_to_frame(
+                self.client.xdxr_by_date(str(symbol), categories)
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def gbbq_all(self, refresh=False, **kwargs) -> pd.DataFrame:
         try:
             return xdxr_to_frame(self.client.gbbq_all(refresh=bool(refresh)))
@@ -647,6 +656,19 @@ class PandasClient:
     def equity_at(self, symbol="", as_of="19700101", **kwargs) -> pd.DataFrame:
         try:
             row = self.client.equity_at(str(symbol), as_of)
+            return pd.DataFrame.from_records([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def market_value(
+        self,
+        symbol="",
+        as_of="19700101",
+        price=0,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            row = self.client.market_value(str(symbol), as_of, price)
             return pd.DataFrame.from_records([] if row is None else [row])
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
@@ -1365,6 +1387,14 @@ class AsyncPandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    async def xdxr_by_date(self, symbol="", categories=None, **kwargs) -> pd.DataFrame:
+        try:
+            return xdxr_by_date_to_frame(
+                await self.client.xdxr_by_date(str(symbol), categories)
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     async def gbbq_all(self, refresh=False, **kwargs) -> pd.DataFrame:
         try:
             return xdxr_to_frame(await self.client.gbbq_all(refresh=bool(refresh)))
@@ -1401,6 +1431,19 @@ class AsyncPandasClient:
     async def equity_at(self, symbol="", as_of="19700101", **kwargs) -> pd.DataFrame:
         try:
             row = await self.client.equity_at(str(symbol), as_of)
+            return pd.DataFrame.from_records([] if row is None else [row])
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def market_value(
+        self,
+        symbol="",
+        as_of="19700101",
+        price=0,
+        **kwargs,
+    ) -> pd.DataFrame:
+        try:
+            row = await self.client.market_value(str(symbol), as_of, price)
             return pd.DataFrame.from_records([] if row is None else [row])
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)

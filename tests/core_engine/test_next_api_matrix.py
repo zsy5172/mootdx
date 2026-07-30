@@ -96,8 +96,10 @@ SYNC_PUBLIC_API = {
     "gbbq_all",
     "gbbq",
     "xdxr",
+    "xdxr_by_date",
     "iter_xdxr",
     "equity_at",
+    "market_value",
     "turnover",
     "adjustment_factors",
     "f10_categories",
@@ -142,8 +144,10 @@ ASYNC_PUBLIC_API = {
     "gbbq_all",
     "gbbq",
     "xdxr",
+    "xdxr_by_date",
     "iter_xdxr",
     "equity_at",
+    "market_value",
     "turnover",
     "adjustment_factors",
     "index_bars",
@@ -210,8 +214,10 @@ PANDAS_PUBLIC_API = {
     "gbbq_all",
     "gbbq",
     "xdxr",
+    "xdxr_by_date",
     "iter_xdxr",
     "equity_at",
+    "market_value",
     "turnover",
     "adjustment_factors",
     "finance",
@@ -444,7 +450,13 @@ SYNC_CALL_CASES = (
     SyncCallCase("finance", {"symbol": "600036"}, ("finance",)),
     SyncCallCase("block", {"block_file": "block_zs.dat"}, ("block_info_meta",)),
     SyncCallCase("xdxr", {"symbol": "600036"}, ("xdxr",)),
+    SyncCallCase("xdxr_by_date", {"symbol": "600036"}, ("xdxr",)),
     SyncCallCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, ("xdxr",)),
+    SyncCallCase(
+        "market_value",
+        {"symbol": "600036", "as_of": "20260730", "price": 39.0},
+        ("xdxr",),
+    ),
     SyncCallCase(
         "turnover",
         {"symbol": "600036", "as_of": "20260730", "volume": 100},
@@ -696,6 +708,10 @@ class AsyncDispatchRecorder:
                 return {"market": 1, "code": "600036", "symbol": "sh600036"}
             if name == "equity_at":
                 return {"symbol": "sh600036", "float_shares": 1000}
+            if name == "market_value":
+                return {"symbol": "sh600036", "float_market_value": 39000}
+            if name == "xdxr_by_date":
+                return {"2026-07-30": [{"category": 1}]}
             if name == "turnover":
                 return 1.0
             if name == "price_limit":
@@ -844,11 +860,27 @@ ASYNC_CALL_CASES = (
     ),
     AsyncCallCase("xdxr", ("600036",), {}, "xdxr", ("600036",), {}),
     AsyncCallCase(
+        "xdxr_by_date",
+        ("600036", (1, 11)),
+        {},
+        "xdxr_by_date",
+        ("600036", (1, 11)),
+        {},
+    ),
+    AsyncCallCase(
         "equity_at",
         ("600036", "20260730"),
         {},
         "equity_at",
         ("600036", "20260730"),
+        {},
+    ),
+    AsyncCallCase(
+        "market_value",
+        ("600036", "20260730", 39.0),
+        {},
+        "market_value",
+        ("600036", "20260730", 39.0),
         {},
     ),
     AsyncCallCase(
@@ -1123,6 +1155,9 @@ class FacadeRecorder:
     def xdxr(self, symbol):
         return [{"year": 2026, "category": 1}]
 
+    def xdxr_by_date(self, symbol, categories=None):
+        return {"2026-07-30": [{"year": 2026, "category": 1}]}
+
     def gbbq_all(self, refresh=False):
         return [{"market": 1, "code": "600036", "category": 1, "source": "gbbq.zip"}]
 
@@ -1134,6 +1169,13 @@ class FacadeRecorder:
 
     def equity_at(self, symbol, as_of):
         return {"symbol": "sh600036", "float_shares": 1000, "total_shares": 2000}
+
+    def market_value(self, symbol, as_of, price):
+        return {
+            "symbol": "sh600036",
+            "price": price,
+            "float_market_value": float(price) * 1000,
+        }
 
     def turnover(self, symbol, as_of, volume, volume_unit="shares"):
         return 10.0
@@ -1234,9 +1276,15 @@ FACADE_CASES = (
         bytes,
     ),
     FacadeCase("xdxr", {"symbol": "600036"}, pd.DataFrame),
+    FacadeCase("xdxr_by_date", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("gbbq_all", {}, pd.DataFrame),
     FacadeCase("gbbq", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("equity_at", {"symbol": "600036", "as_of": "20260730"}, pd.DataFrame),
+    FacadeCase(
+        "market_value",
+        {"symbol": "600036", "as_of": "20260730", "price": 39.0},
+        pd.DataFrame,
+    ),
     FacadeCase(
         "turnover",
         {"symbol": "600036", "as_of": "20260730", "volume": 100},

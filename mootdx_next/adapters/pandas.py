@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import pandas as pd
 
 
@@ -96,6 +98,21 @@ def finance_to_frame(row: dict[str, object] | None) -> pd.DataFrame:
 
 def xdxr_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     return _frame_from_records(rows)
+
+
+def xdxr_by_date_to_frame(
+    rows_by_date: Mapping[str, list[dict[str, object]]],
+) -> pd.DataFrame:
+    rows = [
+        dict(row, event_date=date)
+        for date, events in rows_by_date.items()
+        for row in events
+    ]
+    if not rows:
+        frame = _empty_frame(["event_date"])
+        frame.index = pd.DatetimeIndex([], name="event_date")
+        return frame
+    return _frame_from_records(rows, date_column="event_date")
 
 
 def f10_categories_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
