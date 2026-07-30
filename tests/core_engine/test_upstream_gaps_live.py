@@ -8,6 +8,7 @@ from datetime import date
 import pytest
 
 from mootdx_next import AsyncClient
+from mootdx_next import PandasClient
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient
 from tests.core_engine.support import PREFERRED_HQ_HOSTS
@@ -184,6 +185,14 @@ def test_live_index_intraday_slot_is_turnover_not_lot_volume(
         sum(float(row["amount"]) for row in day_minutes) / 100,
         rel=1e-6,
     )
+
+    if market == 1:
+        facade = PandasClient(raw_client=live_client)
+        native = facade.index_bars(symbol, frequency=9, offset=2, market=market)
+        legacy = facade.index(symbol, frequency=9, offset=2, market=market)
+        assert native.iloc[-1]["volume"] == native.iloc[-1]["volume_lots"]
+        assert legacy.iloc[-1]["volume"] == native.iloc[-1]["volume_raw"]
+        assert "volume_unit" not in legacy.columns
 
 
 def test_live_xdxr_context_share_units_and_valuation(live_client: SyncClient) -> None:

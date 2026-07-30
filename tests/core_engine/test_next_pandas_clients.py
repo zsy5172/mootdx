@@ -126,6 +126,22 @@ class AsyncEmptyTransactionRaw(AsyncRaw):
         self.sync = EmptyTransactionRaw()
 
 
+class NormalizedIndexRaw(SyncRaw):
+    def index_bars(self, symbol: str, frequency=9, start=0, offset=800, market=None):
+        row = _bar("2024-01-03", 3000.0)
+        row.update(
+            {
+                "vol": 12_300.0,
+                "volume": 12_300.0,
+                "volume_raw": 123.0,
+                "volume_unit": "lot",
+                "volume_lots": 12_300.0,
+                "turnover_100_yuan": None,
+            }
+        )
+        return [row]
+
+
 def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     raw = SyncRaw()
     client = PandasClient(raw_client=raw)
@@ -173,6 +189,19 @@ def test_history_entrypoints_keep_distinct_public_signatures() -> None:
     ]
     assert list(inspect.signature(PandasClient.k).parameters) == ["self", "symbol", "begin", "end", "kwargs"]
     assert list(inspect.signature(PandasClient.ohlc).parameters) == ["self", "kwargs"]
+
+
+def test_legacy_index_restores_raw_volume_while_native_keeps_units() -> None:
+    client = PandasClient(raw_client=NormalizedIndexRaw())
+
+    native = client.index_bars("000001", market=1)
+    legacy = client.index("000001", market=1)
+
+    assert native.iloc[0]["volume"] == 12_300
+    assert native.iloc[0]["volume_unit"] == "lot"
+    assert legacy.iloc[0]["volume"] == 123
+    assert legacy.iloc[0]["vol"] == 123
+    assert "volume_unit" not in legacy.columns
 
 
 def test_history_entrypoints_share_results_without_becoming_aliases() -> None:

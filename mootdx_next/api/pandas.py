@@ -135,7 +135,13 @@ def _k_shape(data: pd.DataFrame) -> pd.DataFrame:
 def _legacy_index_shape(data: pd.DataFrame) -> pd.DataFrame:
     """Remove native next metadata from the legacy ``index()`` result."""
 
-    return data.drop(
+    result = data.copy()
+    if "volume_raw" in result.columns:
+        # Legacy Quotes.index() exposed the unnormalised protocol slot.  The
+        # native index_bars() API keeps the corrected lot/turnover semantics.
+        result["vol"] = result["volume_raw"].to_numpy(copy=False)
+        result["volume"] = result["volume_raw"].to_numpy(copy=False)
+    return result.drop(
         columns=[
             "previous_close",
             "volume_raw",
