@@ -128,6 +128,11 @@ class AdjustmentService:
         snapshot = self._snapshot(symbol)
         return self._apply_snapshot(snapshot.daily, snapshot, method)
 
+    def factors(self, symbol: str) -> pd.DataFrame:
+        """Return TDX affine qfq/hfq coefficients for every raw daily bar."""
+
+        return self._factor_frame(self._snapshot(symbol))
+
     def adjusted_bars(
         self,
         symbol: str,
@@ -442,6 +447,50 @@ class AdjustmentService:
 
         return factor, offset
 
+    @classmethod
+    def _factor_frame(cls, snapshot: _AdjustmentSnapshot) -> pd.DataFrame:
+        index = snapshot.daily.index
+        target_dates = index.normalize()
+        qfq_mul, qfq_add = cls._affine_parameters(
+            snapshot.actions,
+            index,
+            target_dates,
+            'qfq',
+        )
+        hfq_mul, hfq_add = cls._affine_parameters(
+            snapshot.actions,
+            index,
+            target_dates,
+            'hfq',
+        )
+        close = pd.to_numeric(snapshot.daily['close'], errors='coerce')
+        result = pd.DataFrame(
+            {
+                'close': close,
+                'previous_close': close.shift(1),
+                'qfq_mul': qfq_mul,
+                'qfq_add': qfq_add,
+                'hfq_mul': hfq_mul,
+                'hfq_add': hfq_add,
+                # Compatibility aliases. Cash dividends require applying the
+                # corresponding *_add value as well as this multiplier.
+                'qfq_factor': qfq_mul,
+                'hfq_factor': hfq_mul,
+                'price_decimals': snapshot.price_decimals,
+            },
+            index=index,
+        )
+        result['qfq_close'] = cls._round_half_up(
+            result['qfq_mul'] * close + result['qfq_add'],
+            snapshot.price_decimals,
+        )
+        result['hfq_close'] = cls._round_half_up(
+            result['hfq_mul'] * close + result['hfq_add'],
+            snapshot.price_decimals,
+        )
+        result.index.name = 'datetime'
+        return result.sort_index()
+
     @staticmethod
     def _raise_for_unresolved(
         unresolved: tuple[_UnresolvedEvent, ...],
@@ -679,6 +728,11 @@ class AsyncAdjustmentService:
         method = AdjustmentService._require_adjustment(adjust)
         snapshot = await self._snapshot(symbol)
         return AdjustmentService._apply_snapshot(snapshot.daily, snapshot, method)
+
+    async def factors(self, symbol: str) -> pd.DataFrame:
+        """Return TDX affine qfq/hfq coefficients for every raw daily bar."""
+
+        return AdjustmentService._factor_frame(await self._snapshot(symbol))
 
     async def adjusted_bars(
         self,

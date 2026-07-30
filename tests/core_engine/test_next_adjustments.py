@@ -12,6 +12,7 @@ from mootdx.quotes import NextStdQuotes
 from mootdx_next import AsyncPandasClient
 from mootdx_next import PandasClient
 from mootdx_next.adjustments import AdjustmentService
+from mootdx_next.adjustments import AsyncAdjustmentService
 from mootdx_next.adjustments import normalize_adjustment
 from mootdx_next.errors import AdjustmentError
 
@@ -204,6 +205,44 @@ def test_tdx_adjustment_uses_affine_cash_transform_for_stocks() -> None:
     assert tdx_qfq.at[before, 'offset'] == pytest.approx(-0.1)
     assert tdx_qfq.at[event_date, 'offset'] == pytest.approx(0)
     assert 'offset' not in proportional.columns
+
+
+def test_adjustment_factors_expose_affine_coefficients_and_adjusted_closes() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    service, _ = _service(daily, [_cash_event('2024-01-04')])
+
+    factors = service.factors('600036')
+
+    before = pd.Timestamp('2024-01-03 15:00:00')
+    event_date = pd.Timestamp('2024-01-04 15:00:00')
+    assert factors.index.name == 'datetime'
+    assert factors.at[before, 'qfq_mul'] == pytest.approx(1)
+    assert factors.at[before, 'qfq_add'] == pytest.approx(-0.1)
+    assert factors.at[before, 'qfq_close'] == pytest.approx(11.9)
+    assert factors.at[event_date, 'hfq_mul'] == pytest.approx(1)
+    assert factors.at[event_date, 'hfq_add'] == pytest.approx(0.1)
+    assert factors.at[event_date, 'hfq_close'] == pytest.approx(12.0)
+    assert factors.at[before, 'previous_close'] == pytest.approx(10.0)
+    assert factors['qfq_factor'].equals(factors['qfq_mul'])
+    assert factors['hfq_factor'].equals(factors['hfq_mul'])
+
+
+def test_async_adjustment_factors_match_sync_coefficients() -> None:
+    daily = _daily_frame(
+        ['2024-01-02', '2024-01-03', '2024-01-04'],
+        closes=[10.0, 12.0, 11.9],
+    )
+    rows = [_cash_event('2024-01-04')]
+    sync = AdjustmentService(AdjustmentFixtureClient(daily, rows))
+    async_service = AsyncAdjustmentService(AsyncAdjustmentFixtureClient(daily, rows))
+
+    expected = sync.factors('600036')
+    actual = asyncio.run(async_service.factors('600036'))
+
+    pdt.assert_frame_equal(actual, expected)
 
 
 def test_tdx_adjustment_rounds_half_up_at_the_security_precision() -> None:
