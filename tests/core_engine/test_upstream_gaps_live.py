@@ -119,6 +119,8 @@ def test_live_etf_transaction_precision_and_derived_fields(live_client: SyncClie
         )
 
     current = live_client.transaction("510300", start=0, offset=1800)
+    if str(daily[-1]["datetime"])[:10] == date.today().isoformat():
+        assert current
     if current:
         latest = daily[-1]
         assert all(
@@ -134,6 +136,15 @@ def test_live_etf_transaction_precision_and_derived_fields(live_client: SyncClie
         assert float(with_orders["average_amount"]) == pytest.approx(
             float(with_orders["amount"]) / int(with_orders["num"])
         )
+
+    chunks = list(
+        live_client.iter_transactions(
+            "510300",
+            completed_day.replace("-", ""),
+            completed_day.replace("-", ""),
+        )
+    )
+    assert chunks == [(completed_day.replace("-", ""), history)]
 
 
 def test_live_stock_bar_volume_is_lots_across_daily_and_minute(
