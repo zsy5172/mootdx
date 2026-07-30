@@ -70,6 +70,8 @@ from mootdx_next.symbols import get_security_type
 from mootdx_next.symbols import normalize_symbol
 from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.transport.socket_transport import SyncSocketTransport
+from mootdx_next.trading_calendar import TradingCalendarRegistry
+from mootdx_next.trading_calendar import trading_calendar_registry as default_trading_calendar_registry
 
 BLOCK_CHUNK_SIZE = 0x7530
 DEFAULT_MAX_REPORT_FILE_SIZE = 256 * 1024 * 1024
@@ -121,6 +123,8 @@ REQUEST_APIS = frozenset(
         "transactions",
         "transactions_day",
         "iter_transactions",
+        "is_trading_day",
+        "trading_days",
         "finance",
         "block_file_raw",
         "report_file",
@@ -224,6 +228,7 @@ class SyncClient:
         bse_registry: BseRegistry | None = None,
         bse_provider: BseProvider | None = None,
         security_registry: SecurityRegistry | None = None,
+        trading_calendar_registry: TradingCalendarRegistry | None = None,
     ) -> None:
         if bse_registry is not None and bse_provider is not None:
             raise ValueError("bse_registry and bse_provider are mutually exclusive")
@@ -237,6 +242,7 @@ class SyncClient:
             else BseRegistry(bse_provider) if bse_provider is not None else default_bse_registry
         )
         self.security_registry = security_registry or default_security_registry
+        self.trading_calendar_registry = trading_calendar_registry or default_trading_calendar_registry
         self._adjustment_service: Any | None = None
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
@@ -755,10 +761,17 @@ class SyncClient:
         end_date: str | int,
         *,
         include_empty: bool = False,
+        trading_days_only: bool = True,
+        refresh_calendar: bool = False,
         page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
         max_pages: int | None = None,
     ) -> Iterator[tuple[str, list[dict[str, object]]]]:
-        for date in _date_range(start_date, end_date):
+        dates = (
+            self.trading_days(start_date, end_date, refresh=refresh_calendar)
+            if trading_days_only
+            else tuple(_date_range(start_date, end_date))
+        )
+        for date in dates:
             rows = self.transactions_day(
                 symbol,
                 date,
@@ -767,6 +780,35 @@ class SyncClient:
             )
             if rows or include_empty:
                 yield date, rows
+
+    def trading_days(
+        self,
+        start_date: str | int | None = None,
+        end_date: str | int | None = None,
+        *,
+        refresh: bool = False,
+    ) -> tuple[str, ...]:
+        snapshot = self.trading_calendar_registry.get(
+            self._load_trading_calendar,
+            refresh=bool(refresh),
+        )
+        if start_date is None and end_date is None:
+            return snapshot
+        if start_date is None or end_date is None:
+            raise ValueError("start_date and end_date must be provided together")
+        start = normalize_date(start_date)
+        end = normalize_date(end_date)
+        if end < start:
+            raise ValueError("end_date must be on or after start_date")
+        return self.trading_calendar_registry.between(start, end)
+
+    def is_trading_day(self, date: str | int, *, refresh: bool = False) -> bool:
+        normalized = normalize_date(date)
+        self.trading_calendar_registry.get(
+            self._load_trading_calendar,
+            refresh=bool(refresh),
+        )
+        return self.trading_calendar_registry.contains(normalized)
 
     def finance(self, symbol: str) -> dict[str, object]:
         if not isinstance(symbol, str) or not symbol.strip():
@@ -1266,6 +1308,16 @@ class SyncClient:
             )
         return tuple(securities)
 
+    def _load_trading_calendar(self) -> tuple[str, ...]:
+        rows = self.index_bars_all("sh000001", frequency=9)
+        days: list[str] = []
+        for row in rows:
+            value = str(row.get("datetime", ""))[:10].replace("-", "")
+            if len(value) != 8 or not value.isdigit():
+                raise ProtocolDecodeError("index bar has an invalid trading-calendar date")
+            days.append(value)
+        return tuple(days)
+
     def _price_coefficient(self, market: int, code: str) -> float:
         security = self.security_registry.find(market, code)
         if security is None and get_security_type(market, code) not in DIRECT_PRICE_TYPES:
@@ -1329,6 +1381,7 @@ class AsyncClient:
         bse_registry: BseRegistry | None = None,
         bse_provider: BseProvider | None = None,
         security_registry: SecurityRegistry | None = None,
+        trading_calendar_registry: TradingCalendarRegistry | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -1346,6 +1399,7 @@ class AsyncClient:
             "bse_registry": bse_registry,
             "bse_provider": bse_provider,
             "security_registry": security_registry,
+            "trading_calendar_registry": trading_calendar_registry,
         }
 
     @property
@@ -1542,10 +1596,17 @@ class AsyncClient:
         end_date: str | int,
         *,
         include_empty: bool = False,
+        trading_days_only: bool = True,
+        refresh_calendar: bool = False,
         page_size: int = HISTORY_TRANSACTION_MAX_OFFSET,
         max_pages: int | None = None,
     ) -> AsyncIterator[tuple[str, list[dict[str, object]]]]:
-        for date in _date_range(start_date, end_date):
+        dates = (
+            await self.trading_days(start_date, end_date, refresh=refresh_calendar)
+            if trading_days_only
+            else tuple(_date_range(start_date, end_date))
+        )
+        for date in dates:
             rows = await self.transactions_day(
                 symbol,
                 date,
@@ -1554,6 +1615,32 @@ class AsyncClient:
             )
             if rows or include_empty:
                 yield date, rows
+
+    async def trading_days(
+        self,
+        start_date: str | int | None = None,
+        end_date: str | int | None = None,
+        *,
+        refresh: bool = False,
+    ) -> tuple[str, ...]:
+        result = await asyncio.to_thread(
+            self._call_sync,
+            "trading_days",
+            start_date,
+            end_date,
+            refresh=refresh,
+        )
+        return tuple(result)
+
+    async def is_trading_day(self, date: str | int, *, refresh: bool = False) -> bool:
+        return bool(
+            await asyncio.to_thread(
+                self._call_sync,
+                "is_trading_day",
+                date,
+                refresh=refresh,
+            )
+        )
 
     async def finance(self, symbol: str) -> dict[str, object]:
         return dict(await asyncio.to_thread(self._call_sync, "finance", symbol))

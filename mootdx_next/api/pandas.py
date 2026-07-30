@@ -436,6 +436,8 @@ class PandasClient:
         end_date="20170209",
         *,
         include_empty=False,
+        trading_days_only=True,
+        refresh_calendar=False,
         page_size=2000,
         max_pages=None,
         **kwargs,
@@ -445,10 +447,24 @@ class PandasClient:
             start_date,
             end_date,
             include_empty=bool(include_empty),
+            trading_days_only=bool(trading_days_only),
+            refresh_calendar=bool(refresh_calendar),
             page_size=int(page_size),
             max_pages=None if max_pages is None else int(max_pages),
         ):
             yield date, transactions_to_frame(rows)
+
+    def trading_days(self, start_date=None, end_date=None, refresh=False) -> list[str]:
+        return list(
+            self.client.trading_days(
+                start_date,
+                end_date,
+                refresh=bool(refresh),
+            )
+        )
+
+    def is_trading_day(self, date, refresh=False) -> bool:
+        return self.client.is_trading_day(date, refresh=bool(refresh))
 
     def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
@@ -1058,6 +1074,8 @@ class AsyncPandasClient:
         end_date="20170209",
         *,
         include_empty=False,
+        trading_days_only=True,
+        refresh_calendar=False,
         page_size=2000,
         max_pages=None,
         **kwargs,
@@ -1067,10 +1085,24 @@ class AsyncPandasClient:
             start_date,
             end_date,
             include_empty=bool(include_empty),
+            trading_days_only=bool(trading_days_only),
+            refresh_calendar=bool(refresh_calendar),
             page_size=int(page_size),
             max_pages=None if max_pages is None else int(max_pages),
         ):
             yield date, transactions_to_frame(rows)
+
+    async def trading_days(self, start_date=None, end_date=None, refresh=False) -> list[str]:
+        return list(
+            await self.client.trading_days(
+                start_date,
+                end_date,
+                refresh=bool(refresh),
+            )
+        )
+
+    async def is_trading_day(self, date, refresh=False) -> bool:
+        return await self.client.is_trading_day(date, refresh=bool(refresh))
 
     async def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:

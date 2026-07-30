@@ -113,6 +113,9 @@ from mootdx_next.securities import Security
 from mootdx_next.securities import SecurityRegistry
 from mootdx_next.securities import security_snapshot
 from mootdx_next.transport.socket_transport import SyncSocketTransport
+from mootdx_next.trading_calendar import invalidate_trading_calendar
+from mootdx_next.trading_calendar import trading_calendar_snapshot
+from mootdx_next.trading_calendar import TradingCalendarRegistry
 
 __all__ = [
     "AsyncClient",
@@ -173,6 +176,7 @@ __all__ = [
     "invalidate_hq_candidates",
     "invalidate_price_limit_cache",
     "invalidate_securities",
+    "invalidate_trading_calendar",
     "invalidate_zhb_cache",
     "limit_prices_to_frame",
     "MootdxNextError",
@@ -218,6 +222,8 @@ __all__ = [
     "TransportMetrics",
     "TransportTimeoutError",
     "TRADING_PHASES",
+    "TradingCalendarRegistry",
+    "trading_calendar_snapshot",
     "UnknownF10CategoryError",
     "UnsupportedMarketError",
     "UnsafeArchiveError",

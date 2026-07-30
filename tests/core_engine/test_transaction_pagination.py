@@ -7,6 +7,7 @@ import pytest
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import ProtocolDecodeError
+from mootdx_next.trading_calendar import TradingCalendarRegistry
 
 
 def _row(day: int, minute: int, price: float) -> dict[str, object]:
@@ -22,7 +23,9 @@ def _row(day: int, minute: int, price: float) -> dict[str, object]:
 
 class PagedTransactionClient(SyncClient):
     def __init__(self, *, repeated: bool = False) -> None:
-        super().__init__()
+        registry = TradingCalendarRegistry()
+        registry.get(lambda: ["20260720", "20260721", "20260730"])
+        super().__init__(trading_calendar_registry=registry)
         self.repeated = repeated
         self.live_calls: list[tuple[str, int, int]] = []
         self.history_calls: list[tuple[str, str, int, int]] = []
@@ -94,8 +97,21 @@ def test_iter_transactions_yields_lazy_daily_chunks_and_can_include_empty_days()
     )
 
     assert [date for date, _ in non_empty] == ["20260720"]
-    assert [date for date, _ in with_empty] == ["20260718", "20260719", "20260720"]
-    assert with_empty[0][1] == []
+    assert [date for date, _ in with_empty] == ["20260720"]
+
+    natural_days = list(
+        client.iter_transactions(
+            "600036",
+            "20260718",
+            "20260720",
+            include_empty=True,
+            trading_days_only=False,
+            page_size=2,
+            max_pages=1,
+        )
+    )
+    assert [date for date, _ in natural_days] == ["20260718", "20260719", "20260720"]
+    assert natural_days[0][1] == []
 
 
 def test_async_iter_transactions_has_sync_chunk_semantics() -> None:

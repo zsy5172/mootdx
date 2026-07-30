@@ -36,6 +36,7 @@ from mootdx_next.models import ServerEndpoint
 from mootdx_next.models import TransportMetrics
 from mootdx_next.params import FREQUENCY_ALIASES
 from mootdx_next.securities import SecurityRegistry
+from mootdx_next.trading_calendar import TradingCalendarRegistry
 from mootdx_next.reader import ExtReader
 from mootdx_next.reader import Reader
 from mootdx_next.reader import StdReader
@@ -73,6 +74,8 @@ SYNC_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "trading_days",
+    "is_trading_day",
     "finance",
     "block",
     "block_file_raw",
@@ -123,6 +126,8 @@ ASYNC_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "trading_days",
+    "is_trading_day",
     "finance",
     "xdxr",
     "iter_xdxr",
@@ -179,6 +184,8 @@ PANDAS_PUBLIC_API = {
     "transactions",
     "transactions_day",
     "iter_transactions",
+    "trading_days",
+    "is_trading_day",
     "f10_categories",
     "f10_content",
     "f10_content_range",
@@ -339,6 +346,7 @@ def _matrix_client() -> tuple[SyncClient, MatrixProtocol, MatrixTransport]:
         scheduler=scheduler,
         bse_registry=BseRegistry(EmptyBseProvider()),
         security_registry=SecurityRegistry(),
+        trading_calendar_registry=TradingCalendarRegistry(),
     )
     return client, protocol, transport
 
@@ -402,6 +410,12 @@ SYNC_CALL_CASES = (
         {"symbol": "600036", "date": 20170209},
         ("transactions",),
     ),
+    SyncCallCase(
+        "trading_days",
+        {"start_date": "20260701", "end_date": "20260730"},
+        ("index_bars",),
+    ),
+    SyncCallCase("is_trading_day", {"date": "20260730"}, ("index_bars",)),
     SyncCallCase("finance", {"symbol": "600036"}, ("finance",)),
     SyncCallCase("block", {"block_file": "block_zs.dat"}, ("block_info_meta",)),
     SyncCallCase("xdxr", {"symbol": "600036"}, ("xdxr",)),
@@ -443,6 +457,7 @@ def test_sync_iter_transactions_executes_when_consumed() -> None:
             "20170209",
             "20170209",
             include_empty=True,
+            trading_days_only=False,
             max_pages=1,
         )
     )
@@ -660,6 +675,10 @@ class AsyncDispatchRecorder:
                 return "content"
             if name == "f10_content_range":
                 return b"content"
+            if name == "trading_days":
+                return ("20260730",)
+            if name == "is_trading_day":
+                return True
             return [{"api": name}]
 
         return call
@@ -737,6 +756,22 @@ ASYNC_CALL_CASES = (
         "transactions_day",
         ("600036", "20170209", 1000, 2),
         {},
+    ),
+    AsyncCallCase(
+        "trading_days",
+        ("20260701", "20260730"),
+        {"refresh": True},
+        "trading_days",
+        ("20260701", "20260730"),
+        {"refresh": True},
+    ),
+    AsyncCallCase(
+        "is_trading_day",
+        ("20260730",),
+        {"refresh": True},
+        "is_trading_day",
+        ("20260730",),
+        {"refresh": True},
     ),
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
     AsyncCallCase("xdxr", ("600036",), {}, "xdxr", ("600036",), {}),
@@ -830,6 +865,7 @@ def test_async_iter_transactions_dispatches_each_consumed_day() -> None:
                 "600036",
                 "20170209",
                 "20170209",
+                trading_days_only=False,
                 max_pages=1,
             )
         ]
@@ -953,10 +989,18 @@ class FacadeRecorder:
         start_date,
         end_date,
         include_empty=False,
+        trading_days_only=True,
+        refresh_calendar=False,
         page_size=2000,
         max_pages=None,
     ):
         yield str(start_date), self.transactions_day(symbol, start_date, page_size, max_pages)
+
+    def trading_days(self, start_date=None, end_date=None, refresh=False):
+        return ["20260730"]
+
+    def is_trading_day(self, date, refresh=False):
+        return True
 
     def f10_categories(self, symbol):
         return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
@@ -1058,6 +1102,8 @@ FACADE_CASES = (
         {"symbol": "600036", "date": "20170209", "max_pages": 1},
         pd.DataFrame,
     ),
+    FacadeCase("trading_days", {"start_date": "20260701", "end_date": "20260730"}, list),
+    FacadeCase("is_trading_day", {"date": "20260730"}, bool),
     FacadeCase("F10C", {"symbol": "600036"}, list),
     FacadeCase("F10", {"symbol": "600036", "name": "最新提示"}, str),
     FacadeCase(
