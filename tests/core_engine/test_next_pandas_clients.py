@@ -144,7 +144,12 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     assert isinstance(client.finance("600036"), pd.DataFrame)
     assert client.F10C("600036") == client.f10_categories("600036")
     assert client.F10("600036", "最新提示") == "最新提示内容"
-    pdt.assert_frame_equal(client.index("000001", market=1), client.index_bars("000001", market=1))
+    native_index = client.index_bars("000001", market=1)
+    legacy_index = client.index("000001", market=1)
+    pdt.assert_frame_equal(
+        legacy_index,
+        native_index.drop(columns=["previous_close"], errors="ignore"),
+    )
 
 
 def test_empty_transaction_is_preserved_by_sync_and_async_pandas_clients() -> None:

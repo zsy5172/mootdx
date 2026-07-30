@@ -132,6 +132,21 @@ def _k_shape(data: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _legacy_index_shape(data: pd.DataFrame) -> pd.DataFrame:
+    """Remove native next metadata from the legacy ``index()`` result."""
+
+    return data.drop(
+        columns=[
+            "previous_close",
+            "volume_raw",
+            "volume_unit",
+            "volume_lots",
+            "turnover_100_yuan",
+        ],
+        errors="ignore",
+    )
+
+
 def _adjustment_factor_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
     data = pd.DataFrame.from_records(rows)
     if "datetime" not in data.columns:
@@ -777,13 +792,15 @@ class PandasClient:
             self._raise_mapped(exc)
 
     def index(self, symbol="000001", frequency=9, start=0, offset=800, market=None, **kwargs) -> pd.DataFrame:
-        return self.index_bars(
-            symbol=symbol,
-            frequency=frequency,
-            start=start,
-            offset=offset,
-            market=market,
-            **kwargs,
+        return _legacy_index_shape(
+            self.index_bars(
+                symbol=symbol,
+                frequency=frequency,
+                start=start,
+                offset=offset,
+                market=market,
+                **kwargs,
+            )
         )
 
     def block(self, tofile="block.dat", **kwargs) -> pd.DataFrame:
@@ -1554,13 +1571,15 @@ class AsyncPandasClient:
             self._raise_mapped(exc)
 
     async def index(self, symbol="000001", frequency=9, start=0, offset=800, market=None, **kwargs) -> pd.DataFrame:
-        return await self.index_bars(
-            symbol=symbol,
-            frequency=frequency,
-            start=start,
-            offset=offset,
-            market=market,
-            **kwargs,
+        return _legacy_index_shape(
+            await self.index_bars(
+                symbol=symbol,
+                frequency=frequency,
+                start=start,
+                offset=offset,
+                market=market,
+                **kwargs,
+            )
         )
 
     async def block(self, tofile="block.dat", **kwargs) -> pd.DataFrame:

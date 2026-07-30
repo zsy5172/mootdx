@@ -83,6 +83,9 @@ def test_decode_index_daily_volume_uses_public_lot_unit() -> None:
     index = protocol.decode_index_bars(_single_bar_body(frequency=9, index=True), 9)
 
     assert index[0]["volume"] == security[0]["volume"] * 100
+    assert index[0]["volume_unit"] == "lot"
+    assert index[0]["volume_lots"] == index[0]["volume"]
+    assert index[0]["turnover_100_yuan"] is None
 
 
 def test_decode_index_intraday_volume_does_not_apply_daily_factor() -> None:
@@ -91,6 +94,20 @@ def test_decode_index_intraday_volume_does_not_apply_daily_factor() -> None:
     index = protocol.decode_index_bars(_single_bar_body(frequency=8, index=True), 8)
 
     assert index[0]["volume"] == security[0]["volume"] * 100
+    assert index[0]["volume_unit"] == "hundred_yuan_turnover"
+    assert index[0]["volume_lots"] is None
+    assert index[0]["turnover_100_yuan"] == index[0]["volume"]
+
+
+def test_decode_index_alternate_daily_volume_is_still_lots() -> None:
+    protocol = StdQuoteProtocol()
+    rows = protocol.decode_index_bars(
+        _single_bar_body(frequency=4, index=True),
+        4,
+    )
+
+    assert rows[0]["volume_unit"] == "lot"
+    assert rows[0]["volume_lots"] == rows[0]["volume"]
 
 
 def test_decode_alternate_daily_volume_normalizes_share_encoding_to_lots() -> None:

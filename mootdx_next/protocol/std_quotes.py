@@ -725,11 +725,11 @@ class StdQuoteProtocol(AbstractProtocol):
                 price_high_diff, pos = _get_price(body, pos)
                 price_low_diff, pos = _get_price(body, pos)
                 (vol_raw,) = U32_STRUCT.unpack_from(body, pos)
-                vol = _get_volume(vol_raw)
+                decoded_volume = _get_volume(vol_raw)
+                vol = decoded_volume
                 if frequency not in {0, 1, 2, 3, 4, 7, 8}:
                     # Index day-or-longer bars encode volume at 1/100 of the
-                    # public lot unit. Intraday categories contain the extra
-                    # factor already, matching the quote snapshot volume.
+                    # public lot unit.
                     vol *= 100
                 pos += 4
                 (amount_raw,) = U32_STRUCT.unpack_from(body, pos)
@@ -746,6 +746,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 pre_diff_base = price_open_diff + price_close_diff
 
                 previous_close = None if not rows else rows[-1]["close"]
+                intraday_turnover_proxy = frequency in {0, 1, 2, 3, 7, 8}
                 rows.append(
                     {
                         "open": open_,
@@ -763,6 +764,17 @@ class StdQuoteProtocol(AbstractProtocol):
                         "up_count": up_count,
                         "down_count": down_count,
                         "volume": vol,
+                        # Live Shanghai and Shenzhen index packets confirm
+                        # that the intraday slot is approximately amount/100,
+                        # not a share/lot volume. Keep ``vol``/``volume`` for
+                        # wire and legacy compatibility, while publishing the
+                        # semantics required for safe calculations.
+                        "volume_raw": decoded_volume,
+                        "volume_unit": (
+                            "hundred_yuan_turnover" if intraday_turnover_proxy else "lot"
+                        ),
+                        "volume_lots": None if intraday_turnover_proxy else vol,
+                        "turnover_100_yuan": vol if intraday_turnover_proxy else None,
                         "previous_close": previous_close,
                     }
                 )
