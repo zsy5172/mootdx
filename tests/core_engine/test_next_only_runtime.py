@@ -30,9 +30,13 @@ def test_package_import_and_default_std_engine_work_without_legacy_extra() -> No
     assert isinstance(client, NextStdQuotes)
 
 
-def test_ext_market_is_explicitly_unsupported() -> None:
-    with pytest.raises(MootdxValidationException, match="扩展市场已经废弃且不再支持"):
-        Quotes.factory(market="ext")
+def test_ext_market_uses_decoupled_next_runtime() -> None:
+    client = Quotes.factory(market="ext")
+    try:
+        assert client.__class__.__name__ == "NextExtQuotes"
+        assert client.client.__class__.__module__ == "mootdx_next.api.ex_clients"
+    finally:
+        client.close()
 
 
 def test_gp_socket_probe_is_unsupported_but_affair_routes_to_next_https() -> None:

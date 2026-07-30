@@ -8,7 +8,9 @@ import pandas as pd
 import pytest
 
 from mootdx.exceptions import MootdxValidationException
+from mootdx.quotes import NextExtQuotes
 from mootdx.quotes import NextStdQuotes
+from mootdx_next.api.ex_pandas import ExPandasClient
 from mootdx_next.api.pandas import AsyncPandasClient
 from mootdx_next.api.pandas import PandasClient
 from mootdx_next.api.clients import AsyncClient
@@ -53,10 +55,22 @@ SYNC_PUBLIC_API = {
     "index_bars",
     "minutes",
     "minute",
+    "call_auction",
     "transaction",
     "transactions",
     "finance",
     "block",
+    "block_file_raw",
+    "report_file",
+    "zhb_files",
+    "tdx_block_indexes",
+    "tdx_block_aliases",
+    "block_with_index",
+    "sp_blocks",
+    "tdx_industries",
+    "ipo_subscriptions",
+    "stock_statistics",
+    "stock_statistics2",
     "xdxr",
     "f10_categories",
     "f10_content",
@@ -75,12 +89,24 @@ ASYNC_PUBLIC_API = {
     "bars",
     "minutes",
     "minute",
+    "call_auction",
     "transaction",
     "transactions",
     "finance",
     "xdxr",
     "index_bars",
     "block",
+    "block_file_raw",
+    "report_file",
+    "zhb_files",
+    "tdx_block_indexes",
+    "tdx_block_aliases",
+    "block_with_index",
+    "sp_blocks",
+    "tdx_industries",
+    "ipo_subscriptions",
+    "stock_statistics",
+    "stock_statistics2",
     "f10_categories",
     "f10_content",
 }
@@ -100,6 +126,7 @@ PANDAS_PUBLIC_API = {
     "stocks",
     "stock_all",
     "minute",
+    "call_auction",
     "minutes",
     "transaction",
     "transactions",
@@ -112,6 +139,17 @@ PANDAS_PUBLIC_API = {
     "index_bars",
     "index",
     "block",
+    "block_file_raw",
+    "report_file",
+    "zhb_files",
+    "tdx_block_indexes",
+    "tdx_block_aliases",
+    "block_with_index",
+    "sp_blocks",
+    "tdx_industries",
+    "ipo_subscriptions",
+    "stock_statistics",
+    "stock_statistics2",
     "get_k_data",
     "k",
     "ohlc",
@@ -168,6 +206,8 @@ def test_public_api_inventory_requires_matrix_updates_for_new_methods() -> None:
     assert _public_api(AsyncPandasClient) == PANDAS_PUBLIC_API
     assert _public_api(NextStdQuotes) == set()
     assert issubclass(NextStdQuotes, PandasClient)
+    assert _public_api(NextExtQuotes) == set()
+    assert issubclass(NextExtQuotes, ExPandasClient)
 
 
 def test_financial_and_local_reader_public_api_inventory() -> None:

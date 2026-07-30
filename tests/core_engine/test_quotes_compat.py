@@ -10,6 +10,7 @@ import mootdx_next.api.pandas as pandas_api_module
 import mootdx_next.candidates as candidates_module
 from mootdx.consts import HQ_HOSTS
 from mootdx.exceptions import MootdxValidationException
+from mootdx.quotes import NextExtQuotes
 from mootdx.quotes import NextStdQuotes
 from mootdx.quotes import Quotes
 from mootdx_next import CandidateRegistry
@@ -260,9 +261,12 @@ def test_next_factory_respects_explicit_server(monkeypatch) -> None:
         client.close()
 
 
-def test_factory_rejects_ext_market() -> None:
-    with pytest.raises(MootdxValidationException, match="扩展市场已经废弃且不再支持"):
-        Quotes.factory(market="ext", engine="next")
+def test_factory_returns_next_ext_quotes() -> None:
+    client = Quotes.factory(market="ext", engine="next")
+    try:
+        assert isinstance(client, NextExtQuotes)
+    finally:
+        client.close()
 
 
 def test_next_quotes_compat_returns_dataframe_and_empty_for_none() -> None:
@@ -412,9 +416,6 @@ def test_next_close_reconnect_and_closed() -> None:
     assert client.closed is False
 
 
-def test_next_engine_rejects_ext_and_invalid_engine() -> None:
-    with pytest.raises(MootdxValidationException):
-        Quotes.factory(market="ext", engine="next")
-
+def test_factory_rejects_invalid_engine() -> None:
     with pytest.raises(MootdxValidationException):
         Quotes.factory(market="std", engine="unknown")

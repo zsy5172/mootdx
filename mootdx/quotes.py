@@ -13,6 +13,7 @@ from mootdx.consts import MARKET_SH, MARKET_SZ, return_last_value
 from mootdx.exceptions import MootdxValidationException
 from mootdx.logger import logger
 from mootdx.utils import get_frequency, get_stock_market, get_stock_markets, normalize_stock_symbol, to_data
+from mootdx_next import ExPandasClient
 from mootdx_next import PandasClient
 
 _KLINE_PAGE_SIZE = 800
@@ -33,14 +34,16 @@ class Quotes(object):
 
         logger.debug(kwargs)
 
-        if market == 'ext':
-            raise _validation_exception('扩展市场已经废弃且不再支持')
-
         if engine is None:
             engine = 'next'
 
         if engine not in ['legacy', 'next']:
             raise _validation_exception('engine 参数错误, 目前只支持 legacy / next')
+
+        if market == 'ext':
+            if engine == 'next':
+                return NextExtQuotes(**kwargs)
+            return ExtQuotes(**kwargs)
 
         if engine == 'next':
             return NextStdQuotes(**kwargs)
@@ -597,6 +600,17 @@ class StdQuotes(BaseQuotes):
 
 class NextStdQuotes(PandasClient):
     """Legacy namespace adapter for the native next Pandas client."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs["error_mapper"] = lambda exc: _validation_exception(str(exc))
+        super().__init__(*args, **kwargs)
+
+        global instance
+        instance = self
+
+
+class NextExtQuotes(ExPandasClient):
+    """Legacy namespace adapter for the native next ExHq Pandas client."""
 
     def __init__(self, *args, **kwargs):
         kwargs["error_mapper"] = lambda exc: _validation_exception(str(exc))

@@ -1,4 +1,6 @@
 from mootdx_next import AsyncClient
+from mootdx_next import AsyncExClient
+from mootdx_next import AsyncExPandasClient
 from mootdx_next import bars_to_frame
 from mootdx_next import CandidateRegistry
 from mootdx_next import ConnectionPool
@@ -6,12 +8,18 @@ from mootdx_next import ConnectionLease
 from mootdx_next import ConnectionPoolSnapshot
 from mootdx_next import f10_categories_to_frame
 from mootdx_next import finance_to_frame
+from mootdx_next import ExPandasClient
+from mootdx_next import ExQuoteProtocol
+from mootdx_next import ExSyncClient
+from mootdx_next import ex_candidate_snapshot
+from mootdx_next import get_ex_candidates
 from mootdx_next import get_hq_candidates
 from mootdx_next import hq_candidate_snapshot
 from mootdx_next import InvalidDateError
 from mootdx_next import InvalidFrequencyError
 from mootdx_next import InvalidResponseHeaderError
 from mootdx_next import InvalidSymbolError
+from mootdx_next import invalidate_ex_candidates
 from mootdx_next import invalidate_hq_candidates
 from mootdx_next import invalidate_price_limit_cache
 from mootdx_next import limit_prices_to_frame
@@ -23,7 +31,9 @@ from mootdx_next import PriceLimit
 from mootdx_next import PriceLimitRegistry
 from mootdx_next import price_limit_snapshot
 from mootdx_next import price_limit_to_frame
+from mootdx_next import probe_ex_candidate
 from mootdx_next import quotes_to_frame
+from mootdx_next import refresh_ex_candidates
 from mootdx_next import refresh_hq_candidates
 from mootdx_next import RequestContext
 from mootdx_next import ResponseEnvelope
@@ -45,6 +55,8 @@ from mootdx_next import xdxr_to_frame
 
 def test_top_level_imports() -> None:
     assert AsyncClient is not None
+    assert AsyncExClient is not None
+    assert AsyncExPandasClient is not None
     assert bars_to_frame is not None
     assert CandidateRegistry is not None
     assert ConnectionPool is not None
@@ -52,12 +64,18 @@ def test_top_level_imports() -> None:
     assert ConnectionPoolSnapshot is not None
     assert f10_categories_to_frame is not None
     assert finance_to_frame is not None
+    assert ExPandasClient is not None
+    assert ExQuoteProtocol is not None
+    assert ExSyncClient is not None
+    assert ex_candidate_snapshot is not None
+    assert get_ex_candidates is not None
     assert get_hq_candidates is not None
     assert hq_candidate_snapshot is not None
     assert InvalidDateError is not None
     assert InvalidFrequencyError is not None
     assert InvalidResponseHeaderError is not None
     assert InvalidSymbolError is not None
+    assert invalidate_ex_candidates is not None
     assert invalidate_hq_candidates is not None
     assert invalidate_price_limit_cache is not None
     assert limit_prices_to_frame is not None
@@ -69,7 +87,9 @@ def test_top_level_imports() -> None:
     assert PriceLimitRegistry is not None
     assert price_limit_snapshot is not None
     assert price_limit_to_frame is not None
+    assert probe_ex_candidate is not None
     assert quotes_to_frame is not None
+    assert refresh_ex_candidates is not None
     assert refresh_hq_candidates is not None
     assert RequestContext is not None
     assert ResponseEnvelope is not None
