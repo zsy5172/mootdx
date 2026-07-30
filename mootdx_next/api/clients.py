@@ -287,7 +287,15 @@ class SyncClient:
         )
         payload = self.protocol.encode("minutes", market=market, code=code, date=normalized_date)
         envelope = self._send(context, payload)
-        return list(self.protocol.decode("minutes", envelope, market=market, code=code))
+        return list(
+            self.protocol.decode(
+                "minutes",
+                envelope,
+                market=market,
+                code=code,
+                date=normalized_date,
+            )
+        )
 
     def minute(self, symbol: str) -> list[dict[str, object]]:
         return self.minutes(symbol=symbol, date=today_yyyymmdd())
@@ -335,7 +343,14 @@ class SyncClient:
         )
         payload = self.protocol.encode("transaction", market=market, code=code, start=start, count=offset)
         envelope = self._send(context, payload)
-        return list(self.protocol.decode("transaction", envelope))
+        return list(
+            self.protocol.decode(
+                "transaction",
+                envelope,
+                market=market,
+                code=code,
+            )
+        )
 
     def transactions(
         self,
@@ -377,7 +392,15 @@ class SyncClient:
             date=normalized_date,
         )
         envelope = self._send(context, payload)
-        return list(self.protocol.decode("transactions", envelope))
+        return list(
+            self.protocol.decode(
+                "transactions",
+                envelope,
+                market=market,
+                code=code,
+                date=normalized_date,
+            )
+        )
 
     def finance(self, symbol: str) -> dict[str, object]:
         if not isinstance(symbol, str) or not symbol.strip():
