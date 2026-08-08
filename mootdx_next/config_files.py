@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import struct
 import threading
 import time
 from collections.abc import Callable
@@ -16,7 +17,10 @@ from mootdx_next.errors import ConfigArchiveError
 from mootdx_next.errors import ConfigFileError
 
 ZHB_FILENAME = "zhb.zip"
+INFOHARBOR_BLOCK_FILENAME = "infoharbor_block.dat"
+TDX_BASE_FILENAME = "base.dbf"
 TDX_ZS_FILENAME = "tdxzs.cfg"
+TDX_ZS3_FILENAME = "tdxzs3.cfg"
 TDX_BK_FILENAME = "tdxbk.cfg"
 TDX_STAT_FILENAME = "tdxstat.cfg"
 TDX_STAT2_FILENAME = "tdxstat2.cfg"
@@ -30,6 +34,19 @@ ZHB_MAX_MEMBER_SIZE = 32 * 1024 * 1024
 ZHB_MAX_UNCOMPRESSED_SIZE = 128 * 1024 * 1024
 
 ZhbLoader = Callable[[], bytes]
+
+TDX_BLOCK_TYPE_CATEGORIES = {
+    2: ("industry", "行业板块", "tdx"),
+    3: ("region", "地区板块", None),
+    4: ("concept", "概念板块", None),
+    5: ("style", "风格板块", None),
+    12: ("industry", "行业板块", "sw"),
+}
+INFOHARBOR_BLOCK_CATEGORIES = {
+    "GN": ("concept", "概念板块"),
+    "FG": ("style", "风格板块"),
+    "ZS": ("index", "指数板块"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,13 +188,21 @@ def parse_tdx_block_indexes(data: bytes) -> list[dict[str, object]]:
     for fields in _records(data):
         if len(fields) < 2 or not fields[0] or not fields[1]:
             continue
+        block_type = _to_int(_field(fields, 2))
+        category, category_name, taxonomy = TDX_BLOCK_TYPE_CATEGORIES.get(
+            block_type,
+            (None, None, None),
+        )
         rows.append(
             {
                 "name": fields[0],
                 "code": fields[1],
-                "type": _to_int(_field(fields, 2)),
+                "type": block_type,
                 "subtype": _to_int(_field(fields, 3)),
                 "reference": _field(fields, 5),
+                "category": category,
+                "category_name": category_name,
+                "taxonomy": taxonomy,
             }
         )
     return rows
@@ -189,6 +214,129 @@ def parse_tdx_block_aliases(data: bytes) -> list[dict[str, object]]:
         if len(fields) < 3 or not fields[1] or not fields[2]:
             continue
         rows.append({"short_name": fields[1], "full_name": fields[2]})
+    return rows
+
+
+def parse_infoharbor_blocks(data: bytes) -> list[dict[str, object]]:
+    blocks: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
+    current_members: list[dict[str, object]] = []
+
+    def append_current() -> None:
+        if current is None:
+            return
+        item = dict(current)
+        item["actual_count"] = len(current_members)
+        item["members"] = tuple(dict(member) for member in current_members)
+        blocks.append(item)
+
+    for raw_line in _decode_lines(data):
+        line = raw_line.strip().strip("\x00")
+        if not line:
+            continue
+        if line.startswith("#"):
+            append_current()
+            current = None
+            current_members = []
+
+            fields = line[1:].split(",")
+            header = fields[0]
+            if "_" not in header:
+                continue
+            prefix, name = header.split("_", 1)
+            category = INFOHARBOR_BLOCK_CATEGORIES.get(prefix)
+            if category is None or not name:
+                continue
+            current = {
+                "name": name,
+                "code": _field(fields, 2),
+                "category": category[0],
+                "category_name": category[1],
+                "declared_count": _to_int(_field(fields, 1)),
+                "created_date": _field(fields, 3),
+                "updated_date": _field(fields, 4),
+            }
+            continue
+
+        if current is None:
+            continue
+        for token in line.split(","):
+            market_value, separator, code = token.strip().partition("#")
+            market = _to_int(market_value)
+            if separator and market is not None and code:
+                current_members.append({"market": market, "code": code})
+
+    append_current()
+    return blocks
+
+
+def parse_tdx_base_finance(data: bytes) -> list[dict[str, object]]:
+    if len(data) < 33:
+        raise ConfigFileError(f"{TDX_BASE_FILENAME} header is truncated")
+
+    try:
+        record_count = struct.unpack_from("<I", data, 4)[0]
+        header_length, record_length = struct.unpack_from("<HH", data, 8)
+    except struct.error as exc:
+        raise ConfigFileError(f"failed to decode {TDX_BASE_FILENAME} header") from exc
+    if header_length < 33 or record_length <= 1 or header_length > len(data):
+        raise ConfigFileError(
+            f"invalid {TDX_BASE_FILENAME} dimensions: header={header_length}, record={record_length}"
+        )
+
+    fields: dict[str, tuple[int, int]] = {}
+    descriptor_pos = 32
+    field_offset = 1
+    while descriptor_pos < header_length and data[descriptor_pos] != 0x0D:
+        descriptor = data[descriptor_pos : descriptor_pos + 32]
+        if len(descriptor) != 32:
+            raise ConfigFileError(f"{TDX_BASE_FILENAME} field descriptor is truncated")
+        name = descriptor[:11].split(b"\x00", 1)[0].decode("ascii", "ignore").upper()
+        length = descriptor[16]
+        if not name or length <= 0 or field_offset + length > record_length:
+            raise ConfigFileError(f"invalid {TDX_BASE_FILENAME} field descriptor at {descriptor_pos}")
+        fields[name] = (field_offset, length)
+        field_offset += length
+        descriptor_pos += 32
+    if descriptor_pos >= header_length or data[descriptor_pos] != 0x0D:
+        raise ConfigFileError(f"{TDX_BASE_FILENAME} field descriptors have no terminator")
+
+    required = {"SC", "GPDM", "DY"}
+    missing = sorted(required - fields.keys())
+    if missing:
+        raise ConfigFileError(f"{TDX_BASE_FILENAME} is missing fields: {', '.join(missing)}")
+    records_end = header_length + record_count * record_length
+    if records_end > len(data):
+        raise ConfigFileError(
+            f"{TDX_BASE_FILENAME} records are truncated: expected {records_end} bytes, got {len(data)}"
+        )
+
+    def read_field(record: bytes, name: str) -> str:
+        location = fields.get(name)
+        if location is None:
+            return ""
+        offset, length = location
+        return record[offset : offset + length].decode("ascii", "ignore").strip()
+
+    rows: list[dict[str, object]] = []
+    for index in range(record_count):
+        start = header_length + index * record_length
+        record = data[start : start + record_length]
+        if record[:1] == b"*":
+            continue
+        market = _to_int(read_field(record, "SC"))
+        code = read_field(record, "GPDM")
+        if market is None or not code:
+            continue
+        rows.append(
+            {
+                "market": market,
+                "code": code,
+                "province": _to_int(read_field(record, "DY")),
+                "industry": _to_int(read_field(record, "HY")),
+                "updated_date": read_field(record, "GXRQ"),
+            }
+        )
     return rows
 
 

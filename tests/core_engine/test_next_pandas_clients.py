@@ -86,6 +86,19 @@ class SyncRaw:
     def block(self, block_file="block.dat"):
         return [{"blockname": "测试", "code": "600036"}]
 
+    def block_catalog(self, category=None, refresh=False):
+        return [
+            {
+                "name": "测试概念",
+                "code": "880001",
+                "category": "concept",
+                "category_name": "概念板块",
+            }
+        ]
+
+    def block_members(self, block, category=None, refresh=False):
+        return [{"block_name": "测试概念", "block_code": "880001", "code": "600036"}]
+
     def f10_categories(self, symbol: str):
         return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
 
@@ -158,6 +171,8 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     assert isinstance(client.bars("600036"), pd.DataFrame)
     assert isinstance(client.stocks(1), pd.DataFrame)
     assert isinstance(client.finance("600036"), pd.DataFrame)
+    assert client.block_catalog("概念").iloc[0]["code"] == "880001"
+    assert client.block_members("880001").iloc[0]["code"] == "600036"
     assert client.F10C("600036") == client.f10_categories("600036")
     assert client.F10("600036", "最新提示") == "最新提示内容"
     native_index = client.index_bars("000001", market=1)

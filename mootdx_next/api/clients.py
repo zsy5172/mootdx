@@ -18,34 +18,43 @@ from mootdx_next.bse import BseProvider
 from mootdx_next.bse import BseRegistry
 from mootdx_next.bse import bse_registry as default_bse_registry
 from mootdx_next.config_files import get_zhb_file
+from mootdx_next.config_files import INFOHARBOR_BLOCK_FILENAME
+from mootdx_next.config_files import parse_infoharbor_blocks
 from mootdx_next.config_files import parse_ipo_subscriptions
 from mootdx_next.config_files import parse_sp_blocks
 from mootdx_next.config_files import parse_stock_statistics
 from mootdx_next.config_files import parse_stock_statistics2
 from mootdx_next.config_files import parse_tdx_block_aliases
+from mootdx_next.config_files import parse_tdx_base_finance
 from mootdx_next.config_files import parse_tdx_block_indexes
 from mootdx_next.config_files import parse_tdx_industries
 from mootdx_next.config_files import SP_BLOCK_FILENAME
 from mootdx_next.config_files import TDX_BK_FILENAME
+from mootdx_next.config_files import TDX_BASE_FILENAME
 from mootdx_next.config_files import TDX_HY_FILENAME
 from mootdx_next.config_files import TDX_STAT2_FILENAME
 from mootdx_next.config_files import TDX_STAT_FILENAME
+from mootdx_next.config_files import TDX_ZS3_FILENAME
 from mootdx_next.config_files import TDX_ZS_FILENAME
 from mootdx_next.config_files import XGSG_FILENAME
 from mootdx_next.config_files import ZHB_FILENAME
 from mootdx_next.config_files import ZhbRegistry
 from mootdx_next.config_files import zhb_registry
+from mootdx_next.constants import BLOCK_FG
+from mootdx_next.constants import BLOCK_GN
+from mootdx_next.constants import BLOCK_SZ
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
 from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
+from mootdx_next.errors import ConfigFileError
+from mootdx_next.errors import GbbqError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
-from mootdx_next.errors import GbbqError
 from mootdx_next.gbbq import GbbqProvider
 from mootdx_next.gbbq import GbbqRegistry
 from mootdx_next.gbbq import gbbq_provider as default_gbbq_provider
@@ -88,6 +97,35 @@ BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
 BarPredicate = Callable[[Mapping[str, object]], bool]
+BLOCK_CATEGORY_NAMES = {
+    "region": "地区板块",
+    "industry": "行业板块",
+    "concept": "概念板块",
+    "style": "风格板块",
+    "index": "指数板块",
+}
+BLOCK_CATEGORY_ALIASES = {
+    "region": "region",
+    "地区": "region",
+    "地区板块": "region",
+    "industry": "industry",
+    "行业": "industry",
+    "行业板块": "industry",
+    "concept": "concept",
+    "概念": "concept",
+    "概念板块": "concept",
+    "style": "style",
+    "风格": "style",
+    "风格板块": "style",
+    "index": "index",
+    "指数": "index",
+    "指数板块": "index",
+}
+BLOCK_MEMBER_FILES = {
+    "concept": BLOCK_GN,
+    "style": BLOCK_FG,
+    "index": BLOCK_SZ,
+}
 DIRECT_PRICE_TYPES = frozenset(
     {
         "SH_A_STOCK",
@@ -141,6 +179,8 @@ REQUEST_APIS = frozenset(
         "zhb_files",
         "tdx_block_indexes",
         "tdx_block_aliases",
+        "block_catalog",
+        "block_members",
         "block_with_index",
         "sp_blocks",
         "tdx_industries",
@@ -172,6 +212,38 @@ def _optional_int(value: object) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _normalize_block_category(category: str | None) -> str | None:
+    if category is None:
+        return None
+    if not isinstance(category, str) or not category.strip():
+        raise ValueError("category cannot be blank")
+    normalized = category.strip().casefold()
+    try:
+        return BLOCK_CATEGORY_ALIASES[normalized]
+    except KeyError as exc:
+        supported = ", ".join(BLOCK_CATEGORY_NAMES.values())
+        raise ValueError(f"unsupported block category {category!r}; expected one of {supported}") from exc
+
+
+def _decorate_block_member(
+    row: Mapping[str, object],
+    block: Mapping[str, object],
+    source: str,
+) -> dict[str, object]:
+    item = dict(row)
+    item.update(
+        {
+            "block_name": block["name"],
+            "block_code": block["code"],
+            "block_category": block["category"],
+            "block_category_name": block["category_name"],
+            "block_taxonomy": block.get("taxonomy"),
+            "source": source,
+        }
+    )
+    return item
 
 
 def _optional_float(value: object) -> float | None:
@@ -290,6 +362,10 @@ class SyncClient:
         self.gbbq_registry = gbbq_registry or default_gbbq_registry
         self.gbbq_provider = gbbq_provider or default_gbbq_provider
         self._adjustment_service: Any | None = None
+        self._base_finance_cache: tuple[dict[str, object], ...] | None = None
+        self._base_finance_lock = threading.RLock()
+        self._infoharbor_blocks_cache: tuple[dict[str, object], ...] | None = None
+        self._infoharbor_blocks_lock = threading.RLock()
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -1054,13 +1130,225 @@ class SyncClient:
         )
         return snapshot.files
 
-    def tdx_block_indexes(self, refresh: bool = False) -> list[dict[str, object]]:
+    def _tdx_block_indexes_with_source(
+        self,
+        refresh: bool = False,
+    ) -> tuple[str, list[dict[str, object]]]:
         files = self.zhb_files(refresh=refresh)
-        return parse_tdx_block_indexes(get_zhb_file(files, TDX_ZS_FILENAME))
+        for filename in (TDX_ZS3_FILENAME, TDX_ZS_FILENAME):
+            try:
+                content = get_zhb_file(files, filename)
+            except ConfigFileError:
+                continue
+            return filename, parse_tdx_block_indexes(content)
+        raise ConfigFileError(f"{ZHB_FILENAME} does not contain {TDX_ZS3_FILENAME} or {TDX_ZS_FILENAME}")
+
+    def tdx_block_indexes(self, refresh: bool = False) -> list[dict[str, object]]:
+        _, rows = self._tdx_block_indexes_with_source(refresh=refresh)
+        return rows
 
     def tdx_block_aliases(self, refresh: bool = False) -> list[dict[str, object]]:
         files = self.zhb_files(refresh=refresh)
         return parse_tdx_block_aliases(get_zhb_file(files, TDX_BK_FILENAME))
+
+    def _typed_block_catalog(self, refresh: bool = False) -> list[dict[str, object]]:
+        source, rows = self._tdx_block_indexes_with_source(refresh=refresh)
+        result: list[dict[str, object]] = []
+        for row in rows:
+            if row.get("category") not in BLOCK_CATEGORY_NAMES:
+                continue
+            item = dict(row)
+            item["source"] = source
+            result.append(item)
+        return result
+
+    def _base_finance(self, refresh: bool = False) -> list[dict[str, object]]:
+        with self._base_finance_lock:
+            if self._base_finance_cache is None or refresh:
+                content = self.block_file_raw(TDX_BASE_FILENAME)
+                self._base_finance_cache = tuple(parse_tdx_base_finance(content)) if content else ()
+            return list(self._base_finance_cache)
+
+    def _infoharbor_blocks(self, refresh: bool = False) -> list[dict[str, object]]:
+        with self._infoharbor_blocks_lock:
+            if self._infoharbor_blocks_cache is None or refresh:
+                content = self.block_file_raw(INFOHARBOR_BLOCK_FILENAME)
+                self._infoharbor_blocks_cache = tuple(parse_infoharbor_blocks(content)) if content else ()
+            return list(self._infoharbor_blocks_cache)
+
+    def _index_block_catalog(self, refresh: bool = False) -> list[dict[str, object]]:
+        result: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for block in self._infoharbor_blocks(refresh=refresh):
+            if block.get("category") != "index":
+                continue
+            name = str(block.get("name", "")).strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            result.append(
+                {
+                    "name": name,
+                    "code": str(block.get("code", "")),
+                    "type": None,
+                    "subtype": None,
+                    "reference": "",
+                    "category": "index",
+                    "category_name": BLOCK_CATEGORY_NAMES["index"],
+                    "taxonomy": None,
+                    "source": INFOHARBOR_BLOCK_FILENAME,
+                }
+            )
+        if result:
+            return result
+
+        for row in self.block(BLOCK_SZ):
+            name = str(row.get("blockname", "")).strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            result.append(
+                {
+                    "name": name,
+                    "code": "",
+                    "type": None,
+                    "subtype": None,
+                    "reference": "",
+                    "category": "index",
+                    "category_name": BLOCK_CATEGORY_NAMES["index"],
+                    "taxonomy": None,
+                    "source": BLOCK_SZ,
+                }
+            )
+        return result
+
+    def block_catalog(
+        self,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        normalized_category = _normalize_block_category(category)
+        if normalized_category == "index":
+            return self._index_block_catalog(refresh=refresh)
+
+        rows = self._typed_block_catalog(refresh=refresh)
+        if normalized_category is not None:
+            return [row for row in rows if row["category"] == normalized_category]
+        rows.extend(self._index_block_catalog(refresh=refresh))
+        return rows
+
+    def _resolve_block_catalog_entry(
+        self,
+        block: str,
+        category: str | None,
+        refresh: bool,
+    ) -> dict[str, object]:
+        if not isinstance(block, str) or not block.strip():
+            raise ValueError("block cannot be blank")
+        selector = block.strip()
+        normalized_category = _normalize_block_category(category)
+
+        if normalized_category == "index":
+            catalog = self._index_block_catalog(refresh=refresh)
+        else:
+            catalog = self._typed_block_catalog(refresh=refresh)
+            if normalized_category is not None:
+                catalog = [row for row in catalog if row["category"] == normalized_category]
+
+        matches = [row for row in catalog if selector in {str(row["code"]), str(row["name"])}]
+        if not matches and normalized_category is None:
+            matches = [
+                row
+                for row in self._index_block_catalog(refresh=refresh)
+                if selector == str(row["name"])
+            ]
+        if not matches:
+            qualifier = f" in {BLOCK_CATEGORY_NAMES[normalized_category]}" if normalized_category else ""
+            raise ValueError(f"unknown block {selector!r}{qualifier}")
+
+        unique = {
+            (str(row["category"]), str(row["code"]), str(row["name"]), str(row.get("taxonomy"))): row
+            for row in matches
+        }
+        if len(unique) > 1:
+            choices = ", ".join(
+                f"{row['name']} ({row['code'] or row['category']})"
+                for row in unique.values()
+            )
+            raise ValueError(f"ambiguous block {selector!r}; use a block code: {choices}")
+        return dict(next(iter(unique.values())))
+
+    def block_members(
+        self,
+        block: str,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        selected = self._resolve_block_catalog_entry(block, category, refresh)
+        selected_category = str(selected["category"])
+
+        if selected_category == "region":
+            province = _optional_int(selected.get("reference"))
+            if province is None:
+                raise ValueError(f"region block {selected['name']!r} has no province reference")
+            rows = [row for row in self._base_finance(refresh=refresh) if row.get("province") == province]
+            return [_decorate_block_member(row, selected, TDX_BASE_FILENAME) for row in rows]
+
+        if selected_category == "industry":
+            taxonomy = str(selected.get("taxonomy") or "")
+            field = {"tdx": "tdx_industry", "sw": "sw_industry"}.get(taxonomy)
+            reference = str(selected.get("reference") or "")
+            if field is None or not reference:
+                raise ValueError(f"industry block {selected['name']!r} has no membership reference")
+            rows = [
+                row
+                for row in self.tdx_industries()
+                if str(row.get(field, "")).startswith(reference)
+            ]
+            return [_decorate_block_member(row, selected, TDX_HY_FILENAME) for row in rows]
+
+        block_file = BLOCK_MEMBER_FILES[selected_category]
+        names = {str(selected["name"])}
+        if selected_category != "index":
+            for alias in self.tdx_block_aliases(refresh=False):
+                short_name = str(alias["short_name"])
+                full_name = str(alias["full_name"])
+                if short_name in names:
+                    names.add(full_name)
+                if full_name in names:
+                    names.add(short_name)
+
+        infoharbor_rows: list[dict[str, object]] = []
+        seen_members: set[tuple[int, str]] = set()
+        for group in self._infoharbor_blocks(refresh=refresh):
+            if group.get("category") != selected_category or str(group.get("name", "")) not in names:
+                continue
+            for code_index, member in enumerate(group.get("members", ())):
+                if not isinstance(member, Mapping):
+                    continue
+                market = int(member["market"])
+                code = str(member["code"])
+                key = (market, code)
+                if key in seen_members:
+                    continue
+                seen_members.add(key)
+                infoharbor_rows.append(
+                    {
+                        "market": market,
+                        "code": code,
+                        "code_index": code_index,
+                        "declared_count": group.get("declared_count"),
+                        "actual_count": group.get("actual_count"),
+                    }
+                )
+        if infoharbor_rows:
+            return [
+                _decorate_block_member(row, selected, INFOHARBOR_BLOCK_FILENAME)
+                for row in infoharbor_rows
+            ]
+
+        rows = [row for row in self.block(block_file) if str(row.get("blockname", "")) in names]
+        return [_decorate_block_member(row, selected, block_file) for row in rows]
 
     def block_with_index(
         self,
@@ -2208,6 +2496,21 @@ class AsyncClient:
 
     async def tdx_block_aliases(self, refresh: bool = False) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "tdx_block_aliases", refresh))
+
+    async def block_catalog(
+        self,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "block_catalog", category, refresh))
+
+    async def block_members(
+        self,
+        block: str,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "block_members", block, category, refresh))
 
     async def block_with_index(
         self,

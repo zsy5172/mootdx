@@ -306,6 +306,18 @@ Wilder 平滑。`vwap()` 默认金额单位为元、成交量单位为手。聚�
 ### 板块数据
 
 ```python
+# 统一目录：地区、行业、概念、风格、指数
+catalog = client.block_catalog()
+regions = client.block_catalog("地区")
+
+# 建议用目录中的板块代码查询，避免同名板块歧义
+beijing = client.block_members("880207")
+concept_5g = client.block_members("880506")
+
+# 忽略当前客户端缓存，重新下载相关公共文件
+fresh_beijing = client.block_members("880207", refresh=True)
+
+# 仍可访问底层板块文件
 client.block(tofile="block.dat")
 client.block(tofile="block_zs.dat")
 
@@ -326,6 +338,17 @@ client.ipo_subscriptions()
 client.stock_statistics()
 client.stock_statistics2()
 ```
+
+`Quotes.factory(engine="next")` 返回的 Pandas 客户端会让 `block_catalog()` 和 `block_members()` 返回
+`DataFrame`。`category` 可传 `region`、`industry`、`concept`、`style`、`index`，也可传
+`地区`、`行业`、`概念`、`风格`、`指数`（或对应的“板块”全称）。目录优先读取 `tdxzs3.cfg`，
+若服务器未提供则回退到 `tdxzs.cfg`；其中行业包含通达信 `type=2` 和申万 `type=12`，可通过
+`taxonomy` 列区分 `tdx` / `sw`。
+
+成分来源按类别选择：地区使用 `base.dbf` 的 `DY` 字段；行业使用 `tdxhy.cfg`；概念、风格和指数
+优先使用完整的 `infoharbor_block.dat`，缺失时回退到 `block_gn.dat`、`block_fg.dat`、
+`block_zs.dat`。同名板块可能同时存在于不同分类或行业体系中，名称无法唯一定位时会抛出
+`ValueError`，此时应改用 `block_catalog()` 返回的板块代码。
 
 `zhb.zip` 在内存中安全解压，并使用进程级线程安全快照缓存 10 分钟；主动刷新可传 `refresh=True`。
 解压器拒绝路径穿越、重复成员、加密成员和超出限制的压缩包。`stock_statistics*()` 是服务器发布的盘后

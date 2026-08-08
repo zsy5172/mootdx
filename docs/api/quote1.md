@@ -437,6 +437,18 @@ client.call_auction(symbol='600036')
 ## 16. 公共报表、板块和盘后配置
 
 ```python
+# 五类板块的统一目录（Pandas DataFrame）
+catalog = client.block_catalog()
+regions = client.block_catalog(category='地区')
+sw_industries = client.block_catalog(category='industry').query("taxonomy == 'sw'")
+
+# 查询成分；推荐使用 catalog 中的板块代码
+beijing = client.block_members('880207')
+concept_5g = client.block_members('880506')
+
+# 强制重新下载本次查询依赖的公共文件
+beijing = client.block_members('880207', refresh=True)
+
 # 通达信公共文件
 client.block_file_raw('block_gn.dat')
 client.report_file('zhb.zip')
@@ -454,6 +466,28 @@ client.ipo_subscriptions()
 client.stock_statistics()
 client.stock_statistics2()
 ```
+
+`block_catalog(category=None, refresh=False)` 统一列出地区、行业、概念、风格和指数板块，主要字段为
+`name`、`code`、`type`、`subtype`、`reference`、`category`、`category_name`、`taxonomy` 和
+`source`。分类参数既接受英文 `region` / `industry` / `concept` / `style` / `index`，也接受中文
+`地区` / `行业` / `概念` / `风格` / `指数` 及对应的“板块”全称。
+
+`block_members(block, category=None, refresh=False)` 接受板块代码或名称。不同分类或行业体系可能有
+同名板块；名称不能唯一匹配时会抛出 `ValueError`，应改用目录返回的板块代码。`Quotes.factory()` 的
+next 引擎返回 `DataFrame`；若直接使用 `mootdx_next.SyncClient` 或 `AsyncClient`，对应方法返回
+`list[dict]`。
+
+| 分类 | 目录来源 | 成分来源 |
+| --- | --- | --- |
+| 地区（`type=3`） | `tdxzs3.cfg` | `base.dbf` 的 `DY` 地区字段 |
+| 行业（`type=2`） | `tdxzs3.cfg` | `tdxhy.cfg` 的通达信行业字段 |
+| 行业（申万，`type=12`） | `tdxzs3.cfg` | `tdxhy.cfg` 的申万行业字段 |
+| 概念（`type=4`） | `tdxzs3.cfg` | `infoharbor_block.dat`，缺失时回退 `block_gn.dat` |
+| 风格（`type=5`） | `tdxzs3.cfg` | `infoharbor_block.dat`，缺失时回退 `block_fg.dat` |
+| 指数 | `infoharbor_block.dat` | `infoharbor_block.dat`，缺失时回退 `block_zs.dat` |
+
+目录文件优先读取更完整的 `tdxzs3.cfg`，服务器没有该文件时自动回退 `tdxzs.cfg`。`refresh=True`
+会忽略当前缓存并重新下载本次调用依赖的目录或成分文件。
 
 `zhb.zip` 只在内存中安全解压，使用进程级线程安全快照缓存 10 分钟。`refresh=True` 可主动刷新。
 `stock_statistics()` 和 `stock_statistics2()` 是服务器发布的盘后快照；尚未通过客户端界面验证语义的

@@ -829,6 +829,16 @@ class PandasClient:
     def tdx_block_aliases(self, refresh=False, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(self.client.tdx_block_aliases(refresh=bool(refresh)))
 
+    def block_catalog(self, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            self.client.block_catalog(category=category, refresh=bool(refresh))
+        )
+
+    def block_members(self, block, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            self.client.block_members(str(block), category=category, refresh=bool(refresh))
+        )
+
     def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(
             self.client.block_with_index(str(tofile), refresh=bool(refresh))
@@ -1610,6 +1620,16 @@ class AsyncPandasClient:
     async def tdx_block_aliases(self, refresh=False, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(
             await self.client.tdx_block_aliases(refresh=bool(refresh))
+        )
+
+    async def block_catalog(self, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.block_catalog(category=category, refresh=bool(refresh))
+        )
+
+    async def block_members(self, block, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            await self.client.block_members(str(block), category=category, refresh=bool(refresh))
         )
 
     async def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
