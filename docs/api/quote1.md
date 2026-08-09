@@ -446,6 +446,14 @@ sw_industries = client.block_catalog(category='industry').query("taxonomy == 'sw
 beijing = client.block_members('880207')
 concept_5g = client.block_members('880506')
 
+# 板块资金驱动力和资金博弈
+funds = client.block_funds(['880550', '880301'])
+driver = client.block_fund_driver(category='概念', sort_by='main_force_net_ratio')
+game = client.block_fund_game(category='行业', sort_by='main_net_amount_5min')
+
+# 比率字段所用的板块股本和市值基准
+base = client.tdx_block_base()
+
 # 强制重新下载本次查询依赖的公共文件
 beijing = client.block_members('880207', refresh=True)
 
@@ -488,6 +496,44 @@ next 引擎返回 `DataFrame`；若直接使用 `mootdx_next.SyncClient` 或 `As
 
 目录文件优先读取更完整的 `tdxzs3.cfg`，服务器没有该文件时自动回退 `tdxzs.cfg`。`refresh=True`
 会忽略当前缓存并重新下载本次调用依赖的目录或成分文件。
+
+### 板块资金驱动力和资金博弈
+
+`block_funds(symbol=None, category=None, refresh=False)` 返回两个页面所需的字段全集。`symbol` 可以是一个
+板块代码/名称或代码/名称列表；不传时查询指定分类的全部板块。原生协议每批最多查询 80 个板块，客户端
+会自动分页。`block_fund_driver()` 默认按 `main_net_amount` 降序，`block_fund_game()` 默认按
+`main_net_amount_5min` 降序；两者都可通过 `sort_by` 和 `descending` 调整排名。
+
+资金流金额直接来自通达信 `0x054C` mode 1 的板块批量返回，不需要也不会把 `block_members()` 的全部
+成分股逐只查询后求和。只有以下两个市值比率需要额外读取 `tdxzsbase.cfg`：
+
+`block_funds` 只从支持资金扩展的补充行情节点中选择服务器。使用 `bestip=True` 时，健康的补充节点会
+保留在测速快照中。若响应中的 `fund_amount_base` 为零，客户端会将该节点视为不支持并切换到下一个
+补充节点；节点不可用或达到配置的重试次数时明确报错，不回退到只会返回全零资金扩展的普通行情节点。
+
+- `net_buy_rate = main_buy_amount / circulating_market_cap * 100`
+- `main_force_net_ratio = main_net_amount / circulating_market_cap * 100`
+
+成交额占比直接使用同一行情包中的板块成交额：
+
+- `main_buy_share = main_buy_amount / amount * 100`
+- `main_force_share = main_net_amount / amount * 100`
+- `main_force_share_5min = main_net_amount_5min / amount * 100`
+
+金额字段单位统一为元，比率字段统一为百分点。主要字段如下：
+
+| 页面 | 通达信含义 | 返回字段 |
+| --- | --- | --- |
+| 资金驱动力 | 主力净额、主力占比、主力净比 | `main_net_amount`、`main_force_share`、`main_force_net_ratio` |
+| 资金驱动力 | 主买净额、主买占比、净买率 | `main_buy_amount`、`main_buy_share`、`net_buy_rate` |
+| 资金驱动力 | 量比、短换、2 分钟金额 | `volume_growth_rate`、`short_turnover_rate`、`amount_2min` |
+| 资金博弈 | 当日超大单、大单、中单、小单净额 | `super_large_net_amount`、`large_net_amount`、`medium_net_amount`、`small_net_amount` |
+| 资金博弈 | 5 分钟主力净额、主力占比 | `main_net_amount_5min`、`main_force_share_5min` |
+| 资金博弈 | 5 分钟超大单、大单、中单、小单净额 | `super_large_net_amount_5min`、`large_net_amount_5min`、`medium_net_amount_5min`、`small_net_amount_5min` |
+| 资金博弈 | 散户单增长比 | `retail_order_growth_ratio` |
+
+`tdx_block_base(refresh=False)` 可单独取得股本、市值和基准日期。Raw 同步/异步客户端返回 `list[dict]`；
+Pandas 客户端和 `Quotes.factory(engine='next')` 返回 `DataFrame`。
 
 `zhb.zip` 只在内存中安全解压，使用进程级线程安全快照缓存 10 分钟。`refresh=True` 可主动刷新。
 `stock_statistics()` 和 `stock_statistics2()` 是服务器发布的盘后快照；尚未通过客户端界面验证语义的

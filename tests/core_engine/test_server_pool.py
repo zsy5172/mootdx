@@ -56,6 +56,31 @@ def test_select_prefers_lower_latency_when_active_counts_match() -> None:
     assert pool.select(RequestContext(api="stock_count")) == server_b
 
 
+def test_block_funds_prefers_a_capable_server_over_a_faster_generic_server() -> None:
+    clock = Clock()
+    generic = ServerEndpoint(host="127.0.0.1", port=7709, label="generic")
+    capable = ServerEndpoint(host="182.140.139.191", port=7709, label="block-funds")
+    pool = ServerPool([generic, capable], connection_pool=_pool(clock), time_fn=clock)
+    pool.mark_success(generic, TransportMetrics(last_latency_ms=1.0))
+    pool.mark_success(capable, TransportMetrics(last_latency_ms=200.0))
+
+    assert pool.select(RequestContext(api="stock_count")) == generic
+    assert pool.select(RequestContext(api="block_funds")) == capable
+
+
+def test_block_funds_does_not_fall_back_to_generic_servers_during_cooldown() -> None:
+    clock = Clock()
+    generic = ServerEndpoint(host="127.0.0.1", port=7709, label="generic")
+    capable = ServerEndpoint(host="182.140.139.191", port=7709, label="block-funds")
+    pool = ServerPool([generic, capable], connection_pool=_pool(clock), time_fn=clock)
+    pool.mark_failure(capable, RuntimeError("boom-1"))
+    pool.mark_failure(capable, RuntimeError("boom-2"))
+
+    assert pool.select(RequestContext(api="stock_count")) == generic
+    with pytest.raises(NoHealthyServerError, match="supplemental quote server"):
+        pool.select(RequestContext(api="block_funds"))
+
+
 def test_mark_failure_enters_cooldown_after_threshold() -> None:
     clock = Clock()
     server = ServerEndpoint(host="127.0.0.1", port=7709, label="a")

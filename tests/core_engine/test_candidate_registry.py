@@ -122,3 +122,57 @@ def test_native_probe_filters_failed_capabilities_and_sorts_latency(monkeypatch:
         ServerCandidate(host="3.3.3.3", port=7709, label="fast", latency_ms=10.0),
         ServerCandidate(host="1.1.1.1", port=7709, label="slow", latency_ms=30.0),
     )
+
+
+def test_native_probe_keeps_block_fund_capability_in_the_ranked_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hosts = tuple(
+        (f"generic-{index}", f"10.0.0.{index}", 7709)
+        for index in range(1, 6)
+    ) + (("funds", "182.140.139.191", 7709),)
+
+    def probe(label: str, host: str, port: int):
+        latency = 100.0 if label == "funds" else float(host.rsplit(".", 1)[-1])
+        return ServerCandidate(host=host, port=port, label=label, latency_ms=latency)
+
+    monkeypatch.setattr(candidates_module, "HQ_HOSTS", hosts)
+    monkeypatch.setattr(candidates_module, "_probe_one_hq_candidate", probe)
+
+    result = candidates_module._probe_hq_candidates()
+
+    assert len(result) == candidates_module.HQ_CANDIDATE_LIMIT
+    assert [(item.host, item.port) for item in result][-1] == ("182.140.139.191", 7709)
+
+
+def test_native_probe_reserves_every_healthy_supplemental_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fund_hosts = (
+        ("funds-1", "182.140.139.191", 7709),
+        ("funds-2", "119.6.200.40", 7709),
+        ("funds-3", "218.200.222.134", 7709),
+        ("funds-4", "182.150.28.166", 7709),
+    )
+    hosts = (
+        ("generic-1", "10.0.0.1", 7709),
+        ("generic-2", "10.0.0.2", 7709),
+        ("generic-3", "10.0.0.3", 7709),
+        *fund_hosts,
+    )
+
+    def probe(label: str, host: str, port: int):
+        latency = float(host.rsplit(".", 1)[-1])
+        return ServerCandidate(host=host, port=port, label=label, latency_ms=latency)
+
+    monkeypatch.setattr(candidates_module, "HQ_HOSTS", hosts)
+    monkeypatch.setattr(candidates_module, "_probe_one_hq_candidate", probe)
+
+    result = candidates_module._probe_hq_candidates()
+
+    assert len(result) == candidates_module.HQ_CANDIDATE_LIMIT
+    assert {
+        (item.host, item.port)
+        for item in result
+        if (item.host, item.port) in candidates_module.BLOCK_FUND_HOSTS
+    } == {(host, port) for _, host, port in fund_hosts}

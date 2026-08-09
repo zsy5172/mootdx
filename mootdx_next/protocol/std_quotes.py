@@ -67,6 +67,8 @@ F10_CONTENT_HEAD_STRUCT = struct.Struct("<10sH")
 BLOCK_INFO_META_STRUCT = struct.Struct("<I1s32s1s")
 ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
 QUOTE_TRADING_PHASE_STRUCT = struct.Struct("<H")
+BLOCK_FUND_FIXED_STRUCT = struct.Struct("<hhfHH10fH")
+BLOCK_FUND_EXTENSION_STRUCT = struct.Struct("<fff48H")
 LIMIT_PRICE_REQUEST_STRUCT = struct.Struct("<HHHHHHHH")
 LIMIT_PRICE_ROW_STRUCT = struct.Struct("<BIff")
 CALL_AUCTION_ROW_STRUCT = struct.Struct("<HfIiBB")
@@ -230,6 +232,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.encode_stock_list_page(int(kwargs["market"]), int(kwargs["start"]))
         if api == "quotes":
             return self.encode_quotes(list(kwargs["symbols"]))
+        if api == "block_funds":
+            return self.encode_block_funds(list(kwargs["symbols"]))
         if api == "limit_prices":
             return self.encode_limit_prices(int(kwargs["start"]), int(kwargs["count"]))
         if api == "call_auction":
@@ -295,6 +299,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.decode_stock_list_page(body)
         if api == "quotes":
             return self.decode_quotes(body, price_coefficients=kwargs.get("price_coefficients"))
+        if api == "block_funds":
+            return self.decode_block_funds(body, price_coefficients=kwargs.get("price_coefficients"))
         if api == "limit_prices":
             return self.decode_limit_prices(body)
         if api == "call_auction":
@@ -432,6 +438,176 @@ class StdQuoteProtocol(AbstractProtocol):
             payload.extend(struct.pack("<B6s", market, encoded_code))
 
         return bytes(payload)
+
+    def encode_block_funds(self, symbols: list[tuple[int, str]]) -> bytes:
+        """Encode the mode-1 block quote request used by the fund-flow pages."""
+
+        if not symbols:
+            raise ProtocolDecodeError("block_funds request requires at least one symbol")
+        if len(symbols) > 80:
+            raise ProtocolDecodeError("block_funds request supports at most 80 symbols")
+
+        payload_len = len(symbols) * 7 + 12
+        values = (0x10C, 0x02006320, payload_len, payload_len, 0x5054C, 0x100, 0, len(symbols))
+        payload = bytearray(struct.pack("<HIHHIIHH", *values))
+
+        for market, code in symbols:
+            if market not in self.quote_markets:
+                raise UnsupportedMarketError(f"unsupported market for block_funds: {market}")
+            encoded_code = code.encode("ascii")
+            if len(encoded_code) != 6 or not encoded_code.isdigit():
+                raise ProtocolDecodeError("block_funds symbols must contain six-digit numeric codes")
+            payload.extend(struct.pack("<B6s", market, encoded_code))
+
+        return bytes(payload)
+
+    def decode_block_funds(
+        self,
+        body: bytes,
+        *,
+        price_coefficients: Mapping[tuple[int, str], float] | None = None,
+    ) -> list[dict[str, object]]:
+        """Decode a 0x054C mode-1 block quote and its fund-flow extension."""
+
+        if len(body) < 4:
+            raise ProtocolDecodeError(f"block_funds body too short: {len(body)}")
+
+        mode, num_rows = U16_PAIR_STRUCT.unpack_from(body, 0)
+        if mode != 1:
+            raise ProtocolDecodeError(f"block_funds response has unexpected mode: {mode}")
+
+        pos = 4
+        rows: list[dict[str, object]] = []
+        try:
+            for _index in range(num_rows):
+                market, code_bytes, active = QUOTE_HEAD_STRUCT.unpack_from(body, pos)
+                pos += QUOTE_HEAD_STRUCT.size
+                code = code_bytes.decode("ascii")
+
+                price, pos = _get_price(body, pos)
+                last_close_diff, pos = _get_price(body, pos)
+                open_diff, pos = _get_price(body, pos)
+                high_diff, pos = _get_price(body, pos)
+                low_diff, pos = _get_price(body, pos)
+                server_time_raw, pos = _get_price(body, pos)
+                reversed_bytes1, pos = _get_price(body, pos)
+                volume, pos = _get_price(body, pos)
+                current_volume, pos = _get_price(body, pos)
+
+                # The block-index parser reads this as IEEE-754 float. It is
+                # also the exact denominator for the amount-share columns.
+                (amount,) = struct.unpack_from("<f", body, pos)
+                pos += 4
+
+                sell_volume, pos = _get_price(body, pos)
+                buy_volume, pos = _get_price(body, pos)
+                reversed_bytes2, pos = _get_price(body, pos)
+                reversed_bytes3, pos = _get_price(body, pos)
+                bid1_diff, pos = _get_price(body, pos)
+                ask1_diff, pos = _get_price(body, pos)
+                bid_volume1, pos = _get_price(body, pos)
+                ask_volume1, pos = _get_price(body, pos)
+                (trading_status_word,) = QUOTE_TRADING_PHASE_STRUCT.unpack_from(body, pos)
+                pos += QUOTE_TRADING_PHASE_STRUCT.size
+
+                fixed = BLOCK_FUND_FIXED_STRUCT.unpack_from(body, pos)
+                pos += BLOCK_FUND_FIXED_STRUCT.size
+                extension = BLOCK_FUND_EXTENSION_STRUCT.unpack_from(body, pos)
+                pos += BLOCK_FUND_EXTENSION_STRUCT.size
+
+                coefficient = price_coefficients.get((market, code)) if price_coefficients is not None else None
+                if coefficient is None:
+                    coefficient = _get_security_coefficient(market, code)
+
+                short_momentum_raw, short_turnover_raw, amount_2min = fixed[:3]
+                fixed_unknown_1, fixed_unknown_2 = fixed[3:5]
+                fixed_floats = fixed[5:15]
+                fixed_tail = fixed[15]
+                main_buy_amount = float(fixed_floats[0])
+                main_net_amount = float(fixed_floats[1])
+                volume_growth_rate = float(fixed_floats[2])
+
+                fund_amount_base, fund_volume_base, retail_order_base = extension[:3]
+                words = tuple(int(value) for value in extension[3:])
+                amount_scale = float(fund_amount_base) / 50_000.0
+
+                daily_super_large = (words[0] - words[1]) * amount_scale
+                daily_large = (words[4] - words[5]) * amount_scale
+                daily_medium = (words[8] - words[9]) * amount_scale
+                daily_small = (words[12] - words[13]) * amount_scale
+
+                five_minute_super_large = (words[40] - words[41]) * amount_scale
+                five_minute_large = (words[42] - words[43]) * amount_scale
+                five_minute_medium = (words[44] - words[45]) * amount_scale
+                five_minute_small = (words[46] - words[47]) * amount_scale
+                five_minute_main = five_minute_super_large + five_minute_large
+
+                retail_scale = float(retail_order_base) / 50_000.0
+                retail_order_growth_ratio = (
+                    (words[35] + words[33] - words[34] - words[32]) * retail_scale / 100.0
+                )
+
+                rows.append(
+                    {
+                        "market": market,
+                        "code": code,
+                        "active": active,
+                        "price": _cal_price(price, 0, coefficient),
+                        "last_close": _cal_price(price, last_close_diff, coefficient),
+                        "open": _cal_price(price, open_diff, coefficient),
+                        "high": _cal_price(price, high_diff, coefficient),
+                        "low": _cal_price(price, low_diff, coefficient),
+                        "servertime": _format_quotes_time(server_time_raw),
+                        "volume": volume,
+                        "current_volume": current_volume,
+                        "amount": float(amount),
+                        "sell_volume": sell_volume,
+                        "buy_volume": buy_volume,
+                        "bid1": _cal_price(price, bid1_diff, coefficient),
+                        "ask1": _cal_price(price, ask1_diff, coefficient),
+                        "bid_volume1": bid_volume1,
+                        "ask_volume1": ask_volume1,
+                        "trading_phase": (trading_status_word >> 2) & 0x0F,
+                        "short_momentum_rate": short_momentum_raw / 100.0,
+                        "short_turnover_rate": short_turnover_raw / 100.0,
+                        "amount_2min": float(amount_2min),
+                        "volume_growth_rate": volume_growth_rate,
+                        "main_buy_amount": main_buy_amount,
+                        "main_net_amount": main_net_amount,
+                        "main_buy_share": main_buy_amount * 100.0 / amount if amount else 0.0,
+                        "main_force_share": main_net_amount * 100.0 / amount if amount else 0.0,
+                        "super_large_net_amount": daily_super_large,
+                        "large_net_amount": daily_large,
+                        "medium_net_amount": daily_medium,
+                        "small_net_amount": daily_small,
+                        "main_net_amount_5min": five_minute_main,
+                        "main_force_share_5min": five_minute_main * 100.0 / amount if amount else 0.0,
+                        "super_large_net_amount_5min": five_minute_super_large,
+                        "large_net_amount_5min": five_minute_large,
+                        "medium_net_amount_5min": five_minute_medium,
+                        "small_net_amount_5min": five_minute_small,
+                        "retail_order_growth_ratio": retail_order_growth_ratio,
+                        "reversed_bytes1": reversed_bytes1,
+                        "reversed_bytes2": reversed_bytes2,
+                        "reversed_bytes3": reversed_bytes3,
+                        "fund_amount_base": float(fund_amount_base),
+                        "fund_volume_base": float(fund_volume_base),
+                        "retail_order_base": float(retail_order_base),
+                        "raw_fixed_fields": (
+                            fixed_unknown_1,
+                            fixed_unknown_2,
+                            *tuple(float(value) for value in fixed_floats[3:]),
+                            fixed_tail,
+                        ),
+                        "raw_fund_words": words,
+                    }
+                )
+        except (IndexError, UnicodeDecodeError, struct.error) as exc:
+            raise ProtocolDecodeError(f"failed to decode block_funds row {len(rows)}") from exc
+
+        if pos != len(body):
+            raise ProtocolDecodeError(f"block_funds response has {len(body) - pos} unconsumed bytes")
+        return rows
 
     def encode_limit_prices(self, start: int = 0, count: int = MAX_LIMIT_PRICE_COUNT) -> bytes:
         if start < 0 or start > 0xFFFF:

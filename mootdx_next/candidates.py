@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from dataclasses import dataclass
 
+from mootdx_next.constants import BLOCK_FUND_HOSTS
 from mootdx_next.constants import EX_HOSTS
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.models import RequestContext
@@ -145,7 +146,12 @@ def _probe_hq_candidates() -> CandidateSnapshot:
                 candidates.append(candidate)
 
     candidates.sort(key=lambda item: item.latency_ms if item.latency_ms is not None else float("inf"))
-    return tuple(candidates[:HQ_CANDIDATE_LIMIT])
+    fund_candidates = [item for item in candidates if (item.host, item.port) in BLOCK_FUND_HOSTS]
+    generic_candidates = [item for item in candidates if (item.host, item.port) not in BLOCK_FUND_HOSTS]
+    reserved = fund_candidates[:HQ_CANDIDATE_LIMIT]
+    selected = reserved + generic_candidates[: max(0, HQ_CANDIDATE_LIMIT - len(reserved))]
+    selected.sort(key=lambda item: item.latency_ms if item.latency_ms is not None else float("inf"))
+    return tuple(selected)
 
 
 def _probe_one_hq_candidate(label: str, host: str, port: int) -> ServerCandidate | None:

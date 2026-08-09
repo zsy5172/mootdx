@@ -88,6 +88,18 @@ HQ_HOSTS = (
     ("补充行情主站4", "182.150.28.166", 7709),
 )
 
+# These supplemental quote nodes return the 0x054C mode-1 extension used by the
+# block fund-driver and fund-game pages. Generic quote nodes return an all-zero
+# extension for the same request.
+BLOCK_FUND_HOSTS = frozenset(
+    {
+        ("182.140.139.191", 7709),
+        ("119.6.200.40", 7709),
+        ("218.200.222.134", 7709),
+        ("182.150.28.166", 7709),
+    }
+)
+
 EX_HOSTS = (
     # Sourced from the TDX connect.cfg [DSHOST] ecosystem and independently
     # TCP-probed on 2026-07-30. CandidateRegistry performs an application-level

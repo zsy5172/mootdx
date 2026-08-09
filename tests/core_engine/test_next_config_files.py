@@ -15,6 +15,7 @@ from mootdx_next.config_files import parse_sp_blocks
 from mootdx_next.config_files import parse_stock_statistics
 from mootdx_next.config_files import parse_stock_statistics2
 from mootdx_next.config_files import parse_tdx_block_aliases
+from mootdx_next.config_files import parse_tdx_block_base
 from mootdx_next.config_files import parse_tdx_block_indexes
 from mootdx_next.config_files import parse_tdx_base_finance
 from mootdx_next.config_files import parse_tdx_industries
@@ -210,6 +211,24 @@ def test_industry_parser_returns_tdx_and_sw_codes() -> None:
         {"market": 0, "code": "000001", "tdx_industry": "T01", "sw_industry": "X03"},
         {"market": 1, "code": "600036", "tdx_industry": "T02", "sw_industry": "X04"},
     ]
+
+
+def test_block_base_parser_normalizes_shares_and_market_value_to_base_units() -> None:
+    data = (
+        "1|880550|17023755.7632|15196458.8595|649743031.9601|"
+        "552903205.0832|82.1337|20260807|\r\n"
+    ).encode("gbk")
+
+    row = parse_tdx_block_base(data)[0]
+
+    assert row["market"] == 1
+    assert row["code"] == "880550"
+    assert row["total_shares"] == pytest.approx(170_237_557_632.0)
+    assert row["circulating_shares"] == pytest.approx(151_964_588_595.0)
+    assert row["total_market_cap"] == pytest.approx(6_497_430_319_601.0)
+    assert row["circulating_market_cap"] == pytest.approx(5_529_032_050_832.0)
+    assert row["date"] == "20260807"
+    assert isinstance(row["raw_fields"], tuple)
 
 
 def test_infoharbor_block_parser_preserves_full_membership_and_empty_groups() -> None:

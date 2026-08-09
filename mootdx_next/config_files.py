@@ -21,6 +21,7 @@ INFOHARBOR_BLOCK_FILENAME = "infoharbor_block.dat"
 TDX_BASE_FILENAME = "base.dbf"
 TDX_ZS_FILENAME = "tdxzs.cfg"
 TDX_ZS3_FILENAME = "tdxzs3.cfg"
+TDX_ZS_BASE_FILENAME = "tdxzsbase.cfg"
 TDX_BK_FILENAME = "tdxbk.cfg"
 TDX_STAT_FILENAME = "tdxstat.cfg"
 TDX_STAT2_FILENAME = "tdxstat2.cfg"
@@ -203,6 +204,42 @@ def parse_tdx_block_indexes(data: bytes) -> list[dict[str, object]]:
                 "category": category,
                 "category_name": category_name,
                 "taxonomy": taxonomy,
+            }
+        )
+    return rows
+
+
+def parse_tdx_block_base(data: bytes) -> list[dict[str, object]]:
+    """Parse the live block-index base file used by TDX ratio fields.
+
+    Share and market-value columns in the source file are published in units
+    of ten thousand. The normalized columns below use shares and yuan so
+    callers can combine them directly with amount fields from the quote wire.
+    """
+
+    rows: list[dict[str, object]] = []
+    for fields in _records(data):
+        if len(fields) < 8 or not fields[1]:
+            continue
+        market = _to_int(fields[0])
+        total_shares = _to_float(_field(fields, 2))
+        circulating_shares = _to_float(_field(fields, 3))
+        total_market_cap = _to_float(_field(fields, 4))
+        circulating_market_cap = _to_float(_field(fields, 5))
+        if market is None:
+            continue
+        rows.append(
+            {
+                "market": market,
+                "code": fields[1],
+                "total_shares": None if total_shares is None else total_shares * 10_000.0,
+                "circulating_shares": None if circulating_shares is None else circulating_shares * 10_000.0,
+                "total_market_cap": None if total_market_cap is None else total_market_cap * 10_000.0,
+                "circulating_market_cap": (
+                    None if circulating_market_cap is None else circulating_market_cap * 10_000.0
+                ),
+                "date": _field(fields, 7),
+                "raw_fields": tuple(fields),
             }
         )
     return rows

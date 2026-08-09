@@ -25,6 +25,7 @@ from mootdx_next.config_files import parse_sp_blocks
 from mootdx_next.config_files import parse_stock_statistics
 from mootdx_next.config_files import parse_stock_statistics2
 from mootdx_next.config_files import parse_tdx_block_aliases
+from mootdx_next.config_files import parse_tdx_block_base
 from mootdx_next.config_files import parse_tdx_base_finance
 from mootdx_next.config_files import parse_tdx_block_indexes
 from mootdx_next.config_files import parse_tdx_industries
@@ -35,6 +36,7 @@ from mootdx_next.config_files import TDX_HY_FILENAME
 from mootdx_next.config_files import TDX_STAT2_FILENAME
 from mootdx_next.config_files import TDX_STAT_FILENAME
 from mootdx_next.config_files import TDX_ZS3_FILENAME
+from mootdx_next.config_files import TDX_ZS_BASE_FILENAME
 from mootdx_next.config_files import TDX_ZS_FILENAME
 from mootdx_next.config_files import XGSG_FILENAME
 from mootdx_next.config_files import ZHB_FILENAME
@@ -96,6 +98,7 @@ LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
+BLOCK_FUND_PAGE_SIZE = 80
 BarPredicate = Callable[[Mapping[str, object]], bool]
 BLOCK_CATEGORY_NAMES = {
     "region": "地区板块",
@@ -181,6 +184,10 @@ REQUEST_APIS = frozenset(
         "tdx_block_aliases",
         "block_catalog",
         "block_members",
+        "tdx_block_base",
+        "block_funds",
+        "block_fund_driver",
+        "block_fund_game",
         "block_with_index",
         "sp_blocks",
         "tdx_industries",
@@ -366,6 +373,8 @@ class SyncClient:
         self._base_finance_lock = threading.RLock()
         self._infoharbor_blocks_cache: tuple[dict[str, object], ...] | None = None
         self._infoharbor_blocks_lock = threading.RLock()
+        self._block_base_cache: tuple[dict[str, object], ...] | None = None
+        self._block_base_lock = threading.RLock()
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else SyncSocketTransport
@@ -1151,6 +1160,15 @@ class SyncClient:
         files = self.zhb_files(refresh=refresh)
         return parse_tdx_block_aliases(get_zhb_file(files, TDX_BK_FILENAME))
 
+    def tdx_block_base(self, refresh: bool = False) -> list[dict[str, object]]:
+        """Return the TDX block base snapshot used by fund-flow ratios."""
+
+        with self._block_base_lock:
+            if self._block_base_cache is None or refresh:
+                content = self.report_file(TDX_ZS_BASE_FILENAME)
+                self._block_base_cache = tuple(parse_tdx_block_base(content))
+            return [dict(row) for row in self._block_base_cache]
+
     def _typed_block_catalog(self, refresh: bool = False) -> list[dict[str, object]]:
         source, rows = self._tdx_block_indexes_with_source(refresh=refresh)
         result: list[dict[str, object]] = []
@@ -1236,6 +1254,188 @@ class SyncClient:
             return [row for row in rows if row["category"] == normalized_category]
         rows.extend(self._index_block_catalog(refresh=refresh))
         return rows
+
+    def _resolve_block_fund_entries(
+        self,
+        symbol: str | list[str] | None,
+        category: str | None,
+        refresh: bool,
+    ) -> list[dict[str, object]]:
+        normalized_category = _normalize_block_category(category)
+        if normalized_category == "index":
+            catalog = self._index_block_catalog(refresh=refresh)
+        else:
+            # The fund pages are backed by the typed 88xxxx block catalog. Do
+            # not download the much larger constituent index file merely to
+            # resolve an explicit block code.
+            catalog = self._typed_block_catalog(refresh=refresh)
+            if normalized_category is not None:
+                catalog = [row for row in catalog if row["category"] == normalized_category]
+
+        if symbol is None:
+            selected = [row for row in catalog if str(row.get("code", "")).isdigit()]
+        else:
+            selectors = [symbol] if isinstance(symbol, str) else list(symbol)
+            selected = []
+            for value in selectors:
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError("block_funds symbols must be non-blank strings")
+                selector = value.strip()
+                matches = [
+                    row
+                    for row in catalog
+                    if selector in {str(row.get("code", "")), str(row.get("name", ""))}
+                ]
+                if not matches and normalized_category is None and not selector.isdigit():
+                    matches = [
+                        row
+                        for row in self._index_block_catalog(refresh=refresh)
+                        if selector in {str(row.get("code", "")), str(row.get("name", ""))}
+                    ]
+                if len(matches) > 1:
+                    choices = ", ".join(f"{row.get('name')} ({row.get('code')})" for row in matches)
+                    raise ValueError(f"ambiguous block {selector!r}; use a block code: {choices}")
+                if matches:
+                    selected.append(matches[0])
+                elif normalized_category is None and len(selector) == 6 and selector.isdigit():
+                    selected.append(
+                        {
+                            "name": "",
+                            "code": selector,
+                            "category": None,
+                            "category_name": None,
+                            "taxonomy": None,
+                            "source": None,
+                        }
+                    )
+                else:
+                    raise ValueError(f"unknown block {selector!r}")
+
+        result: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for row in selected:
+            code = str(row.get("code", "")).strip()
+            if len(code) != 6 or not code.isdigit() or code in seen:
+                continue
+            seen.add(code)
+            result.append(dict(row))
+        return result
+
+    def block_funds(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        """Query block fund-driver and fund-game fields in native batches."""
+
+        entries = self._resolve_block_fund_entries(symbol, category, bool(refresh))
+        if not entries:
+            return []
+
+        base_rows = self.tdx_block_base(refresh=bool(refresh))
+        base_by_code = {str(row["code"]): row for row in base_rows}
+        entry_by_code = {str(row["code"]): row for row in entries}
+        symbols: list[tuple[int, str]] = []
+        for entry in entries:
+            code = str(entry["code"])
+            base = base_by_code.get(code)
+            market = int(base["market"]) if base is not None else int(get_stock_market(code, string=False))
+            symbols.append((market, code))
+
+        rows: list[dict[str, object]] = []
+        for start in range(0, len(symbols), BLOCK_FUND_PAGE_SIZE):
+            page = symbols[start : start + BLOCK_FUND_PAGE_SIZE]
+            context = RequestContext(api="block_funds", params={"symbols": tuple(page)})
+            payload = self.protocol.encode("block_funds", symbols=page)
+            price_coefficients = {(market, code): self._price_coefficient(market, code) for market, code in page}
+            decoded_page: list[dict[str, object]] = []
+
+            def validate_fund_extension(envelope: Any) -> None:
+                decoded = [
+                    dict(row)
+                    for row in self.protocol.decode(
+                        "block_funds",
+                        envelope,
+                        price_coefficients=price_coefficients,
+                    )
+                ]
+                if not decoded:
+                    raise ProtocolDecodeError("block_funds server returned no rows")
+                if not any(float(row.get("fund_amount_base") or 0.0) > 0.0 for row in decoded):
+                    raise ProtocolDecodeError(
+                        "block_funds server returned a zeroed fund extension"
+                    )
+                decoded_page.extend(decoded)
+
+            self._send(context, payload, response_validator=validate_fund_extension)
+            rows.extend(decoded_page)
+
+        for row in rows:
+            code = str(row["code"])
+            entry = entry_by_code.get(code, {})
+            base = base_by_code.get(code, {})
+            circulating_market_cap = _optional_float(base.get("circulating_market_cap"))
+            total_market_cap = _optional_float(base.get("total_market_cap"))
+            main_buy_amount = float(row["main_buy_amount"])
+            main_net_amount = float(row["main_net_amount"])
+            row.update(
+                {
+                    "name": entry.get("name", ""),
+                    "category": entry.get("category"),
+                    "category_name": entry.get("category_name"),
+                    "taxonomy": entry.get("taxonomy"),
+                    "catalog_source": entry.get("source"),
+                    "base_date": base.get("date"),
+                    "total_market_cap": total_market_cap,
+                    "circulating_market_cap": circulating_market_cap,
+                    "net_buy_rate": (
+                        main_buy_amount * 100.0 / circulating_market_cap if circulating_market_cap else None
+                    ),
+                    "main_force_net_ratio": (
+                        main_net_amount * 100.0 / circulating_market_cap if circulating_market_cap else None
+                    ),
+                }
+            )
+        return rows
+
+    @staticmethod
+    def _sort_block_funds(
+        rows: list[dict[str, object]],
+        sort_by: str,
+        descending: bool,
+    ) -> list[dict[str, object]]:
+        if not isinstance(sort_by, str) or not sort_by.strip():
+            raise ValueError("sort_by cannot be blank")
+        field = sort_by.strip()
+        if rows and field not in rows[0]:
+            raise ValueError(f"unknown block fund sort field: {field}")
+        populated = [row for row in rows if row.get(field) is not None]
+        missing = [row for row in rows if row.get(field) is None]
+        populated.sort(key=lambda row: float(row[field]), reverse=bool(descending))
+        return populated + missing
+
+    def block_fund_driver(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        sort_by: str = "main_net_amount",
+        descending: bool = True,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        rows = self.block_funds(symbol=symbol, category=category, refresh=refresh)
+        return self._sort_block_funds(rows, sort_by, descending)
+
+    def block_fund_game(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        sort_by: str = "main_net_amount_5min",
+        descending: bool = True,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        rows = self.block_funds(symbol=symbol, category=category, refresh=refresh)
+        return self._sort_block_funds(rows, sort_by, descending)
 
     def _resolve_block_catalog_entry(
         self,
@@ -1886,7 +2086,12 @@ class SyncClient:
                 return 10.0 ** -decimal_point
         return get_security_coefficient(market, code)
 
-    def _send(self, context: RequestContext, payload: bytes):
+    def _send(
+        self,
+        context: RequestContext,
+        payload: bytes,
+        response_validator: Callable[[Any], None] | None = None,
+    ):
         if self._closed:
             self._closed = False
 
@@ -1908,6 +2113,8 @@ class SyncClient:
 
             try:
                 envelope = lease.transport.send(context, payload, server)
+                if response_validator is not None:
+                    response_validator(envelope)
                 self.scheduler.record_success(server, lease.transport.metrics)
                 self.connection_pool.release(lease)
                 return envelope
@@ -1915,7 +2122,7 @@ class SyncClient:
                 self.scheduler.record_failure(server, exc)
                 self.connection_pool.discard(lease)
                 excluded.add(server_key)
-                if isinstance(exc, TransportError) and attempt < self.max_retries:
+                if isinstance(exc, (TransportError, ProtocolDecodeError)) and attempt < self.max_retries:
                     lease.transport.metrics.retry_count += 1
                     continue
                 raise
@@ -2497,6 +2704,9 @@ class AsyncClient:
     async def tdx_block_aliases(self, refresh: bool = False) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "tdx_block_aliases", refresh))
 
+    async def tdx_block_base(self, refresh: bool = False) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "tdx_block_base", refresh))
+
     async def block_catalog(
         self,
         category: str | None = None,
@@ -2511,6 +2721,54 @@ class AsyncClient:
         refresh: bool = False,
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "block_members", block, category, refresh))
+
+    async def block_funds(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "block_funds", symbol, category, refresh))
+
+    async def block_fund_driver(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        sort_by: str = "main_net_amount",
+        descending: bool = True,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "block_fund_driver",
+                symbol,
+                category,
+                sort_by,
+                descending,
+                refresh,
+            )
+        )
+
+    async def block_fund_game(
+        self,
+        symbol: str | list[str] | None = None,
+        category: str | None = None,
+        sort_by: str = "main_net_amount_5min",
+        descending: bool = True,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "block_fund_game",
+                symbol,
+                category,
+                sort_by,
+                descending,
+                refresh,
+            )
+        )
 
     async def block_with_index(
         self,
