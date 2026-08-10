@@ -66,6 +66,7 @@ class Security:
     decimal_point: int | None = None
     pre_close: float | None = None
     source: str = "tdx"
+    source_kind: str = "tdx_security_directory"
 
     @property
     def symbol(self) -> str:
@@ -88,6 +89,7 @@ class Security:
             "decimal_point": self.decimal_point,
             "pre_close": self.pre_close,
             "source": self.source,
+            "source_kind": self.source_kind,
         }
 
 

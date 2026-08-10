@@ -44,6 +44,7 @@ from mootdx_next.config_files import invalidate_zhb_cache
 from mootdx_next.config_files import ZhbRegistry
 from mootdx_next.config_files import ZhbSnapshot
 from mootdx_next.config_files import zhb_snapshot
+from mootdx_next.constants import CAPABILITY_BLOCK_FUNDS
 from mootdx_next.customize import Customize
 from mootdx_next.adapters import bars_to_frame
 from mootdx_next.adapters import block_to_frame
@@ -142,6 +143,8 @@ from mootdx_next.securities import Security
 from mootdx_next.securities import SecurityRegistry
 from mootdx_next.securities import security_official_metadata
 from mootdx_next.securities import security_snapshot
+from mootdx_next.symbols import resolve_stock_market
+from mootdx_next.symbols import resolve_stock_markets
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 from mootdx_next.trading_calendar import invalidate_trading_calendar
 from mootdx_next.trading_calendar import trading_calendar_snapshot
@@ -180,6 +183,7 @@ __all__ = [
     "call_auction_to_frame",
     "classify_security",
     "CandidateRegistry",
+    "CAPABILITY_BLOCK_FUNDS",
     "ConfigArchiveError",
     "ConfigFileError",
     "f10_categories_to_frame",
@@ -254,6 +258,8 @@ __all__ = [
     "refresh_bse_securities",
     "refresh_hq_candidates",
     "rebuild_minute_bars_241",
+    "resolve_stock_market",
+    "resolve_stock_markets",
     "ResponseEnvelope",
     "ResponseHeader",
     "SchedulerError",

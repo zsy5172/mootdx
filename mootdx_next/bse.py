@@ -52,6 +52,7 @@ class BseSecurity:
             "volume": self.volume,
             "amount": self.amount,
             "source": "bse",
+            "source_kind": "bse_market_snapshot",
         }
 
 

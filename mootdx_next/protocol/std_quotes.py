@@ -8,6 +8,7 @@ from typing import Any
 
 from mootdx_next.constants import MARKET_BJ
 from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
+from mootdx_next.constants import MAX_QUOTE_COUNT
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.interfaces import AbstractProtocol
@@ -426,6 +427,10 @@ class StdQuoteProtocol(AbstractProtocol):
     def encode_quotes(self, symbols: list[tuple[int, str]]) -> bytes:
         if not symbols:
             raise ProtocolDecodeError("quotes request requires at least one symbol")
+        if len(symbols) > MAX_QUOTE_COUNT:
+            raise ProtocolDecodeError(
+                f"quotes request supports at most {MAX_QUOTE_COUNT} symbols; use quotes_all for larger inputs"
+            )
 
         payload_len = len(symbols) * 7 + 12
         values = (0x10C, 0x02006320, payload_len, payload_len, 0x5053E, 0, 0, len(symbols))
@@ -530,6 +535,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 fund_amount_base, fund_volume_base, retail_order_base = extension[:3]
                 words = tuple(int(value) for value in extension[3:])
                 amount_scale = float(fund_amount_base) / 50_000.0
+                fund_extension_available = float(fund_amount_base) > 0.0
 
                 daily_super_large = (words[0] - words[1]) * amount_scale
                 daily_large = (words[4] - words[5]) * amount_scale
@@ -593,6 +599,10 @@ class StdQuoteProtocol(AbstractProtocol):
                         "fund_amount_base": float(fund_amount_base),
                         "fund_volume_base": float(fund_volume_base),
                         "retail_order_base": float(retail_order_base),
+                        "fund_extension_available": fund_extension_available,
+                        "fund_extension_status": (
+                            "available" if fund_extension_available else "unavailable"
+                        ),
                         "raw_fixed_fields": (
                             fixed_unknown_1,
                             fixed_unknown_2,
@@ -1019,6 +1029,7 @@ class StdQuoteProtocol(AbstractProtocol):
                     "second": second,
                     "price": round(float(price), 3),
                     "matched": matched,
+                    "unmatched_signed": signed_unmatched,
                     "unmatched": abs(signed_unmatched),
                     "side": side,
                     "side_name": "buy" if side > 0 else "sell" if side < 0 else "balanced",
@@ -1133,9 +1144,11 @@ class StdQuoteProtocol(AbstractProtocol):
                     "is_buy": buy_or_sell == 0,
                     "is_sell": buy_or_sell == 1,
                     "amount": amount,
+                    "amount_source": "calculated_price_times_lots",
                     "average_volume": vol / num_trades if num_trades > 0 else None,
                     "average_amount": amount / num_trades if num_trades > 0 else None,
                     "volume": vol,
+                    "volume_unit": "lot",
                 }
                 rows.append(row)
         except (IndexError, struct.error) as exc:
@@ -1208,7 +1221,9 @@ class StdQuoteProtocol(AbstractProtocol):
                     "is_buy": buy_or_sell == 0,
                     "is_sell": buy_or_sell == 1,
                     "amount": price * vol * 100,
+                    "amount_source": "calculated_price_times_lots",
                     "volume": vol,
+                    "volume_unit": "lot",
                 }
                 if date_prefix is not None:
                     row["datetime"] = f"{date_prefix} {time_value}"

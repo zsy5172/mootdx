@@ -45,9 +45,12 @@ from mootdx_next.config_files import zhb_registry
 from mootdx_next.constants import BLOCK_FG
 from mootdx_next.constants import BLOCK_GN
 from mootdx_next.constants import BLOCK_SZ
+from mootdx_next.constants import BLOCK_FUND_HOSTS
+from mootdx_next.constants import CAPABILITY_BLOCK_FUNDS
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
 from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
+from mootdx_next.constants import MAX_QUOTE_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import ConfigFileError
 from mootdx_next.errors import GbbqError
@@ -80,12 +83,12 @@ from mootdx_next.securities import classify_security
 from mootdx_next.securities import Security
 from mootdx_next.securities import SecurityRegistry
 from mootdx_next.securities import security_registry as default_security_registry
-from mootdx_next.symbols import get_stock_market
-from mootdx_next.symbols import get_stock_markets
 from mootdx_next.symbols import get_security_coefficient
 from mootdx_next.symbols import get_security_type
 from mootdx_next.symbols import normalize_symbol
 from mootdx_next.symbols import normalize_symbol_input
+from mootdx_next.symbols import resolve_stock_market
+from mootdx_next.symbols import resolve_stock_markets
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 from mootdx_next.trading_calendar import TradingCalendarRegistry
 from mootdx_next.trading_calendar import trading_calendar_registry as default_trading_calendar_registry
@@ -98,7 +101,7 @@ LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
-QUOTE_PAGE_SIZE = 80
+QUOTE_PAGE_SIZE = MAX_QUOTE_COUNT
 BLOCK_FUND_PAGE_SIZE = 80
 BarPredicate = Callable[[Mapping[str, object]], bool]
 BLOCK_CATEGORY_NAMES = {
@@ -178,6 +181,7 @@ REQUEST_APIS = frozenset(
         "iter_transactions",
         "iter_transaction_history",
         "is_trading_day",
+        "trading_calendar",
         "trading_days",
         "finance",
         "block_file_raw",
@@ -216,7 +220,19 @@ REQUEST_APIS = frozenset(
 
 
 def _default_servers() -> list[ServerEndpoint]:
-    return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS]
+    return [
+        ServerEndpoint(
+            host=host,
+            port=port,
+            label=label,
+            capabilities=(
+                frozenset({CAPABILITY_BLOCK_FUNDS})
+                if (host, port) in BLOCK_FUND_HOSTS
+                else frozenset()
+            ),
+        )
+        for label, host, port in HQ_HOSTS
+    ]
 
 
 def _optional_int(value: object) -> int | None:
@@ -251,6 +267,10 @@ def _decorate_block_member(
             "block_category": block["category"],
             "block_category_name": block["category_name"],
             "block_taxonomy": block.get("taxonomy"),
+            "catalog_source": block.get("source"),
+            "membership_source": source,
+            # Compatibility alias: historically ``source`` meant the member
+            # relation source, not the block catalog source.
             "source": source,
         }
     )
@@ -285,7 +305,7 @@ def _symbol_iterable(symbols: Iterable[str] | str) -> tuple[str, ...]:
 def _canonical_security_symbol(symbol: str) -> str:
     if not isinstance(symbol, str) or not symbol.strip():
         raise InvalidSymbolError("symbol cannot be blank")
-    market = int(get_stock_market(symbol, string=False))
+    market = int(resolve_stock_market(symbol, string=False))
     code = normalize_symbol(symbol)
     if len(code) != 6 or not code.isdigit():
         raise InvalidSymbolError("symbol must contain a six-digit numeric code")
@@ -439,6 +459,7 @@ class SyncClient:
         for row in page:
             row["market"] = market
             row["source"] = "tdx"
+            row["source_kind"] = "tdx_security_directory"
         return list(page)
 
     def stocks(self, market: int, refresh: bool = False) -> list[dict[str, object]]:
@@ -469,7 +490,7 @@ class SyncClient:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         code = normalize_symbol(normalized_symbol)
         if len(code) != 6 or not code.isdigit():
             raise InvalidSymbolError("security requires a six-digit numeric symbol")
@@ -497,7 +518,7 @@ class SyncClient:
         if not normalized:
             return []
 
-        symbols = get_stock_markets(normalized)
+        symbols = resolve_stock_markets(normalized)
         context = RequestContext(api="quotes", params={"symbol": normalized})
         payload = self.protocol.encode("quotes", symbols=symbols)
         envelope = self._send(context, payload)
@@ -542,7 +563,7 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         code = normalize_symbol(normalized_symbol)
         if len(code) != 6 or not code.isdigit():
             raise InvalidSymbolError("price_limit requires a six-digit numeric symbol")
@@ -585,7 +606,7 @@ class SyncClient:
             raise ValueError("offset must be between 1 and 800")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         code = normalize_symbol(normalized_symbol)
         normalized_frequency = normalize_frequency(frequency)
 
@@ -785,7 +806,7 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for minutes: only sh/sz/bj are supported")
 
@@ -816,7 +837,7 @@ class SyncClient:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for call_auction: only sh/sz/bj are supported")
         code = normalize_symbol(normalized_symbol)
@@ -844,7 +865,7 @@ class SyncClient:
         if offset <= 0 or offset > TRANSACTION_MAX_OFFSET:
             raise ValueError(f"offset must be between 1 and {TRANSACTION_MAX_OFFSET}")
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for transaction: only sh/sz/bj are supported")
 
@@ -894,7 +915,7 @@ class SyncClient:
             raise ValueError(f"offset must be between 1 and {HISTORY_TRANSACTION_MAX_OFFSET}")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for transactions: only sh/sz/bj are supported")
 
@@ -1065,12 +1086,32 @@ class SyncClient:
         )
         return self.trading_calendar_registry.contains(normalized)
 
+    def trading_calendar(
+        self,
+        start_date: str | int | None = None,
+        end_date: str | int | None = None,
+        *,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        """Return the inferred calendar together with its actual upstream source."""
+
+        return [
+            {
+                "date": day,
+                "is_trading_day": True,
+                "source": "tdx_index_bars",
+                "source_symbol": "sh000001",
+                "derivation": "observed_bar_date",
+            }
+            for day in self.trading_days(start_date, end_date, refresh=refresh)
+        ]
+
     def finance(self, symbol: str) -> dict[str, object]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for finance: only sh/sz/bj are supported")
 
@@ -1180,7 +1221,7 @@ class SyncClient:
             if self._block_base_cache is None or refresh:
                 content = self.report_file(TDX_ZS_BASE_FILENAME)
                 self._block_base_cache = tuple(parse_tdx_block_base(content))
-            return [dict(row) for row in self._block_base_cache]
+            return [dict(row, source=TDX_ZS_BASE_FILENAME) for row in self._block_base_cache]
 
     def _typed_block_catalog(self, refresh: bool = False) -> list[dict[str, object]]:
         source, rows = self._tdx_block_indexes_with_source(refresh=refresh)
@@ -1353,7 +1394,7 @@ class SyncClient:
         for entry in entries:
             code = str(entry["code"])
             base = base_by_code.get(code)
-            market = int(base["market"]) if base is not None else int(get_stock_market(code, string=False))
+            market = int(base["market"]) if base is not None else int(resolve_stock_market(code, string=False))
             symbols.append((market, code))
 
         rows: list[dict[str, object]] = []
@@ -1362,30 +1403,27 @@ class SyncClient:
             context = RequestContext(api="block_funds", params={"symbols": tuple(page)})
             payload = self.protocol.encode("block_funds", symbols=page)
             price_coefficients = {(market, code): self._price_coefficient(market, code) for market, code in page}
-            decoded_page: list[dict[str, object]] = []
-
-            def validate_fund_extension(envelope: Any) -> None:
-                decoded = [
-                    dict(row)
-                    for row in self.protocol.decode(
-                        "block_funds",
-                        envelope,
-                        price_coefficients=price_coefficients,
-                    )
-                ]
-                if not decoded:
-                    raise ProtocolDecodeError("block_funds server returned no rows")
-                if not any(float(row.get("fund_amount_base") or 0.0) > 0.0 for row in decoded):
-                    raise ProtocolDecodeError(
-                        "block_funds server returned a zeroed fund extension"
-                    )
-                decoded_page.extend(decoded)
-
-            self._send(context, payload, response_validator=validate_fund_extension)
-            rows.extend(decoded_page)
+            envelope = self._send(context, payload)
+            rows.extend(
+                dict(row)
+                for row in self.protocol.decode(
+                    "block_funds",
+                    envelope,
+                    price_coefficients=price_coefficients,
+                )
+            )
 
         for row in rows:
             code = str(row["code"])
+            extension_available = bool(
+                row.get(
+                    "fund_extension_available",
+                    float(row.get("fund_amount_base") or 0.0) > 0.0,
+                )
+            )
+            row["fund_extension_available"] = extension_available
+            row["fund_extension_status"] = "available" if extension_available else "unavailable"
+            row["quote_source"] = "tdx_0x054c_mode1"
             entry = entry_by_code.get(code, {})
             base = base_by_code.get(code, {})
             circulating_market_cap = _optional_float(base.get("circulating_market_cap"))
@@ -1399,6 +1437,7 @@ class SyncClient:
                     "category_name": entry.get("category_name"),
                     "taxonomy": entry.get("taxonomy"),
                     "catalog_source": entry.get("source"),
+                    "base_source": base.get("source"),
                     "base_date": base.get("date"),
                     "total_market_cap": total_market_cap,
                     "circulating_market_cap": circulating_market_cap,
@@ -1682,12 +1721,12 @@ class SyncClient:
         symbol: str,
         refresh: bool = False,
         *,
-        fallback: bool = True,
+        fallback: bool = False,
     ) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for gbbq: only sh/sz/bj are supported")
         code = normalize_symbol(normalized_symbol)
@@ -1711,7 +1750,7 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for xdxr: only sh/sz/bj are supported")
 
@@ -1789,6 +1828,8 @@ class SyncClient:
             "name": row.get("name"),
             "float_shares": float_shares,
             "total_shares": total_shares,
+            "source": "tdx_xdxr",
+            "derivation": "latest_effective_equity_event",
         }
 
     def market_value(
@@ -1819,6 +1860,9 @@ class SyncClient:
             "total_market_value": (
                 None if total_shares is None else normalized_price * total_shares
             ),
+            "source": "calculated",
+            "equity_source": equity.get("source"),
+            "derivation": "price_times_equity",
         }
 
     def turnover(
@@ -1863,6 +1907,9 @@ class SyncClient:
             for key, value in tuple(row.items()):
                 if isinstance(value, float) and math.isnan(value):
                     row[key] = None
+            row["source"] = "calculated"
+            row["source_inputs"] = ("tdx_bars", "tdx_xdxr")
+            row["derivation"] = "corporate_action_adjustment"
         return rows
 
     def f10_categories(self, symbol: str) -> list[dict[str, object]]:
@@ -1870,7 +1917,7 @@ class SyncClient:
             raise InvalidSymbolError("symbol cannot be blank")
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
 
@@ -1888,7 +1935,7 @@ class SyncClient:
 
         normalized_symbol = symbol.strip()
         normalized_name = name.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
 
@@ -1930,7 +1977,7 @@ class SyncClient:
             return b""
 
         normalized_symbol = symbol.strip()
-        market = int(get_stock_market(normalized_symbol, string=False))
+        market = int(resolve_stock_market(normalized_symbol, string=False))
         if market not in {0, 1, 2}:
             raise UnsupportedMarketError("unsupported market for f10: only sh/sz/bj are supported")
         code = normalize_symbol(normalized_symbol)
@@ -2104,6 +2151,13 @@ class SyncClient:
         for market in (1, 0, 2):
             for row in self.stocks(market):
                 code = str(row.get("code", ""))
+                source = str(row.get("source", "tdx"))
+                source_kind = str(
+                    row.get(
+                        "source_kind",
+                        "bse_market_snapshot" if source == "bse" else "tdx_security_directory",
+                    )
+                )
                 securities.append(
                     Security(
                         market=market,
@@ -2113,22 +2167,10 @@ class SyncClient:
                         volunit=_optional_int(row.get("volunit")),
                         decimal_point=_optional_int(row.get("decimal_point")),
                         pre_close=_optional_float(row.get("pre_close")),
-                        source=str(row.get("source", "tdx")),
+                        source=source,
+                        source_kind=source_kind,
                     )
                 )
-        if not any(item.market == 2 and item.code == "899050" for item in securities):
-            securities.insert(
-                0,
-                Security(
-                    market=2,
-                    code="899050",
-                    name="北证50",
-                    security_type="index",
-                    volunit=100,
-                    decimal_point=2,
-                    source="synthetic",
-                ),
-            )
         return tuple(securities)
 
     def _load_trading_calendar(self) -> tuple[str, ...]:
@@ -2588,6 +2630,23 @@ class AsyncClient:
             )
         )
 
+    async def trading_calendar(
+        self,
+        start_date: str | int | None = None,
+        end_date: str | int | None = None,
+        *,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "trading_calendar",
+                start_date,
+                end_date,
+                refresh=refresh,
+            )
+        )
+
     async def finance(self, symbol: str) -> dict[str, object]:
         return dict(await asyncio.to_thread(self._call_sync, "finance", symbol))
 
@@ -2599,7 +2658,7 @@ class AsyncClient:
         symbol: str,
         refresh: bool = False,
         *,
-        fallback: bool = True,
+        fallback: bool = False,
     ) -> list[dict[str, object]]:
         return list(
             await asyncio.to_thread(

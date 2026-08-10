@@ -29,6 +29,7 @@ def rebuild_minute_bars_241(
     rebuilt: list[dict[str, object]] = []
 
     for row in rows:
+        row.setdefault("source", "tdx_bars")
         row["is_call_auction"] = False
         row["auction_adjusted"] = False
         day, time_value = _bar_day_and_time(row)
@@ -93,6 +94,8 @@ def _auction_bar(
         "order_count": order_count,
         "is_call_auction": True,
         "auction_adjusted": False,
+        "source": "calculated",
+        "derivation": "call_auction_split",
     }
 
 
@@ -130,6 +133,8 @@ def _deduct_auction(
     row["previous_close"] = _number(auction[-1].get("price"))
     row["is_call_auction"] = False
     row["auction_adjusted"] = True
+    row["source"] = "calculated"
+    row["derivation"] = "call_auction_split"
     return row
 
 
