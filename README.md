@@ -367,9 +367,11 @@ client.stock_statistics2()
 板块目录或 `tdxzsbase.cfg`，不预设股票池、过滤和排序规则。主力净额、主买净额、当日四档资金流和
 5 分钟四档资金流都是服务端数据，不是下载全部成分股后在本地合计。
 
-该命令只路由到已验证支持资金扩展的补充行情节点。`bestip=True` 会在测速结果中保留所有健康的补充
-节点；若某个节点返回 `fund_amount_base=0` 的全零扩展，客户端会把它视为不支持并切换节点。所有补充
-节点不可用或达到配置的重试次数时会明确报错，不会回退普通行情节点并把伪零值当成真实资金数据。
+该命令只路由到具有 `fund_flows` capability 的补充行情节点。内置已验证节点会自动声明该能力，自定义
+节点可通过 `ServerEndpoint(capabilities=frozenset({'fund_flows'}))` 显式声明，普通行情节点不会成为
+隐式回退。`fund_amount_base=0` 表示本次资金扩展尚不可用，客户端会原样返回零值并标记
+`fund_extension_available=False`、`fund_extension_status='unavailable'`，不会误判节点故障或切换节点。
+每行同时标记 `quote_source='tdx_0x054c_mode1'`。网络、解码和 capability 路由失败仍会明确报错。
 
 如需主力净比或净买率，可单独调用 `tdx_block_base()`，按 `market` 和 `code` 与资金流结果连接后计算：
 

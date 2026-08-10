@@ -60,6 +60,9 @@ def test_fund_flows_queries_explicit_symbols_without_loading_block_metadata() ->
     assert "name" not in row
     assert "main_force_net_ratio" not in row
     assert "net_buy_rate" not in row
+    assert row["fund_extension_available"] is True
+    assert row["fund_extension_status"] == "available"
+    assert row["quote_source"] == "tdx_0x054c_mode1"
     assert transport.sent_payloads[0] == client.protocol.encode_fund_flows(
         [(1, "600036"), (1, "880550")]
     )
@@ -92,8 +95,8 @@ def test_fund_flows_pages_explicit_symbols_in_batches_of_80() -> None:
     assert transport.sent_payloads[1] == client.protocol.encode_fund_flows([(1, symbols[80])])
 
 
-def test_zeroed_fund_extension_retries_on_another_supplemental_server() -> None:
-    transport = RecordingTransport(responses=[b"zero-extension", b"fund-extension"])
+def test_zeroed_fund_extension_is_returned_without_retrying() -> None:
+    transport = RecordingTransport(responses=[b"zero-extension"])
     pool = RecordingConnectionPool(transport)
     servers = [
         ServerEndpoint(host="182.140.139.191", port=7709, label="funds-1"),
@@ -109,8 +112,11 @@ def test_zeroed_fund_extension_retries_on_another_supplemental_server() -> None:
     )
     row = client.fund_flows("880550")[0]
 
-    assert row["fund_amount_base"] == 341_480_996_864.0
-    assert protocol.decode_count == 2
-    assert len(transport.sent_payloads) == 2
-    assert pool.discarded[0].server == servers[0]
-    assert pool.released[0].server == servers[1]
+    assert row["fund_amount_base"] == 0.0
+    assert row["fund_extension_available"] is False
+    assert row["fund_extension_status"] == "unavailable"
+    assert row["quote_source"] == "tdx_0x054c_mode1"
+    assert protocol.decode_count == 1
+    assert len(transport.sent_payloads) == 1
+    assert pool.discarded == []
+    assert pool.released[0].server == servers[0]

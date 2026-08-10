@@ -9,6 +9,7 @@ from mootdx_next.api.clients import SyncClient
 from mootdx_next.bse import BseRegistry
 from mootdx_next.bse import BseSecurity
 from mootdx_next.errors import NoHealthyServerError
+from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import ConnectionLease
@@ -179,6 +180,7 @@ def test_sync_client_stock_page_returns_one_normalized_page() -> None:
 
     assert rows[0]["market"] == 1
     assert rows[0]["source"] == "tdx"
+    assert rows[0]["source_kind"] == "tdx_security_directory"
     assert struct.unpack("<HH", transport.sent_payloads[0][-4:]) == (1, 1000)
 
 
@@ -227,6 +229,14 @@ def test_quotes_all_preserves_every_symbol_across_native_batches() -> None:
     assert client.quotes_all([]) == []
 
 
+def test_quotes_rejects_more_than_one_native_packet() -> None:
+    client = SyncClient()
+    symbols = [f"sh{600000 + index:06d}" for index in range(81)]
+
+    with pytest.raises(ProtocolDecodeError, match="at most 80.*quotes_all"):
+        client.quotes(symbols)
+
+
 def test_sync_client_bse_stocks_use_injected_registry_without_tdx_request() -> None:
     class Provider:
         def load(self):
@@ -273,6 +283,7 @@ def test_sync_client_bse_stocks_use_injected_registry_without_tdx_request() -> N
             "volume": 123400,
             "amount": 880000.0,
             "source": "bse",
+            "source_kind": "bse_market_snapshot",
         }
     ]
     assert transport.sent_payloads == []

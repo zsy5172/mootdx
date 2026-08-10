@@ -81,6 +81,7 @@ SYNC_PUBLIC_API = {
     "iter_transaction_history",
     "trading_days",
     "is_trading_day",
+    "trading_calendar",
     "finance",
     "block",
     "block_file_raw",
@@ -147,6 +148,7 @@ ASYNC_PUBLIC_API = {
     "iter_transaction_history",
     "trading_days",
     "is_trading_day",
+    "trading_calendar",
     "finance",
     "gbbq_all",
     "gbbq",
@@ -219,6 +221,7 @@ PANDAS_PUBLIC_API = {
     "iter_transaction_history",
     "trading_days",
     "is_trading_day",
+    "trading_calendar",
     "f10_categories",
     "f10_content",
     "f10_content_range",
@@ -465,6 +468,11 @@ SYNC_CALL_CASES = (
         ("index_bars",),
     ),
     SyncCallCase("is_trading_day", {"date": "20260730"}, ("index_bars",)),
+    SyncCallCase(
+        "trading_calendar",
+        {"start_date": "20260701", "end_date": "20260730"},
+        ("index_bars",),
+    ),
     SyncCallCase("finance", {"symbol": "600036"}, ("finance",)),
     SyncCallCase("block", {"block_file": "block_zs.dat"}, ("block_info_meta",)),
     SyncCallCase("xdxr", {"symbol": "600036"}, ("xdxr",)),
@@ -748,6 +756,16 @@ class AsyncDispatchRecorder:
                 return ("20260730",)
             if name == "is_trading_day":
                 return True
+            if name == "trading_calendar":
+                return [
+                    {
+                        "date": "20260730",
+                        "is_trading_day": True,
+                        "source": "tdx_index_bars",
+                        "source_symbol": "sh000001",
+                        "derivation": "observed_bar_date",
+                    }
+                ]
             return [{"api": name}]
 
         return call
@@ -864,6 +882,14 @@ ASYNC_CALL_CASES = (
         {"refresh": True},
         "is_trading_day",
         ("20260730",),
+        {"refresh": True},
+    ),
+    AsyncCallCase(
+        "trading_calendar",
+        ("20260701", "20260730"),
+        {"refresh": True},
+        "trading_calendar",
+        ("20260701", "20260730"),
         {"refresh": True},
     ),
     AsyncCallCase("finance", ("600036",), {}, "finance", ("600036",), {}),
@@ -1161,6 +1187,17 @@ class FacadeRecorder:
     def is_trading_day(self, date, refresh=False):
         return True
 
+    def trading_calendar(self, start_date=None, end_date=None, refresh=False):
+        return [
+            {
+                "date": "20260730",
+                "is_trading_day": True,
+                "source": "tdx_index_bars",
+                "source_symbol": "sh000001",
+                "derivation": "observed_bar_date",
+            }
+        ]
+
     def f10_categories(self, symbol):
         return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
 
@@ -1286,6 +1323,7 @@ FACADE_CASES = (
     ),
     FacadeCase("trading_days", {"start_date": "20260701", "end_date": "20260730"}, list),
     FacadeCase("is_trading_day", {"date": "20260730"}, bool),
+    FacadeCase("trading_calendar", {"start_date": "20260701", "end_date": "20260730"}, pd.DataFrame),
     FacadeCase("F10C", {"symbol": "600036"}, list),
     FacadeCase("F10", {"symbol": "600036", "name": "最新提示"}, str),
     FacadeCase(

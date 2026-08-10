@@ -140,22 +140,22 @@ def _split_symbol(symbol: str) -> tuple[str | None, str]:
     return prefix, bare_symbol
 
 
-def get_stock_market(symbol: str, string: bool = False) -> int | str:
+def _infer_stock_market_name(symbol: str) -> str | None:
     prefix, bare_symbol = _split_symbol(symbol)
-    market = prefix or "sh"
     if prefix is not None:
-        market = prefix
-    elif bare_symbol.startswith(("50", "51", "58", "60", "68", "90", "110", "111", "113", "118", "240")):
-        market = "sh"
-    elif bare_symbol.startswith(("00", "12", "13", "18", "15", "16", "18", "20", "30", "39", "115")):
-        market = "sz"
-    elif bare_symbol.startswith(("5", "6", "7", "90", "88", "98", "99")):
-        market = "sh"
-    elif bare_symbol.startswith(
-        (BSE_STOCK_PREFIX, *BSE_LEGACY_STOCK_PREFIXES, "899")
-    ):
-        market = "bj"
+        return prefix
+    if bare_symbol.startswith(("50", "51", "58", "60", "68", "90", "110", "111", "113", "118", "240")):
+        return "sh"
+    if bare_symbol.startswith(("00", "12", "13", "18", "15", "16", "18", "20", "30", "39", "115")):
+        return "sz"
+    if bare_symbol.startswith(("5", "6", "7", "90", "88", "98", "99")):
+        return "sh"
+    if bare_symbol.startswith((BSE_STOCK_PREFIX, *BSE_LEGACY_STOCK_PREFIXES, "899")):
+        return "bj"
+    return None
 
+
+def _market_value(market: str, string: bool) -> int | str:
     if string:
         return market
     if market == "sh":
@@ -163,6 +163,29 @@ def get_stock_market(symbol: str, string: bool = False) -> int | str:
     if market == "sz":
         return MARKET_SZ
     return MARKET_BJ
+
+
+def get_stock_market(symbol: str, string: bool = False) -> int | str:
+    """Infer a market using the legacy mootdx code-prefix rules.
+
+    Unknown bare codes retain the historical Shanghai fallback. New protocol
+    clients use :func:`resolve_stock_market` so an unknown code is never sent to
+    a server under an invented market.
+    """
+
+    market = _infer_stock_market_name(symbol) or "sh"
+    return _market_value(market, string)
+
+
+def resolve_stock_market(symbol: str, string: bool = False) -> int | str:
+    """Resolve a prefixed or recognized bare symbol without a default market."""
+
+    market = _infer_stock_market_name(symbol)
+    if market is None:
+        raise InvalidSymbolError(
+            f"cannot infer market for {symbol!r}; use an sh/sz/bj prefix or an explicit market"
+        )
+    return _market_value(market, string)
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -174,6 +197,13 @@ def get_stock_markets(symbols: list[str]) -> list[tuple[int, str]]:
         raise InvalidSymbolError("stock code need list type")
 
     return [(get_stock_market(symbol, string=False), normalize_symbol(symbol)) for symbol in symbols]
+
+
+def resolve_stock_markets(symbols: list[str]) -> list[tuple[int, str]]:
+    if not isinstance(symbols, list):
+        raise InvalidSymbolError("stock code need list type")
+
+    return [(resolve_stock_market(symbol, string=False), normalize_symbol(symbol)) for symbol in symbols]
 
 
 def normalize_symbol_input(symbol: str | list[str] | None) -> list[str]:

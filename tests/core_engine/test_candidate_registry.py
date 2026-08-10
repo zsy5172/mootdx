@@ -124,7 +124,7 @@ def test_native_probe_filters_failed_capabilities_and_sorts_latency(monkeypatch:
     )
 
 
-def test_native_probe_keeps_block_fund_capability_in_the_ranked_snapshot(
+def test_native_probe_keeps_fund_flow_capability_in_the_ranked_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hosts = tuple(

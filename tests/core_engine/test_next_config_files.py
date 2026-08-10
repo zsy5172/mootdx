@@ -348,6 +348,8 @@ def test_sync_client_config_facade_reuses_snapshot_and_maps_block_indexes() -> N
     concept_members = client.block_members("880001")
     assert [row["code"] for row in concept_members] == ["600036", "000001"]
     assert concept_members[0]["source"] == "infoharbor_block.dat"
+    assert concept_members[0]["catalog_source"] == "tdxzs3.cfg"
+    assert concept_members[0]["membership_source"] == "infoharbor_block.dat"
     all_concept_members = client.block_members_all("概念")
     assert [row["code"] for row in all_concept_members] == ["600036", "000001"]
     assert {row["block_code"] for row in all_concept_members} == {"880001"}
@@ -360,6 +362,8 @@ def test_sync_client_config_facade_reuses_snapshot_and_maps_block_indexes() -> N
     region_members = client.block_members("880207")
     assert [row["code"] for row in region_members] == ["000008"]
     assert region_members[0]["source"] == "base.dbf"
+    assert region_members[0]["catalog_source"] == "tdxzs3.cfg"
+    assert region_members[0]["membership_source"] == "base.dbf"
     assert client.sp_blocks("中证2000")[0]["count"] == 2
     assert client.ipo_subscriptions()[0]["name"] == "测试新股"
     assert client.stock_statistics()[0]["date"] == "20260728"

@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
+from mootdx_next.constants import CAPABILITY_FUND_FLOWS
 from mootdx_next.constants import FUND_FLOW_HOSTS
 from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import PoolExhaustedError
@@ -172,11 +173,12 @@ class ServerPool:
         if not candidates:
             raise NoHealthyServerError(f"no healthy server available for {context.api}")
 
-        if context.api == "fund_flows" and any(
-            self._server_key(server) in FUND_FLOW_HOSTS for server in self.servers
-        ):
+        if context.api == CAPABILITY_FUND_FLOWS:
             candidates = [
-                item for item in candidates if self._server_key(item.server) in FUND_FLOW_HOSTS
+                item
+                for item in candidates
+                if CAPABILITY_FUND_FLOWS in item.server.capabilities
+                or self._server_key(item.server) in FUND_FLOW_HOSTS
             ]
             if not candidates:
                 raise NoHealthyServerError(

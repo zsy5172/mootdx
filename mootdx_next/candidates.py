@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from dataclasses import dataclass
 
+from mootdx_next.constants import CAPABILITY_FUND_FLOWS
 from mootdx_next.constants import FUND_FLOW_HOSTS
 from mootdx_next.constants import EX_HOSTS
 from mootdx_next.constants import HQ_HOSTS
@@ -37,6 +38,7 @@ class ServerCandidate:
     port: int
     label: str | None = None
     latency_ms: float | None = None
+    capabilities: frozenset[str] = frozenset()
 
 
 CandidateSnapshot = tuple[ServerCandidate, ...]
@@ -119,6 +121,7 @@ class CandidateRegistry:
                 port=int(candidate.port),
                 label=candidate.label,
                 latency_ms=None if candidate.latency_ms is None else float(candidate.latency_ms),
+                capabilities=frozenset(candidate.capabilities),
             )
             key = (item.host, item.port)
             if key in seen:
@@ -146,8 +149,12 @@ def _probe_hq_candidates() -> CandidateSnapshot:
                 candidates.append(candidate)
 
     candidates.sort(key=lambda item: item.latency_ms if item.latency_ms is not None else float("inf"))
-    fund_candidates = [item for item in candidates if (item.host, item.port) in FUND_FLOW_HOSTS]
-    generic_candidates = [item for item in candidates if (item.host, item.port) not in FUND_FLOW_HOSTS]
+    fund_candidates = [
+        item
+        for item in candidates
+        if CAPABILITY_FUND_FLOWS in item.capabilities or (item.host, item.port) in FUND_FLOW_HOSTS
+    ]
+    generic_candidates = [item for item in candidates if item not in fund_candidates]
     reserved = fund_candidates[:HQ_CANDIDATE_LIMIT]
     selected = reserved + generic_candidates[: max(0, HQ_CANDIDATE_LIMIT - len(reserved))]
     selected.sort(key=lambda item: item.latency_ms if item.latency_ms is not None else float("inf"))
@@ -202,6 +209,11 @@ def probe_hq_candidate(label: str, host: str, port: int) -> ServerCandidate | No
         port=int(port),
         label=label,
         latency_ms=(time.perf_counter() - started) * 1000,
+        capabilities=(
+            frozenset({CAPABILITY_FUND_FLOWS})
+            if (host, int(port)) in FUND_FLOW_HOSTS
+            else frozenset()
+        ),
     )
 
 

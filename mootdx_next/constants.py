@@ -33,6 +33,7 @@ FREQUENCIES = (
 )
 
 MAX_KLINE_COUNT = 800
+MAX_QUOTE_COUNT = 80
 MAX_TRANSACTION_COUNT = 1800
 MAX_HISTORY_TRANSACTION_COUNT = 2000
 MAX_LIMIT_PRICE_COUNT = 2000
@@ -98,6 +99,8 @@ FUND_FLOW_HOSTS = frozenset(
         ("182.150.28.166", 7709),
     }
 )
+
+CAPABILITY_FUND_FLOWS = "fund_flows"
 
 EX_HOSTS = (
     # Sourced from the TDX connect.cfg [DSHOST] ecosystem and independently

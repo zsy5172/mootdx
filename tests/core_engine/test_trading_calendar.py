@@ -126,3 +126,17 @@ def test_trading_days_rejects_partial_or_reverse_ranges() -> None:
         client.trading_days("20260720")
     with pytest.raises(ValueError, match="end_date"):
         client.trading_days("20260721", "20260720")
+
+
+def test_trading_calendar_exposes_inferred_upstream_source() -> None:
+    client = CalendarClient()
+
+    rows = client.trading_calendar("20260717", "20260721")
+
+    assert rows[0] == {
+        "date": "20260717",
+        "is_trading_day": True,
+        "source": "tdx_index_bars",
+        "source_symbol": "sh000001",
+        "derivation": "observed_bar_date",
+    }

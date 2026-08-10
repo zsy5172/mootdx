@@ -14,6 +14,7 @@ class ServerEndpoint:
     port: int
     label: str | None = None
     market: str | None = None
+    capabilities: frozenset[str] = field(default_factory=frozenset)
 
 
 @dataclass(slots=True)

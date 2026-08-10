@@ -82,6 +82,7 @@ def _server_endpoints(candidates) -> list[ServerEndpoint]:
             host=candidate.host,
             port=candidate.port,
             label=candidate.label,
+            capabilities=frozenset(candidate.capabilities),
         )
         for candidate in candidates
     ]
@@ -445,8 +446,11 @@ class PandasClient:
     def index_codes(self, refresh=False) -> list[str]:
         return self.client.index_codes(refresh=bool(refresh))
 
-    def stock_all(self) -> pd.DataFrame:
-        return pd.concat([self.stocks(0), self.stocks(1)], ignore_index=True)
+    def stock_all(self, markets=(0, 1)) -> pd.DataFrame:
+        normalized_markets = tuple(int(market) for market in markets)
+        if not normalized_markets:
+            return stocks_to_frame([])
+        return pd.concat([self.stocks(market) for market in normalized_markets], ignore_index=True)
 
     def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
         today = datetime.now().strftime("%Y%m%d")
@@ -589,6 +593,15 @@ class PandasClient:
 
     def is_trading_day(self, date, refresh=False) -> bool:
         return self.client.is_trading_day(date, refresh=bool(refresh))
+
+    def trading_calendar(self, start_date=None, end_date=None, refresh=False) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            self.client.trading_calendar(
+                start_date,
+                end_date,
+                refresh=bool(refresh),
+            )
+        )
 
     def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:
@@ -1238,9 +1251,12 @@ class AsyncPandasClient:
     async def index_codes(self, refresh=False) -> list[str]:
         return await self.client.index_codes(refresh=bool(refresh))
 
-    async def stock_all(self) -> pd.DataFrame:
-        sh, sz = await asyncio.gather(self.stocks(0), self.stocks(1))
-        return pd.concat([sh, sz], ignore_index=True)
+    async def stock_all(self, markets=(0, 1)) -> pd.DataFrame:
+        normalized_markets = tuple(int(market) for market in markets)
+        if not normalized_markets:
+            return stocks_to_frame([])
+        frames = await asyncio.gather(*(self.stocks(market) for market in normalized_markets))
+        return pd.concat(frames, ignore_index=True)
 
     async def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
         today = datetime.now().strftime("%Y%m%d")
@@ -1388,6 +1404,15 @@ class AsyncPandasClient:
 
     async def is_trading_day(self, date, refresh=False) -> bool:
         return await self.client.is_trading_day(date, refresh=bool(refresh))
+
+    async def trading_calendar(self, start_date=None, end_date=None, refresh=False) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.trading_calendar(
+                start_date,
+                end_date,
+                refresh=bool(refresh),
+            )
+        )
 
     async def f10_categories(self, symbol="", market=None) -> list[dict[str, object]]:
         try:

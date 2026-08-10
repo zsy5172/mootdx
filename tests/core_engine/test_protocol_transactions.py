@@ -39,6 +39,8 @@ def test_decode_transaction_matches_corpus_expected() -> None:
     assert actual[0]["is_buy"] is True
     assert actual[0]["is_sell"] is False
     assert actual[0]["amount"] == pytest.approx(39.21 * 55 * 100)
+    assert actual[0]["amount_source"] == "calculated_price_times_lots"
+    assert actual[0]["volume_unit"] == "lot"
     assert actual[0]["average_volume"] == pytest.approx(55 / 28)
 
 
