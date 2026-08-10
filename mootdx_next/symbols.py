@@ -8,6 +8,8 @@ from mootdx_next.errors import InvalidSymbolError
 
 SH_ETF_PREFIXES = ("50", "51", "52", "53", "56", "58")
 SZ_ETF_PREFIXES = ("15", "16", "18")
+BSE_STOCK_PREFIX = "920"
+BSE_LEGACY_STOCK_PREFIXES = ("43", "82", "83", "87", "88", "89")
 
 
 def _normalized_market_and_code(symbol: str, market: int | None = None) -> tuple[int, str]:
@@ -60,7 +62,7 @@ def is_stock(symbol: str, market: int | None = None) -> bool:
     if resolved_market == MARKET_SZ:
         return code.startswith("0") or code.startswith("30")
     if resolved_market == MARKET_BJ:
-        return code.startswith(("4", "8", "92"))
+        return code.startswith((BSE_STOCK_PREFIX, *BSE_LEGACY_STOCK_PREFIXES))
     return False
 
 
@@ -91,7 +93,10 @@ def get_security_type(market: int, code: str) -> str:
         if code_head in {"01", "10", "11", "12", "13", "14", "20"}:
             return "SH_BOND"
     elif market == MARKET_BJ:
-        return "BJ_STOCK"
+        if str(code).startswith("899"):
+            return "BJ_INDEX"
+        if str(code).startswith((BSE_STOCK_PREFIX, *BSE_LEGACY_STOCK_PREFIXES)):
+            return "BJ_STOCK"
     return "UNKNOWN"
 
 
@@ -110,6 +115,7 @@ def get_security_coefficient(market: int, code: str) -> float:
         "SZ_FUND": 0.001,
         "SZ_BOND": 0.0001,
         "BJ_STOCK": 0.01,
+        "BJ_INDEX": 0.01,
     }
     return coefficients.get(get_security_type(int(market), str(code)), 0.01)
 
@@ -145,7 +151,9 @@ def get_stock_market(symbol: str, string: bool = False) -> int | str:
         market = "sz"
     elif bare_symbol.startswith(("5", "6", "7", "90", "88", "98", "99")):
         market = "sh"
-    elif bare_symbol.startswith(("20", "4", "82", "83", "87", "899", "92")):
+    elif bare_symbol.startswith(
+        (BSE_STOCK_PREFIX, *BSE_LEGACY_STOCK_PREFIXES, "899")
+    ):
         market = "bj"
 
     if string:

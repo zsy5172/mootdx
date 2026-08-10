@@ -249,6 +249,14 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def quotes_all(self, symbol=None, **kwargs) -> pd.DataFrame:
+        if not symbol:
+            return pd.DataFrame()
+        try:
+            return quotes_to_frame(self.client.quotes_all(symbol=symbol))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def limit_prices(self, start=0, count=2000, **kwargs) -> pd.DataFrame:
         return limit_prices_to_frame(self.client.limit_prices(start=int(start), count=int(count)))
 
@@ -839,6 +847,11 @@ class PandasClient:
             self.client.block_members(str(block), category=category, refresh=bool(refresh))
         )
 
+    def block_members_all(self, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            self.client.block_members_all(category=category, refresh=bool(refresh))
+        )
+
     def tdx_block_base(self, refresh=False, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(self.client.tdx_block_base(refresh=bool(refresh)))
 
@@ -1067,6 +1080,14 @@ class AsyncPandasClient:
             return pd.DataFrame()
         try:
             return quotes_to_frame(await self.client.quotes(symbol=symbol))
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def quotes_all(self, symbol=None, **kwargs) -> pd.DataFrame:
+        if not symbol:
+            return pd.DataFrame()
+        try:
+            return quotes_to_frame(await self.client.quotes_all(symbol=symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
@@ -1676,6 +1697,11 @@ class AsyncPandasClient:
     async def block_members(self, block, category=None, refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(
             await self.client.block_members(str(block), category=category, refresh=bool(refresh))
+        )
+
+    async def block_members_all(self, category=None, refresh=False, **kwargs) -> pd.DataFrame:
+        return block_to_frame(
+            await self.client.block_members_all(category=category, refresh=bool(refresh))
         )
 
     async def tdx_block_base(self, refresh=False, **kwargs) -> pd.DataFrame:

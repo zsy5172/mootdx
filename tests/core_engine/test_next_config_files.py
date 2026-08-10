@@ -348,6 +348,9 @@ def test_sync_client_config_facade_reuses_snapshot_and_maps_block_indexes() -> N
     concept_members = client.block_members("880001")
     assert [row["code"] for row in concept_members] == ["600036", "000001"]
     assert concept_members[0]["source"] == "infoharbor_block.dat"
+    all_concept_members = client.block_members_all("概念")
+    assert [row["code"] for row in all_concept_members] == ["600036", "000001"]
+    assert {row["block_code"] for row in all_concept_members} == {"880001"}
     assert client.block_members("880301")[0]["code"] == "000001"
     assert client.block_members("881001")[0]["code"] == "000001"
     with pytest.raises(ValueError, match="ambiguous block"):

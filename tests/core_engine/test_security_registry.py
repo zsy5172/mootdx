@@ -9,6 +9,7 @@ from mootdx_next.api.clients import SyncClient
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.securities import Security
 from mootdx_next.securities import SecurityRegistry
+from mootdx_next.securities import security_official_metadata
 
 
 class Clock:
@@ -144,6 +145,51 @@ def test_client_exposes_typed_directory_and_code_filters() -> None:
     assert client.security("SH.600036")["name"] == "招商银行"  # type: ignore[index]
     assert client.security("sh600000") is None
     assert client.market_calls == [1, 0, 2]
+
+    by_symbol = {row["symbol"]: row for row in securities}
+    assert {
+        key: by_symbol["sh600036"][key]
+        for key in (
+            "exchange",
+            "exchange_name",
+            "board",
+            "board_name",
+            "security_type_name",
+        )
+    } == {
+        "exchange": "SSE",
+        "exchange_name": "上海证券交易所",
+        "board": "main",
+        "board_name": "主板",
+        "security_type_name": "A股",
+    }
+    assert by_symbol["sz000001"]["exchange_name"] == "深圳证券交易所"
+    assert by_symbol["bj920786"]["exchange_name"] == "北京证券交易所"
+    assert by_symbol["bj920786"]["board"] is None
+    assert by_symbol["bj899050"]["security_type_name"] == "指数"
+
+
+@pytest.mark.parametrize(
+    ("market", "code", "board", "board_name"),
+    [
+        (1, "600036", "main", "主板"),
+        (1, "688981", "star", "科创板"),
+        (0, "000001", "main", "主板"),
+        (0, "300750", "chinext", "创业板"),
+        (2, "920786", None, None),
+    ],
+)
+def test_security_metadata_uses_official_exchange_and_board_names(
+    market: int,
+    code: str,
+    board: str | None,
+    board_name: str | None,
+) -> None:
+    metadata = security_official_metadata(market, code, security_type="stock")
+
+    assert metadata["board"] == board
+    assert metadata["board_name"] == board_name
+    assert metadata["security_type_name"] == "A股"
 
 
 def test_client_security_refresh_reloads_all_markets() -> None:

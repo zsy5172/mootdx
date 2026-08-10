@@ -12,6 +12,7 @@ from typing import Protocol
 import httpx
 
 from mootdx_next.errors import BseResponseError
+from mootdx_next.symbols import BSE_STOCK_PREFIX
 
 BSE_CODES_URL = "https://www.bse.cn/nqhqController/nqhq_en.do"
 BSE_CACHE_TTL_SECONDS = 10 * 60
@@ -195,6 +196,10 @@ class BseHttpProvider:
         date_value = raw.get("hqjsrq")
         if not isinstance(code, str) or len(code) != 6 or not code.isdigit():
             raise BseResponseError(f"BSE directory page {page} row {index} has invalid code")
+        if not code.startswith(BSE_STOCK_PREFIX):
+            raise BseResponseError(
+                f"BSE directory page {page} row {index} has non-920 listing code"
+            )
         if not isinstance(name, str) or not name.strip():
             raise BseResponseError(f"BSE directory page {page} row {index} has invalid name")
         if not isinstance(date_value, str) or len(date_value) != 8 or not date_value.isdigit():

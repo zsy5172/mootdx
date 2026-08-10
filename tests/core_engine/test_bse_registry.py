@@ -99,6 +99,29 @@ def test_http_provider_rejects_malformed_schema(payload: str) -> None:
         provider.load()
 
 
+def test_http_provider_requires_current_920_listing_codes() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _jsonp(
+            request,
+            [
+                {
+                    "content": [_row("830001", "旧代码")],
+                    "totalElements": 1,
+                    "totalPages": 1,
+                    "lastPage": True,
+                }
+            ],
+        )
+
+    provider = BseHttpProvider(
+        client_factory=lambda: httpx.Client(transport=httpx.MockTransport(handler)),
+        max_pages=1,
+    )
+
+    with pytest.raises(BseResponseError, match="non-920"):
+        provider.load()
+
+
 def test_registry_reuses_immutable_snapshot_refreshes_and_invalidates() -> None:
     clock = Clock()
     calls = 0

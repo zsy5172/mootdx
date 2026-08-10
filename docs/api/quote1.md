@@ -48,7 +48,40 @@ from mootdx.quotes import Quotes
 
 client = Quotes.factory(market='std')
 client.quotes(symbol=["000001", "600300"])
+
+# 超过通达信单包上限时自动按每批 80 个证券查询
+client.quotes_all(symbol=["sh600036", "sz300750", "bj920001"])
 ```
+
+`quotes()` 保留原生单次请求语义；`quotes_all()` 只负责按协议上限分批并按批次拼接结果，不会按交易所、
+板块或证券类型隐藏过滤调用者传入的代码。
+
+### 全市场证券目录
+
+```python
+securities = client.securities()
+stocks = securities.query("security_type_name == 'A股'")
+star = securities.query("board_name == '科创板'")
+chinext = securities.query("board_name == '创业板'")
+bse = securities.query("exchange == 'BSE'")
+```
+
+`securities()` 返回沪、深、北标准市场的完整证券目录。协议市场代码和原有 `security_type` 保持兼容，
+同时提供用于稳定筛选的 `exchange` / `board` 以及官方中文名称 `exchange_name` / `board_name` /
+`security_type_name`。这些字段只描述证券的客观归属，不包含是否允许交易之类的用户策略。
+
+| `exchange` | `exchange_name` | `board` | `board_name` |
+| --- | --- | --- | --- |
+| `SSE` | 上海证券交易所 | `main` | 主板 |
+| `SSE` | 上海证券交易所 | `star` | 科创板 |
+| `SZSE` | 深圳证券交易所 | `main` | 主板 |
+| `SZSE` | 深圳证券交易所 | `chinext` | 创业板 |
+| `BSE` | 北京证券交易所 | 空 | 空 |
+
+北京证券交易所本身是交易所，不伪造一个“北交所板”名称。根据北交所《关于北交所存量上市公司代码
+切换上线的通知》，自 2025 年 10 月 9 日起，当前上市公司股票的交易和行情查询统一使用
+`920000`～`920999` 代码；旧代码只用于历史兼容。官方通知：
+<https://www.bse.cn/important_news/200026735.html>。
 
 ### 交易阶段
 
@@ -446,6 +479,9 @@ sw_industries = client.block_catalog(category='industry').query("taxonomy == 'sw
 beijing = client.block_members('880207')
 concept_5g = client.block_members('880506')
 
+# 一次取得扁平化的“板块—证券”关系
+concept_members = client.block_members_all(category='概念')
+
 # 板块资金驱动力和资金博弈
 funds = client.block_funds(['880550', '880301'])
 driver = client.block_fund_driver(category='概念', sort_by='main_force_net_ratio')
@@ -485,6 +521,9 @@ client.stock_statistics2()
 next 引擎返回 `DataFrame`；若直接使用 `mootdx_next.SyncClient` 或 `AsyncClient`，对应方法返回
 `list[dict]`。
 
+`block_members_all(category=None, refresh=False)` 返回相同字段的扁平关系表，不查询行情、不筛选证券，
+方便调用者自行与 `securities()`、`quotes_all()` 或历史快照连接。
+
 | 分类 | 目录来源 | 成分来源 |
 | --- | --- | --- |
 | 地区（`type=3`） | `tdxzs3.cfg` | `base.dbf` 的 `DY` 地区字段 |
@@ -496,6 +535,30 @@ next 引擎返回 `DataFrame`；若直接使用 `mootdx_next.SyncClient` 或 `As
 
 目录文件优先读取更完整的 `tdxzs3.cfg`，服务器没有该文件时自动回退 `tdxzs.cfg`。`refresh=True`
 会忽略当前缓存并重新下载本次调用依赖的目录或成分文件。
+
+### 自由组合板块行情
+
+```python
+from mootdx_next import aggregate_block_quotes
+
+securities = client.securities()
+symbols = securities.query("security_type_name == 'A股'")['symbol'].tolist()
+quotes = client.quotes_all(symbols)
+blocks = client.block_catalog(category='概念')
+members = client.block_members_all(category='概念')
+
+snapshot = aggregate_block_quotes(
+    quotes=quotes,
+    members=members,
+    blocks=blocks,
+)
+leaders = snapshot.sort_values('amount', ascending=False)
+```
+
+`aggregate_block_quotes()` 是无网络访问的纯计算函数。它不会自行选择股票池、过滤交易所、计算综合分或
+决定排序，只聚合调用者传入的行情和成分关系。结果提供成员数、行情覆盖率、成交量额、成交额加权涨幅、
+涨跌家数、上涨占比及可用时的涨跌停家数。传入 09:25 冻结行情得到竞价板块快照；传入其他时点行情则
+得到对应时点的板块快照。
 
 ### 板块资金驱动力和资金博弈
 

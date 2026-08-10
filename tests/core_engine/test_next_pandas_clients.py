@@ -49,6 +49,9 @@ class SyncRaw:
     def quotes(self, symbol=None):
         return [{"code": "600036", "price": 10.0, "vol": 100}]
 
+    def quotes_all(self, symbol=None):
+        return self.quotes(symbol=symbol)
+
     def limit_prices(self, start=0, count=2000):
         return [{"market": 1, "code": "600053", "limit_up": 7.5, "limit_down": 6.14}]
 
@@ -98,6 +101,9 @@ class SyncRaw:
 
     def block_members(self, block, category=None, refresh=False):
         return [{"block_name": "测试概念", "block_code": "880001", "code": "600036"}]
+
+    def block_members_all(self, category=None, refresh=False):
+        return self.block_members("880001", category=category, refresh=refresh)
 
     def tdx_block_base(self, refresh=False):
         return [{"market": 1, "code": "880001", "circulating_market_cap": 1_000_000.0}]
@@ -186,6 +192,7 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     client = PandasClient(raw_client=raw)
 
     assert isinstance(client.quotes("600036"), pd.DataFrame)
+    assert isinstance(client.quotes_all(["600036"]), pd.DataFrame)
     assert list(client.limit_prices().columns) == ["market", "code", "limit_up", "limit_down"]
     assert list(client.price_limit("600036").columns) == [
         "market",
@@ -199,6 +206,7 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     assert isinstance(client.finance("600036"), pd.DataFrame)
     assert client.block_catalog("概念").iloc[0]["code"] == "880001"
     assert client.block_members("880001").iloc[0]["code"] == "600036"
+    assert client.block_members_all("概念").iloc[0]["code"] == "600036"
     assert client.tdx_block_base().iloc[0]["circulating_market_cap"] == 1_000_000.0
     assert client.block_funds("880001").iloc[0]["main_net_amount"] == 100.0
     assert client.block_fund_driver("880001").iloc[0]["main_net_amount"] == 100.0
@@ -274,9 +282,17 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
         sync_quotes = sync_client.quotes("600036")
         async_quotes = await async_client.quotes("600036")
         pdt.assert_frame_equal(sync_quotes, async_quotes)
+        pdt.assert_frame_equal(
+            sync_client.quotes_all(["600036"]),
+            await async_client.quotes_all(["600036"]),
+        )
 
         pdt.assert_frame_equal(sync_client.limit_prices(), await async_client.limit_prices())
         pdt.assert_frame_equal(sync_client.tdx_block_base(), await async_client.tdx_block_base())
+        pdt.assert_frame_equal(
+            sync_client.block_members_all("概念"),
+            await async_client.block_members_all("概念"),
+        )
         pdt.assert_frame_equal(
             sync_client.block_fund_driver("880001"),
             await async_client.block_fund_driver("880001"),

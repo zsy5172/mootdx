@@ -98,6 +98,7 @@ LIMIT_PRICE_MAX_OFFSET = MAX_LIMIT_PRICE_COUNT
 BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
+QUOTE_PAGE_SIZE = 80
 BLOCK_FUND_PAGE_SIZE = 80
 BarPredicate = Callable[[Mapping[str, object]], bool]
 BLOCK_CATEGORY_NAMES = {
@@ -140,6 +141,7 @@ DIRECT_PRICE_TYPES = frozenset(
         "SZ_INDEX",
         "SZ_FUND",
         "BJ_STOCK",
+        "BJ_INDEX",
     }
 )
 
@@ -154,6 +156,7 @@ REQUEST_APIS = frozenset(
         "etf_codes",
         "index_codes",
         "quotes",
+        "quotes_all",
         "limit_prices",
         "price_limit",
         "bars",
@@ -184,6 +187,7 @@ REQUEST_APIS = frozenset(
         "tdx_block_aliases",
         "block_catalog",
         "block_members",
+        "block_members_all",
         "tdx_block_base",
         "block_funds",
         "block_fund_driver",
@@ -508,6 +512,15 @@ class SyncClient:
                 price_coefficients=price_coefficients,
             )
         )
+
+    def quotes_all(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
+        """Query every requested quote in native batches of at most 80 symbols."""
+
+        normalized = normalize_symbol_input(symbol)
+        rows: list[dict[str, object]] = []
+        for start in range(0, len(normalized), QUOTE_PAGE_SIZE):
+            rows.extend(self.quotes(normalized[start : start + QUOTE_PAGE_SIZE]))
+        return rows
 
     def limit_prices(
         self,
@@ -1550,6 +1563,60 @@ class SyncClient:
         rows = [row for row in self.block(block_file) if str(row.get("blockname", "")) in names]
         return [_decorate_block_member(row, selected, block_file) for row in rows]
 
+    def block_members_all(
+        self,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        """Return a flat block-to-security relation for the selected categories."""
+
+        catalog = self.block_catalog(category=category, refresh=bool(refresh))
+        categories = {str(row.get("category", "")) for row in catalog}
+        base_finance = (
+            self._base_finance(refresh=bool(refresh))
+            if "region" in categories
+            else []
+        )
+        industries = self.tdx_industries() if "industry" in categories else []
+        if refresh and categories.intersection({"concept", "style", "index"}):
+            self._infoharbor_blocks(refresh=True)
+
+        rows: list[dict[str, object]] = []
+        for block in catalog:
+            selected_category = str(block.get("category") or "")
+            if selected_category == "region":
+                province = _optional_int(block.get("reference"))
+                if province is None:
+                    raise ValueError(f"region block {block['name']!r} has no province reference")
+                rows.extend(
+                    _decorate_block_member(row, block, TDX_BASE_FILENAME)
+                    for row in base_finance
+                    if row.get("province") == province
+                )
+                continue
+            if selected_category == "industry":
+                taxonomy = str(block.get("taxonomy") or "")
+                field = {"tdx": "tdx_industry", "sw": "sw_industry"}.get(taxonomy)
+                reference = str(block.get("reference") or "")
+                if field is None or not reference:
+                    raise ValueError(f"industry block {block['name']!r} has no membership reference")
+                rows.extend(
+                    _decorate_block_member(row, block, TDX_HY_FILENAME)
+                    for row in industries
+                    if str(row.get(field, "")).startswith(reference)
+                )
+                continue
+
+            selector = str(block.get("code") or block.get("name") or "")
+            rows.extend(
+                self.block_members(
+                    selector,
+                    category=selected_category,
+                    refresh=False,
+                )
+            )
+        return rows
+
     def block_with_index(
         self,
         block_file: str = "block_gn.dat",
@@ -2243,6 +2310,9 @@ class AsyncClient:
     async def quotes(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "quotes", symbol))
 
+    async def quotes_all(self, symbol: str | list[str] | None = None) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "quotes_all", symbol))
+
     async def limit_prices(
         self,
         start: int = 0,
@@ -2721,6 +2791,13 @@ class AsyncClient:
         refresh: bool = False,
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "block_members", block, category, refresh))
+
+    async def block_members_all(
+        self,
+        category: str | None = None,
+        refresh: bool = False,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "block_members_all", category, refresh))
 
     async def block_funds(
         self,

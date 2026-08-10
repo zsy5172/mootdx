@@ -11,6 +11,7 @@ from typing import Mapping
 from mootdx_next.constants import MARKET_BJ
 from mootdx_next.constants import MARKET_SH
 from mootdx_next.constants import MARKET_SZ
+from mootdx_next.symbols import get_security_type
 from mootdx_next.symbols import is_etf
 from mootdx_next.symbols import is_index
 from mootdx_next.symbols import is_stock
@@ -21,6 +22,35 @@ MARKET_PREFIXES = {
     MARKET_SZ: "sz",
     MARKET_SH: "sh",
     MARKET_BJ: "bj",
+}
+EXCHANGE_CODES = {
+    MARKET_SZ: "SZSE",
+    MARKET_SH: "SSE",
+    MARKET_BJ: "BSE",
+}
+EXCHANGE_NAMES = {
+    MARKET_SZ: "深圳证券交易所",
+    MARKET_SH: "上海证券交易所",
+    MARKET_BJ: "北京证券交易所",
+}
+BOARD_NAMES = {
+    "main": "主板",
+    "chinext": "创业板",
+    "star": "科创板",
+}
+SECURITY_TYPE_NAMES = {
+    "SH_A_STOCK": "A股",
+    "SZ_A_STOCK": "A股",
+    "BJ_STOCK": "A股",
+    "SH_B_STOCK": "B股",
+    "SZ_B_STOCK": "B股",
+    "SH_INDEX": "指数",
+    "SZ_INDEX": "指数",
+    "BJ_INDEX": "指数",
+    "SH_FUND": "基金",
+    "SZ_FUND": "基金",
+    "SH_BOND": "债券",
+    "SZ_BOND": "债券",
 }
 
 
@@ -42,12 +72,18 @@ class Security:
         return f"{MARKET_PREFIXES[self.market]}{self.code}"
 
     def to_dict(self) -> dict[str, object]:
+        official = security_official_metadata(
+            self.market,
+            self.code,
+            security_type=self.security_type,
+        )
         return {
             "market": self.market,
             "code": self.code,
             "symbol": self.symbol,
             "name": self.name,
             "security_type": self.security_type,
+            **official,
             "volunit": self.volunit,
             "decimal_point": self.decimal_point,
             "pre_close": self.pre_close,
@@ -160,6 +196,57 @@ def classify_security(market: int, code: str) -> str:
     if is_index(symbol, market):
         return "index"
     return "other"
+
+
+def security_official_metadata(
+    market: int,
+    code: str,
+    *,
+    security_type: str | None = None,
+) -> dict[str, str | None]:
+    """Return factual exchange, board and security names for a directory row.
+
+    The stable English values are identifiers for filtering.  The ``*_name``
+    values use the official Chinese exchange and board names.  No user policy,
+    such as whether a security may be traded, is inferred here.
+    """
+
+    normalized_market = int(market)
+    normalized_code = str(code)
+    if normalized_market not in EXCHANGE_CODES:
+        raise ValueError(f"invalid security market: {market}")
+
+    normalized_type = security_type or classify_security(normalized_market, normalized_code)
+    protocol_type = get_security_type(normalized_market, normalized_code)
+    type_name = SECURITY_TYPE_NAMES.get(protocol_type)
+    if type_name is None:
+        type_name = {
+            "stock": "股票",
+            "etf": "基金",
+            "index": "指数",
+            "other": "其他",
+        }.get(normalized_type, "其他")
+
+    board: str | None = None
+    if normalized_type == "stock":
+        if normalized_market == MARKET_SH:
+            if normalized_code.startswith(("688", "689")):
+                board = "star"
+            elif normalized_code.startswith("60"):
+                board = "main"
+        elif normalized_market == MARKET_SZ:
+            if normalized_code.startswith(("300", "301")):
+                board = "chinext"
+            elif normalized_code.startswith(("000", "001", "002", "003")):
+                board = "main"
+
+    return {
+        "exchange": EXCHANGE_CODES[normalized_market],
+        "exchange_name": EXCHANGE_NAMES[normalized_market],
+        "board": board,
+        "board_name": BOARD_NAMES.get(board),
+        "security_type_name": type_name,
+    }
 
 
 security_registry = SecurityRegistry()

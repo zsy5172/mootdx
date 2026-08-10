@@ -1,6 +1,7 @@
 from mootdx_next.analytics.aggregation import aggregate_bars
 from mootdx_next.analytics.aggregation import summarize_trade_sides
 from mootdx_next.analytics.aggregation import trades_to_minute_bars
+from mootdx_next.analytics.block_quotes import aggregate_block_quotes
 from mootdx_next.analytics.indicators import atr
 from mootdx_next.analytics.indicators import boll
 from mootdx_next.analytics.indicators import ema
@@ -15,6 +16,7 @@ from mootdx_next.analytics.returns import forward_returns
 
 __all__ = [
     "aggregate_bars",
+    "aggregate_block_quotes",
     "atr",
     "boll",
     "ema",

@@ -7,6 +7,7 @@ from mootdx_next.api.ex_pandas import ExPandasClient
 from mootdx_next.api.pandas import AsyncPandasClient
 from mootdx_next.api.pandas import PandasClient
 from mootdx_next.analytics import aggregate_bars
+from mootdx_next.analytics import aggregate_block_quotes
 from mootdx_next.analytics import atr
 from mootdx_next.analytics import boll
 from mootdx_next.analytics import ema
@@ -139,6 +140,7 @@ from mootdx_next.securities import classify_security
 from mootdx_next.securities import invalidate_securities
 from mootdx_next.securities import Security
 from mootdx_next.securities import SecurityRegistry
+from mootdx_next.securities import security_official_metadata
 from mootdx_next.securities import security_snapshot
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 from mootdx_next.trading_calendar import invalidate_trading_calendar
@@ -153,6 +155,7 @@ __all__ = [
     "AsyncPandasClient",
     "AdjustmentError",
     "aggregate_bars",
+    "aggregate_block_quotes",
     "atr",
     "boll",
     "ema",
@@ -258,6 +261,7 @@ __all__ = [
     "ServerCandidate",
     "Security",
     "SecurityRegistry",
+    "security_official_metadata",
     "security_snapshot",
     "ServerHealthSnapshot",
     "ServerPool",

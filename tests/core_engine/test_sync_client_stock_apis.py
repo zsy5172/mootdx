@@ -208,6 +208,25 @@ def test_sync_client_rejects_invalid_market() -> None:
         client.stocks(9)
 
 
+def test_quotes_all_preserves_every_symbol_across_native_batches() -> None:
+    client = SyncClient()
+    calls: list[list[str]] = []
+
+    def quotes(symbol=None):
+        page = list(symbol or [])
+        calls.append(page)
+        return [{"market": 1, "code": code[-6:]} for code in page]
+
+    client.quotes = quotes  # type: ignore[method-assign]
+    symbols = [f"sh{600000 + index:06d}" for index in range(161)]
+
+    rows = client.quotes_all(symbols)
+
+    assert [len(page) for page in calls] == [80, 80, 1]
+    assert [row["code"] for row in rows] == [symbol[-6:] for symbol in symbols]
+    assert client.quotes_all([]) == []
+
+
 def test_sync_client_bse_stocks_use_injected_registry_without_tdx_request() -> None:
     class Provider:
         def load(self):
