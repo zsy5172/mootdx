@@ -119,6 +119,22 @@ class DummyNextClient:
         self.last_minutes_call = {"symbol": symbol, "date": str(date)}
         return [{"price": 10.0, "vol": 100, "date": str(date)}]
 
+    def call_auction(self, symbol: str):
+        return [
+            {
+                "time": "09:15:00",
+                "hour": 9,
+                "minute": 15,
+                "second": 0,
+                "price": 11.14,
+                "matched": 324,
+                "unmatched_signed": -177,
+                "unmatched": 177,
+                "side": -1,
+                "side_name": "sell",
+            }
+        ]
+
     def transaction(self, symbol: str, start: int = 0, offset: int = 800):
         return [{"time": "09:31", "price": 10.0, "vol": 100, "num": 1, "buyorsell": 0}]
 
@@ -178,6 +194,24 @@ def test_next_factory_transaction_preserves_empty_upstream_result() -> None:
 
     assert isinstance(result, pd.DataFrame)
     assert result.empty
+
+
+def test_next_factory_call_auction_preserves_signed_unmatched_volume() -> None:
+    client = Quotes.factory(
+        market="std",
+        engine="next",
+        server=("127.0.0.1", 7709),
+        engine_client=DummyNextClient(),
+    )
+
+    try:
+        result = client.call_auction("600036")
+    finally:
+        client.close()
+
+    assert result.iloc[0]["unmatched_signed"] == -177
+    assert result.iloc[0]["unmatched"] == 177
+    assert result.iloc[0]["side"] == -1
 
 
 def test_next_factory_uses_full_server_pool_without_legacy_config(monkeypatch) -> None:

@@ -4,6 +4,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from mootdx.utils import to_data
+from mootdx_next import call_auction_to_frame
 from mootdx_next import finance_to_frame
 from mootdx_next import quotes_to_frame
 from mootdx_next import stocks_to_frame
@@ -34,6 +35,39 @@ def test_quotes_to_frame_adds_volume_alias_without_changing_records() -> None:
 
     assert list(result.columns) == ["code", "price", "vol", "volume"]
     assert result.loc[0, "volume"] == 12
+
+
+def test_call_auction_to_frame_preserves_signed_unmatched_volume() -> None:
+    rows = [
+        {
+            "time": "09:15:00",
+            "hour": 9,
+            "minute": 15,
+            "second": 0,
+            "price": 11.14,
+            "matched": 324,
+            "unmatched_signed": -177,
+            "unmatched": 177,
+            "side": -1,
+            "side_name": "sell",
+        }
+    ]
+
+    result = call_auction_to_frame(rows)
+
+    assert list(result.columns) == [
+        "time",
+        "hour",
+        "minute",
+        "second",
+        "price",
+        "matched",
+        "unmatched_signed",
+        "unmatched",
+        "side",
+        "side_name",
+    ]
+    assert result.iloc[0]["unmatched_signed"] == -177
 
 
 def test_stocks_to_frame_preserves_column_order() -> None:

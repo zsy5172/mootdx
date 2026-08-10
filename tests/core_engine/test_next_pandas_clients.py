@@ -71,6 +71,22 @@ class SyncRaw:
     def minutes(self, symbol: str, date):
         return [{"date": f"{date} 09:30:00", "price": 10.0, "vol": 100}]
 
+    def call_auction(self, symbol: str):
+        return [
+            {
+                "time": "09:15:00",
+                "hour": 9,
+                "minute": 15,
+                "second": 0,
+                "price": 11.14,
+                "matched": 324,
+                "unmatched_signed": -177,
+                "unmatched": 177,
+                "side": -1,
+                "side_name": "sell",
+            }
+        ]
+
     def transaction(self, symbol: str, start=0, offset=800):
         return [{"time": "09:30", "price": 10.0, "vol": 1}]
 
@@ -182,6 +198,7 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
         "source",
     ]
     assert isinstance(client.bars("600036"), pd.DataFrame)
+    assert client.call_auction("600036").iloc[0]["unmatched_signed"] == -177
     assert isinstance(client.stocks(1), pd.DataFrame)
     assert len(client.stock_all()) == 2
     assert len(client.stock_all(markets=(0, 1, 2))) == 3
@@ -273,6 +290,10 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
         )
 
         pdt.assert_frame_equal(sync_client.limit_prices(), await async_client.limit_prices())
+        pdt.assert_frame_equal(
+            sync_client.call_auction("600036"),
+            await async_client.call_auction("600036"),
+        )
         pdt.assert_frame_equal(sync_client.tdx_block_base(), await async_client.tdx_block_base())
         pdt.assert_frame_equal(
             sync_client.block_members_all("概念"),

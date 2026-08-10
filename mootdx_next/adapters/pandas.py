@@ -68,6 +68,7 @@ def call_auction_to_frame(rows: list[dict[str, object]]) -> pd.DataFrame:
             "second",
             "price",
             "matched",
+            "unmatched_signed",
             "unmatched",
             "side",
             "side_name",
