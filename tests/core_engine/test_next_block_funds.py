@@ -103,7 +103,7 @@ def test_explicit_typed_block_does_not_load_constituent_index_catalog() -> None:
         client._resolve_block_fund_entries("880550", "行业", False)
 
 
-def test_zeroed_fund_extension_retries_on_another_supplemental_server() -> None:
+def test_zeroed_fund_extension_is_returned_as_unavailable_data() -> None:
     transport = RecordingTransport(responses=[b"zero-extension", b"fund-extension"])
     pool = RecordingConnectionPool(transport)
     servers = [
@@ -131,11 +131,13 @@ def test_zeroed_fund_extension_retries_on_another_supplemental_server() -> None:
 
     row = client.block_funds("880550")[0]
 
-    assert row["fund_amount_base"] == 341_480_996_864.0
-    assert protocol.decode_count == 2
-    assert len(transport.sent_payloads) == 2
-    assert pool.discarded[0].server == servers[0]
-    assert pool.released[0].server == servers[1]
+    assert row["fund_amount_base"] == 0.0
+    assert row["fund_extension_available"] is False
+    assert row["fund_extension_status"] == "unavailable"
+    assert protocol.decode_count == 1
+    assert len(transport.sent_payloads) == 1
+    assert pool.discarded == []
+    assert pool.released[0].server == servers[0]
 
 
 def test_block_fund_rankings_keep_missing_values_last_in_both_directions() -> None:

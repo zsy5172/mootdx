@@ -16,6 +16,7 @@ from mootdx_next.symbols import is_etf
 from mootdx_next.symbols import is_index
 from mootdx_next.symbols import is_stock
 from mootdx_next.symbols import normalize_symbol
+from mootdx_next.symbols import resolve_stock_market
 
 
 @pytest.mark.parametrize(
@@ -58,6 +59,13 @@ def test_symbol_market_prefix_overrides_number_inference() -> None:
     assert get_stock_market('BJ.600036') == MARKET_BJ
     assert legacy_stock_market('SZ.600036') == MARKET_SZ
     assert legacy_stock_market('BJ.600036') == MARKET_BJ
+
+
+def test_strict_market_resolution_rejects_unknown_bare_codes() -> None:
+    assert get_stock_market("ABC123") == MARKET_SH
+    with pytest.raises(InvalidSymbolError, match="cannot infer market"):
+        resolve_stock_market("ABC123")
+    assert resolve_stock_market("bj#ABC123") == MARKET_BJ
 
 
 @pytest.mark.parametrize("code", ["sh510300", "sh520000", "sh530000", "sh560000", "sh588000", "sz159915"])

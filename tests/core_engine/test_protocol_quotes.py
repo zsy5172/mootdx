@@ -100,6 +100,13 @@ def test_encode_quotes_rejects_unsupported_market() -> None:
         protocol.encode_quotes([(9, "600036")])
 
 
+def test_encode_quotes_exposes_native_batch_limit() -> None:
+    protocol = StdQuoteProtocol()
+
+    with pytest.raises(ProtocolDecodeError, match="at most 80.*quotes_all"):
+        protocol.encode_quotes([(1, "600036")] * 81)
+
+
 def test_encode_block_funds_matches_captured_mode_one_request() -> None:
     protocol = StdQuoteProtocol()
     expected = struct.pack(
@@ -137,6 +144,8 @@ def test_decode_block_funds_matches_captured_pcb_row() -> None:
     assert row["main_net_amount_5min"] == pytest.approx(744_428_573.1635201)
     assert row["main_force_share_5min"] == pytest.approx(0.2168706101)
     assert row["retail_order_growth_ratio"] == pytest.approx(-183.664085)
+    assert row["fund_extension_available"] is True
+    assert row["fund_extension_status"] == "available"
 
 
 def test_block_funds_rejects_invalid_requests_and_responses() -> None:

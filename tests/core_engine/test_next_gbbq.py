@@ -157,6 +157,6 @@ def test_gbbq_client_facades_share_snapshot_and_support_tdx_fallback() -> None:
         gbbq_provider=StaticProvider(b"not a zip"),
     )
     failed.xdxr = lambda symbol: [{"market": 1, "code": "600036"}]  # type: ignore[method-assign]
-    assert failed.gbbq("600036")[0]["source"] == "tdx"
+    assert failed.gbbq("600036", fallback=True)[0]["source"] == "tdx"
     with pytest.raises(GbbqArchiveError):
-        failed.gbbq("600036", fallback=False)
+        failed.gbbq("600036")

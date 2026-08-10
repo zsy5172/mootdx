@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from mootdx_next.errors import NoHealthyServerError
+from mootdx_next.constants import CAPABILITY_BLOCK_FUNDS
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.models import TransportMetrics
@@ -79,6 +80,28 @@ def test_block_funds_does_not_fall_back_to_generic_servers_during_cooldown() -> 
     assert pool.select(RequestContext(api="stock_count")) == generic
     with pytest.raises(NoHealthyServerError, match="supplemental quote server"):
         pool.select(RequestContext(api="block_funds"))
+
+
+def test_block_funds_requires_an_explicitly_capable_server() -> None:
+    clock = Clock()
+    generic = ServerEndpoint(host="127.0.0.1", port=7709, label="generic")
+    pool = ServerPool([generic], connection_pool=_pool(clock), time_fn=clock)
+
+    with pytest.raises(NoHealthyServerError, match="supplemental quote server"):
+        pool.select(RequestContext(api="block_funds"))
+
+
+def test_block_funds_accepts_custom_server_capability() -> None:
+    clock = Clock()
+    capable = ServerEndpoint(
+        host="127.0.0.1",
+        port=7709,
+        label="custom-funds",
+        capabilities=frozenset({CAPABILITY_BLOCK_FUNDS}),
+    )
+    pool = ServerPool([capable], connection_pool=_pool(clock), time_fn=clock)
+
+    assert pool.select(RequestContext(api="block_funds")) == capable
 
 
 def test_mark_failure_enters_cooldown_after_threshold() -> None:

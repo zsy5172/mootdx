@@ -203,6 +203,8 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     ]
     assert isinstance(client.bars("600036"), pd.DataFrame)
     assert isinstance(client.stocks(1), pd.DataFrame)
+    assert len(client.stock_all()) == 2
+    assert len(client.stock_all(markets=(0, 1, 2))) == 3
     assert isinstance(client.finance("600036"), pd.DataFrame)
     assert client.block_catalog("概念").iloc[0]["code"] == "880001"
     assert client.block_members("880001").iloc[0]["code"] == "600036"
@@ -285,6 +287,11 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
         pdt.assert_frame_equal(
             sync_client.quotes_all(["600036"]),
             await async_client.quotes_all(["600036"]),
+        )
+        pdt.assert_frame_equal(sync_client.stock_all(), await async_client.stock_all())
+        pdt.assert_frame_equal(
+            sync_client.stock_all(markets=(0, 1, 2)),
+            await async_client.stock_all(markets=(0, 1, 2)),
         )
 
         pdt.assert_frame_equal(sync_client.limit_prices(), await async_client.limit_prices())

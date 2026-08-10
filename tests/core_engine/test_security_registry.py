@@ -137,11 +137,10 @@ def test_client_exposes_typed_directory_and_code_filters() -> None:
     securities = client.securities()
 
     assert client.market_calls == [1, 0, 2]
-    assert securities[0]["symbol"] == "bj899050"
-    assert securities[0]["security_type"] == "index"
+    assert securities[0]["symbol"] == "sh600036"
     assert client.stock_codes() == ["sh600036", "sz000001", "bj920786"]
     assert client.etf_codes() == ["sh510300", "sz159919"]
-    assert client.index_codes() == ["bj899050", "sh000001", "sz399001"]
+    assert client.index_codes() == ["sh000001", "sz399001"]
     assert client.security("SH.600036")["name"] == "招商银行"  # type: ignore[index]
     assert client.security("sh600000") is None
     assert client.market_calls == [1, 0, 2]
@@ -166,7 +165,9 @@ def test_client_exposes_typed_directory_and_code_filters() -> None:
     assert by_symbol["sz000001"]["exchange_name"] == "深圳证券交易所"
     assert by_symbol["bj920786"]["exchange_name"] == "北京证券交易所"
     assert by_symbol["bj920786"]["board"] is None
-    assert by_symbol["bj899050"]["security_type_name"] == "指数"
+    assert by_symbol["sh600036"]["source_kind"] == "tdx_security_directory"
+    assert by_symbol["bj920786"]["source_kind"] == "bse_market_snapshot"
+    assert "bj899050" not in by_symbol
 
 
 @pytest.mark.parametrize(
