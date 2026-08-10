@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime
+from datetime import time
+from datetime import timedelta
+from datetime import timezone
 
 import pandas as pd
 import pytest
@@ -11,10 +14,12 @@ from mootdx.consts import HQ_HOSTS
 from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import Quotes
 from mootdx_next import AsyncClient
+from mootdx_next import CAPABILITY_FUND_FLOWS
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient
 from mootdx_next.analytics import forward_returns
 from mootdx_next.analytics import ma
+from mootdx_next.constants import FUND_FLOW_HOSTS
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.session import is_trading_session
 
@@ -29,14 +34,48 @@ def _servers() -> list[ServerEndpoint]:
     return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in HQ_HOSTS[:5]]
 
 
+def _fund_flow_servers() -> list[ServerEndpoint]:
+    generic_label, generic_host, generic_port = next(
+        item for item in HQ_HOSTS if (item[1], item[2]) not in FUND_FLOW_HOSTS
+    )
+    generic = ServerEndpoint(
+        host=generic_host,
+        port=generic_port,
+        label=f"generic:{generic_label}",
+    )
+    supplemental = [
+        ServerEndpoint(
+            host=host,
+            port=port,
+            label=f"fund-flow:{index}",
+            capabilities=frozenset({CAPABILITY_FUND_FLOWS}),
+        )
+        for index, (host, port) in enumerate(sorted(FUND_FLOW_HOSTS), 1)
+    ]
+    return [generic, *supplemental]
+
+
 def _is_weekday_trading_session() -> bool:
     now = datetime.now()
     return now.weekday() < 5 and is_trading_session(now)
 
 
+def _is_weekday_auction_fund_window() -> bool:
+    now = datetime.now(timezone(timedelta(hours=8)))
+    return now.weekday() < 5 and time(9, 25) <= now.time() < time(9, 30)
+
+
 @pytest.fixture(scope="module")
 def live_client():
     client = SyncClient(servers=_servers(), max_retries=2)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="module")
+def live_fund_flow_client():
+    servers = _fund_flow_servers()
+    client = SyncClient(servers=servers, max_retries=len(servers) - 2)
     yield client
     client.close()
 
@@ -73,6 +112,68 @@ def test_live_limit_price_server_table_and_rule_fallback(live_client: SyncClient
     assert ordinary is not None
     assert ordinary["source"] in {"server", "calculated"}
     assert ordinary["limit_up"] > ordinary["limit_down"]
+
+
+def test_live_fund_flows_routes_only_to_capable_supplemental_server(
+    live_fund_flow_client: SyncClient,
+) -> None:
+    rows = live_fund_flow_client.fund_flows(["600036", "880550"])
+
+    assert {row["code"] for row in rows} == {"600036", "880550"}
+    assert all(row["quote_source"] == "tdx_0x054c_mode1" for row in rows)
+
+    snapshots = live_fund_flow_client.scheduler.snapshot()
+    generic = next(item for item in snapshots if item.server.label.startswith("generic:"))
+    used = [item for item in snapshots if item.success_count > 0]
+
+    assert generic.success_count == 0
+    assert generic.failure_count == 0
+    assert generic.last_latency_ms is None
+    assert used
+    assert all(CAPABILITY_FUND_FLOWS in item.server.capabilities for item in used)
+
+
+def test_live_fund_flows_zero_extension_is_a_successful_response(
+    live_fund_flow_client: SyncClient,
+) -> None:
+    symbol = os.getenv("MOOTDX_LIVE_ZERO_FUND_SYMBOL", "bj920001")
+    before = live_fund_flow_client.scheduler.snapshot()
+    success_count = sum(item.success_count for item in before)
+    failure_count = sum(item.failure_count for item in before)
+
+    rows = live_fund_flow_client.fund_flows(symbol)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["fund_amount_base"] == 0.0
+    assert row["fund_extension_available"] is False
+    assert row["fund_extension_status"] == "unavailable"
+    assert row["quote_source"] == "tdx_0x054c_mode1"
+
+    after = live_fund_flow_client.scheduler.snapshot()
+    assert sum(item.success_count for item in after) == success_count + 1
+    assert sum(item.failure_count for item in after) == failure_count
+
+
+@pytest.mark.skipif(
+    not _is_weekday_auction_fund_window(),
+    reason="竞价零扩展仅在工作日 09:25-09:30 验证",
+)
+def test_live_fund_flows_auction_zero_extension_does_not_fail_node(
+    live_fund_flow_client: SyncClient,
+) -> None:
+    before = live_fund_flow_client.scheduler.snapshot()
+    success_count = sum(item.success_count for item in before)
+    failure_count = sum(item.failure_count for item in before)
+
+    rows = live_fund_flow_client.fund_flows("880550")
+
+    assert rows
+    assert all(row["fund_extension_available"] is False for row in rows)
+    assert all(row["fund_extension_status"] == "unavailable" for row in rows)
+    after = live_fund_flow_client.scheduler.snapshot()
+    assert sum(item.success_count for item in after) == success_count + 1
+    assert sum(item.failure_count for item in after) == failure_count
 
 
 @pytest.mark.parametrize("frequency", list(range(12)))
