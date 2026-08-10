@@ -13,7 +13,7 @@ from mootdx_next.protocol import StdQuoteProtocol
 
 ROOT = Path(__file__).resolve().parents[2]
 
-PCB_BLOCK_FUND_BODY = bytes.fromhex(
+PCB_FUND_FLOW_BODY = bytes.fromhex(
     "01000100013838303535308e12998427f9e101c7d201871bcefc019895800e1282ee94559cf704b3d79f520011b8e3ca1600"
     "d98427d1812791031502000100910100a0144f2000000000cc4e4ef830c0501566583f00000000000000000000000000000000"
     "0000000000000000000000000000b5039f52f16da94c9fc57e4b592d5921cc16ad12ae21ed1ee2118410b9383b3be91c401"
@@ -100,7 +100,7 @@ def test_encode_quotes_rejects_unsupported_market() -> None:
         protocol.encode_quotes([(9, "600036")])
 
 
-def test_encode_block_funds_matches_captured_mode_one_request() -> None:
+def test_encode_fund_flows_matches_captured_mode_one_request() -> None:
     protocol = StdQuoteProtocol()
     expected = struct.pack(
         "<HIHHIIHH",
@@ -114,11 +114,11 @@ def test_encode_block_funds_matches_captured_mode_one_request() -> None:
         1,
     ) + struct.pack("<B6s", 1, b"880550")
 
-    assert protocol.encode_block_funds([(1, "880550")]) == expected
+    assert protocol.encode_fund_flows([(1, "880550")]) == expected
 
 
-def test_decode_block_funds_matches_captured_pcb_row() -> None:
-    row = StdQuoteProtocol().decode_block_funds(PCB_BLOCK_FUND_BODY)[0]
+def test_decode_fund_flows_matches_captured_pcb_row() -> None:
+    row = StdQuoteProtocol().decode_fund_flows(PCB_FUND_FLOW_BODY)[0]
 
     assert row["code"] == "880550"
     assert row["price"] == pytest.approx(3197.69)
@@ -139,19 +139,19 @@ def test_decode_block_funds_matches_captured_pcb_row() -> None:
     assert row["retail_order_growth_ratio"] == pytest.approx(-183.664085)
 
 
-def test_block_funds_rejects_invalid_requests_and_responses() -> None:
+def test_fund_flows_rejects_invalid_requests_and_responses() -> None:
     protocol = StdQuoteProtocol()
 
     with pytest.raises(ProtocolDecodeError, match="at least one"):
-        protocol.encode_block_funds([])
+        protocol.encode_fund_flows([])
     with pytest.raises(ProtocolDecodeError, match="at most 80"):
-        protocol.encode_block_funds([(1, "880550")] * 81)
+        protocol.encode_fund_flows([(1, "880550")] * 81)
     with pytest.raises(UnsupportedMarketError):
-        protocol.encode_block_funds([(9, "880550")])
+        protocol.encode_fund_flows([(9, "880550")])
     with pytest.raises(ProtocolDecodeError, match="unexpected mode"):
-        protocol.decode_block_funds(b"\x00\x00\x00\x00")
+        protocol.decode_fund_flows(b"\x00\x00\x00\x00")
     with pytest.raises(ProtocolDecodeError, match="unconsumed bytes"):
-        protocol.decode_block_funds(PCB_BLOCK_FUND_BODY + b"\x00")
+        protocol.decode_fund_flows(PCB_FUND_FLOW_BODY + b"\x00")
 
 
 @pytest.mark.parametrize("body", [b"", b"\x00", b"\x00\x00\x01"])

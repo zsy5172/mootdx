@@ -482,10 +482,14 @@ concept_5g = client.block_members('880506')
 # 一次取得扁平化的“板块—证券”关系
 concept_members = client.block_members_all(category='概念')
 
-# 板块资金驱动力和资金博弈
-funds = client.block_funds(['880550', '880301'])
-driver = client.block_fund_driver(category='概念', sort_by='main_force_net_ratio')
-game = client.block_fund_game(category='行业', sort_by='main_net_amount_5min')
+# 证券和板块共用同一个资金流接口
+funds = client.fund_flows(['600036', '880550', '880301'])
+
+# 调用者自行组合目录、排序和派生指标
+concepts = client.block_catalog(category='概念')
+concept_funds = client.fund_flows(concepts['code'].tolist())
+driver = concept_funds.sort_values('main_net_amount', ascending=False)
+game = concept_funds.sort_values('main_net_amount_5min', ascending=False)
 
 # 比率字段所用的板块股本和市值基准
 base = client.tdx_block_base()
@@ -560,22 +564,28 @@ leaders = snapshot.sort_values('amount', ascending=False)
 涨跌家数、上涨占比及可用时的涨跌停家数。传入 09:25 冻结行情得到竞价板块快照；传入其他时点行情则
 得到对应时点的板块快照。
 
-### 板块资金驱动力和资金博弈
+### 证券与板块资金流
 
-`block_funds(symbol=None, category=None, refresh=False)` 返回两个页面所需的字段全集。`symbol` 可以是一个
-板块代码/名称或代码/名称列表；不传时查询指定分类的全部板块。原生协议每批最多查询 80 个板块，客户端
-会自动分页。`block_fund_driver()` 默认按 `main_net_amount` 降序，`block_fund_game()` 默认按
-`main_net_amount_5min` 降序；两者都可通过 `sort_by` 和 `descending` 调整排名。
+`fund_flows(symbol=None)` 直接查询通达信 `0x054C` mode 1 返回的行情和资金流扩展字段。
+这个上游请求同时接受证券代码和板块代码，因此 mootdx 不再将它封装成板块专用 API。`symbol`
+可以是一个代码或代码列表，接受 `sh600036` / `sz300750` / `bj920001` 这类市场前缀；不传或传
+空列表时返回空结果。原生协议每批最多查询 80 个代码，客户端会自动分批。
 
-资金流金额直接来自通达信 `0x054C` mode 1 的板块批量返回，不需要也不会把 `block_members()` 的全部
-成分股逐只查询后求和。只有以下两个市值比率需要额外读取 `tdxzsbase.cfg`：
+`fund_flows()` 只返回上游数据：不隐式读取板块目录，不补全名称、分类或市值，也不预设股票池、
+过滤规则和排序方式。如需查询某类板块，先用 `block_catalog()` 取得代码，再把代码列表传给
+`fund_flows()`；如需按主力净额或 5 分钟主力净额排名，由调用者对返回结果排序。
 
-`block_funds` 只从支持资金扩展的补充行情节点中选择服务器。使用 `bestip=True` 时，健康的补充节点会
-保留在测速快照中。若响应中的 `fund_amount_base` 为零，客户端会将该节点视为不支持并切换到下一个
-补充节点；节点不可用或达到配置的重试次数时明确报错，不回退到只会返回全零资金扩展的普通行情节点。
+资金流金额是上游服务器直接返回的结果，不是将 `block_members()` 的全部成分股逐只查询后求和。
+`fund_flows` 只从支持资金扩展的补充行情节点中选择服务器。使用 `bestip=True` 时，健康的补充节点会
+保留在测速快照中。若响应中的 `fund_amount_base` 为零，客户端会切换到下一个补充节点；节点不可用或达到
+配置的重试次数时明确报错，不回退到只会返回全零资金扩展的普通行情节点。
+
+如需按板块流通市值计算比率，调用者可单独取得 `tdx_block_base()` 并按 `market` 和 `code` 连接：
 
 - `net_buy_rate = main_buy_amount / circulating_market_cap * 100`
 - `main_force_net_ratio = main_net_amount / circulating_market_cap * 100`
+
+这两个派生字段不由 `fund_flows()` 返回。
 
 成交额占比直接使用同一行情包中的板块成交额：
 
@@ -587,8 +597,8 @@ leaders = snapshot.sort_values('amount', ascending=False)
 
 | 页面 | 通达信含义 | 返回字段 |
 | --- | --- | --- |
-| 资金驱动力 | 主力净额、主力占比、主力净比 | `main_net_amount`、`main_force_share`、`main_force_net_ratio` |
-| 资金驱动力 | 主买净额、主买占比、净买率 | `main_buy_amount`、`main_buy_share`、`net_buy_rate` |
+| 资金驱动力 | 主力净额、主力占比 | `main_net_amount`、`main_force_share` |
+| 资金驱动力 | 主买净额、主买占比 | `main_buy_amount`、`main_buy_share` |
 | 资金驱动力 | 量比、短换、2 分钟金额 | `volume_growth_rate`、`short_turnover_rate`、`amount_2min` |
 | 资金博弈 | 当日超大单、大单、中单、小单净额 | `super_large_net_amount`、`large_net_amount`、`medium_net_amount`、`small_net_amount` |
 | 资金博弈 | 5 分钟主力净额、主力占比 | `main_net_amount_5min`、`main_force_share_5min` |

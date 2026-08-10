@@ -314,10 +314,14 @@ regions = client.block_catalog("地区")
 beijing = client.block_members("880207")
 concept_5g = client.block_members("880506")
 
-# 资金驱动力与资金博弈；返回值均为 DataFrame
-funds = client.block_funds(["880550", "880301"])
-driver = client.block_fund_driver(category="概念", sort_by="main_force_net_ratio")
-game = client.block_fund_game(category="行业", sort_by="main_net_amount_5min")
+# 证券和板块共用同一个资金流接口；返回值为 DataFrame
+funds = client.fund_flows(["600036", "880550", "880301"])
+
+# 调用者自行组合板块目录并排序
+concepts = client.block_catalog("概念")
+concept_funds = client.fund_flows(concepts["code"].tolist())
+driver = concept_funds.sort_values("main_net_amount", ascending=False)
+game = concept_funds.sort_values("main_net_amount_5min", ascending=False)
 
 # 资金比率使用的板块股本、市值基准
 base = client.tdx_block_base()
@@ -358,22 +362,27 @@ client.stock_statistics2()
 `block_zs.dat`。同名板块可能同时存在于不同分类或行业体系中，名称无法唯一定位时会抛出
 `ValueError`，此时应改用 `block_catalog()` 返回的板块代码。
 
-`block_funds()` 一次返回“资金驱动力”和“资金博弈”的字段全集；`block_fund_driver()` 与
-`block_fund_game()` 是带默认排序字段的便捷入口。资金流金额直接来自通达信 `0x054C` mode 1
-批量行情（每批最多 80 个板块），不是下载全部成分股后在本地合计。主力净额、主买净额、当日四档
-资金流和 5 分钟四档资金流均使用服务端数据；`main_force_net_ratio`（主力净比）和 `net_buy_rate`
-（净买率）再使用 `tdxzsbase.cfg` 的板块流通市值作为分母。
+`fund_flows(symbol=None)` 直接返回通达信 `0x054C` mode 1 的行情和资金流扩展字段。
+上游请求同时支持证券代码和板块代码，每批最多 80 个代码，客户端会自动分批。它不隐式读取
+板块目录或 `tdxzsbase.cfg`，不预设股票池、过滤和排序规则。主力净额、主买净额、当日四档资金流和
+5 分钟四档资金流都是服务端数据，不是下载全部成分股后在本地合计。
 
 该命令只路由到已验证支持资金扩展的补充行情节点。`bestip=True` 会在测速结果中保留所有健康的补充
 节点；若某个节点返回 `fund_amount_base=0` 的全零扩展，客户端会把它视为不支持并切换节点。所有补充
 节点不可用或达到配置的重试次数时会明确报错，不会回退普通行情节点并把伪零值当成真实资金数据。
 
-所有 `*_amount` 字段单位为元，`*_share`、`*_ratio` 和 `*_rate` 字段均为百分点。主要映射如下：
+如需主力净比或净买率，可单独调用 `tdx_block_base()`，按 `market` 和 `code` 与资金流结果连接后计算：
+
+- `main_force_net_ratio = main_net_amount / circulating_market_cap * 100`
+- `net_buy_rate = main_buy_amount / circulating_market_cap * 100`
+
+这两个派生字段不由 `fund_flows()` 返回。所有 `*_amount` 字段单位为元，`*_share` 和已解析的
+`*_ratio` / `*_rate` 字段均为百分点。主要映射如下：
 
 | 通达信列 | 返回字段 |
 | --- | --- |
-| 主力净额 / 主力占比 / 主力净比 | `main_net_amount` / `main_force_share` / `main_force_net_ratio` |
-| 主买净额 / 主买占比 / 净买率 | `main_buy_amount` / `main_buy_share` / `net_buy_rate` |
+| 主力净额 / 主力占比 | `main_net_amount` / `main_force_share` |
+| 主买净额 / 主买占比 | `main_buy_amount` / `main_buy_share` |
 | 超大单 / 大单 / 中单 / 小单净额 | `super_large_net_amount` / `large_net_amount` / `medium_net_amount` / `small_net_amount` |
 | 5 分钟主力净额 / 主力占比 | `main_net_amount_5min` / `main_force_share_5min` |
 | 5 分钟四档净额 | `super_large_net_amount_5min` / `large_net_amount_5min` / `medium_net_amount_5min` / `small_net_amount_5min` |

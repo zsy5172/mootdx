@@ -855,48 +855,8 @@ class PandasClient:
     def tdx_block_base(self, refresh=False, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(self.client.tdx_block_base(refresh=bool(refresh)))
 
-    def block_funds(self, symbol=None, category=None, refresh=False, **kwargs) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            self.client.block_funds(symbol=symbol, category=category, refresh=bool(refresh))
-        )
-
-    def block_fund_driver(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount",
-        descending=True,
-        refresh=False,
-        **kwargs,
-    ) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            self.client.block_fund_driver(
-                symbol=symbol,
-                category=category,
-                sort_by=str(sort_by),
-                descending=bool(descending),
-                refresh=bool(refresh),
-            )
-        )
-
-    def block_fund_game(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount_5min",
-        descending=True,
-        refresh=False,
-        **kwargs,
-    ) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            self.client.block_fund_game(
-                symbol=symbol,
-                category=category,
-                sort_by=str(sort_by),
-                descending=bool(descending),
-                refresh=bool(refresh),
-            )
-        )
+    def fund_flows(self, symbol=None, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(self.client.fund_flows(symbol=symbol))
 
     def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(
@@ -1709,52 +1669,8 @@ class AsyncPandasClient:
             await self.client.tdx_block_base(refresh=bool(refresh))
         )
 
-    async def block_funds(self, symbol=None, category=None, refresh=False, **kwargs) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            await self.client.block_funds(
-                symbol=symbol,
-                category=category,
-                refresh=bool(refresh),
-            )
-        )
-
-    async def block_fund_driver(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount",
-        descending=True,
-        refresh=False,
-        **kwargs,
-    ) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            await self.client.block_fund_driver(
-                symbol=symbol,
-                category=category,
-                sort_by=str(sort_by),
-                descending=bool(descending),
-                refresh=bool(refresh),
-            )
-        )
-
-    async def block_fund_game(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount_5min",
-        descending=True,
-        refresh=False,
-        **kwargs,
-    ) -> pd.DataFrame:
-        return pd.DataFrame.from_records(
-            await self.client.block_fund_game(
-                symbol=symbol,
-                category=category,
-                sort_by=str(sort_by),
-                descending=bool(descending),
-                refresh=bool(refresh),
-            )
-        )
+    async def fund_flows(self, symbol=None, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(await self.client.fund_flows(symbol=symbol))
 
     async def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(

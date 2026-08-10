@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from mootdx_next.constants import BLOCK_FUND_HOSTS
+from mootdx_next.constants import FUND_FLOW_HOSTS
 from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.models import RequestContext
@@ -172,15 +172,15 @@ class ServerPool:
         if not candidates:
             raise NoHealthyServerError(f"no healthy server available for {context.api}")
 
-        if context.api == "block_funds" and any(
-            self._server_key(server) in BLOCK_FUND_HOSTS for server in self.servers
+        if context.api == "fund_flows" and any(
+            self._server_key(server) in FUND_FLOW_HOSTS for server in self.servers
         ):
             candidates = [
-                item for item in candidates if self._server_key(item.server) in BLOCK_FUND_HOSTS
+                item for item in candidates if self._server_key(item.server) in FUND_FLOW_HOSTS
             ]
             if not candidates:
                 raise NoHealthyServerError(
-                    "no healthy supplemental quote server available for block_funds"
+                    "no healthy supplemental quote server available for fund_flows"
                 )
 
         candidates.sort(

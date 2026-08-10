@@ -99,7 +99,7 @@ BAR_PAGE_SIZE = 800
 BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
 QUOTE_PAGE_SIZE = 80
-BLOCK_FUND_PAGE_SIZE = 80
+FUND_FLOW_PAGE_SIZE = 80
 BarPredicate = Callable[[Mapping[str, object]], bool]
 BLOCK_CATEGORY_NAMES = {
     "region": "地区板块",
@@ -189,9 +189,7 @@ REQUEST_APIS = frozenset(
         "block_members",
         "block_members_all",
         "tdx_block_base",
-        "block_funds",
-        "block_fund_driver",
-        "block_fund_game",
+        "fund_flows",
         "block_with_index",
         "sp_blocks",
         "tdx_industries",
@@ -1268,99 +1266,21 @@ class SyncClient:
         rows.extend(self._index_block_catalog(refresh=refresh))
         return rows
 
-    def _resolve_block_fund_entries(
-        self,
-        symbol: str | list[str] | None,
-        category: str | None,
-        refresh: bool,
-    ) -> list[dict[str, object]]:
-        normalized_category = _normalize_block_category(category)
-        if normalized_category == "index":
-            catalog = self._index_block_catalog(refresh=refresh)
-        else:
-            # The fund pages are backed by the typed 88xxxx block catalog. Do
-            # not download the much larger constituent index file merely to
-            # resolve an explicit block code.
-            catalog = self._typed_block_catalog(refresh=refresh)
-            if normalized_category is not None:
-                catalog = [row for row in catalog if row["category"] == normalized_category]
-
-        if symbol is None:
-            selected = [row for row in catalog if str(row.get("code", "")).isdigit()]
-        else:
-            selectors = [symbol] if isinstance(symbol, str) else list(symbol)
-            selected = []
-            for value in selectors:
-                if not isinstance(value, str) or not value.strip():
-                    raise ValueError("block_funds symbols must be non-blank strings")
-                selector = value.strip()
-                matches = [
-                    row
-                    for row in catalog
-                    if selector in {str(row.get("code", "")), str(row.get("name", ""))}
-                ]
-                if not matches and normalized_category is None and not selector.isdigit():
-                    matches = [
-                        row
-                        for row in self._index_block_catalog(refresh=refresh)
-                        if selector in {str(row.get("code", "")), str(row.get("name", ""))}
-                    ]
-                if len(matches) > 1:
-                    choices = ", ".join(f"{row.get('name')} ({row.get('code')})" for row in matches)
-                    raise ValueError(f"ambiguous block {selector!r}; use a block code: {choices}")
-                if matches:
-                    selected.append(matches[0])
-                elif normalized_category is None and len(selector) == 6 and selector.isdigit():
-                    selected.append(
-                        {
-                            "name": "",
-                            "code": selector,
-                            "category": None,
-                            "category_name": None,
-                            "taxonomy": None,
-                            "source": None,
-                        }
-                    )
-                else:
-                    raise ValueError(f"unknown block {selector!r}")
-
-        result: list[dict[str, object]] = []
-        seen: set[str] = set()
-        for row in selected:
-            code = str(row.get("code", "")).strip()
-            if len(code) != 6 or not code.isdigit() or code in seen:
-                continue
-            seen.add(code)
-            result.append(dict(row))
-        return result
-
-    def block_funds(
+    def fund_flows(
         self,
         symbol: str | list[str] | None = None,
-        category: str | None = None,
-        refresh: bool = False,
     ) -> list[dict[str, object]]:
-        """Query block fund-driver and fund-game fields in native batches."""
+        """Query native 0x054C mode-1 fund-flow fields for explicit symbols."""
 
-        entries = self._resolve_block_fund_entries(symbol, category, bool(refresh))
-        if not entries:
+        normalized = normalize_symbol_input(symbol)
+        if not normalized:
             return []
-
-        base_rows = self.tdx_block_base(refresh=bool(refresh))
-        base_by_code = {str(row["code"]): row for row in base_rows}
-        entry_by_code = {str(row["code"]): row for row in entries}
-        symbols: list[tuple[int, str]] = []
-        for entry in entries:
-            code = str(entry["code"])
-            base = base_by_code.get(code)
-            market = int(base["market"]) if base is not None else int(get_stock_market(code, string=False))
-            symbols.append((market, code))
-
+        symbols = get_stock_markets(normalized)
         rows: list[dict[str, object]] = []
-        for start in range(0, len(symbols), BLOCK_FUND_PAGE_SIZE):
-            page = symbols[start : start + BLOCK_FUND_PAGE_SIZE]
-            context = RequestContext(api="block_funds", params={"symbols": tuple(page)})
-            payload = self.protocol.encode("block_funds", symbols=page)
+        for start in range(0, len(symbols), FUND_FLOW_PAGE_SIZE):
+            page = symbols[start : start + FUND_FLOW_PAGE_SIZE]
+            context = RequestContext(api="fund_flows", params={"symbols": tuple(page)})
+            payload = self.protocol.encode("fund_flows", symbols=page)
             price_coefficients = {(market, code): self._price_coefficient(market, code) for market, code in page}
             decoded_page: list[dict[str, object]] = []
 
@@ -1368,87 +1288,22 @@ class SyncClient:
                 decoded = [
                     dict(row)
                     for row in self.protocol.decode(
-                        "block_funds",
+                        "fund_flows",
                         envelope,
                         price_coefficients=price_coefficients,
                     )
                 ]
                 if not decoded:
-                    raise ProtocolDecodeError("block_funds server returned no rows")
+                    raise ProtocolDecodeError("fund_flows server returned no rows")
                 if not any(float(row.get("fund_amount_base") or 0.0) > 0.0 for row in decoded):
                     raise ProtocolDecodeError(
-                        "block_funds server returned a zeroed fund extension"
+                        "fund_flows server returned a zeroed fund extension"
                     )
                 decoded_page.extend(decoded)
 
             self._send(context, payload, response_validator=validate_fund_extension)
             rows.extend(decoded_page)
-
-        for row in rows:
-            code = str(row["code"])
-            entry = entry_by_code.get(code, {})
-            base = base_by_code.get(code, {})
-            circulating_market_cap = _optional_float(base.get("circulating_market_cap"))
-            total_market_cap = _optional_float(base.get("total_market_cap"))
-            main_buy_amount = float(row["main_buy_amount"])
-            main_net_amount = float(row["main_net_amount"])
-            row.update(
-                {
-                    "name": entry.get("name", ""),
-                    "category": entry.get("category"),
-                    "category_name": entry.get("category_name"),
-                    "taxonomy": entry.get("taxonomy"),
-                    "catalog_source": entry.get("source"),
-                    "base_date": base.get("date"),
-                    "total_market_cap": total_market_cap,
-                    "circulating_market_cap": circulating_market_cap,
-                    "net_buy_rate": (
-                        main_buy_amount * 100.0 / circulating_market_cap if circulating_market_cap else None
-                    ),
-                    "main_force_net_ratio": (
-                        main_net_amount * 100.0 / circulating_market_cap if circulating_market_cap else None
-                    ),
-                }
-            )
         return rows
-
-    @staticmethod
-    def _sort_block_funds(
-        rows: list[dict[str, object]],
-        sort_by: str,
-        descending: bool,
-    ) -> list[dict[str, object]]:
-        if not isinstance(sort_by, str) or not sort_by.strip():
-            raise ValueError("sort_by cannot be blank")
-        field = sort_by.strip()
-        if rows and field not in rows[0]:
-            raise ValueError(f"unknown block fund sort field: {field}")
-        populated = [row for row in rows if row.get(field) is not None]
-        missing = [row for row in rows if row.get(field) is None]
-        populated.sort(key=lambda row: float(row[field]), reverse=bool(descending))
-        return populated + missing
-
-    def block_fund_driver(
-        self,
-        symbol: str | list[str] | None = None,
-        category: str | None = None,
-        sort_by: str = "main_net_amount",
-        descending: bool = True,
-        refresh: bool = False,
-    ) -> list[dict[str, object]]:
-        rows = self.block_funds(symbol=symbol, category=category, refresh=refresh)
-        return self._sort_block_funds(rows, sort_by, descending)
-
-    def block_fund_game(
-        self,
-        symbol: str | list[str] | None = None,
-        category: str | None = None,
-        sort_by: str = "main_net_amount_5min",
-        descending: bool = True,
-        refresh: bool = False,
-    ) -> list[dict[str, object]]:
-        rows = self.block_funds(symbol=symbol, category=category, refresh=refresh)
-        return self._sort_block_funds(rows, sort_by, descending)
 
     def _resolve_block_catalog_entry(
         self,
@@ -2799,53 +2654,11 @@ class AsyncClient:
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "block_members_all", category, refresh))
 
-    async def block_funds(
+    async def fund_flows(
         self,
         symbol: str | list[str] | None = None,
-        category: str | None = None,
-        refresh: bool = False,
     ) -> list[dict[str, object]]:
-        return list(await asyncio.to_thread(self._call_sync, "block_funds", symbol, category, refresh))
-
-    async def block_fund_driver(
-        self,
-        symbol: str | list[str] | None = None,
-        category: str | None = None,
-        sort_by: str = "main_net_amount",
-        descending: bool = True,
-        refresh: bool = False,
-    ) -> list[dict[str, object]]:
-        return list(
-            await asyncio.to_thread(
-                self._call_sync,
-                "block_fund_driver",
-                symbol,
-                category,
-                sort_by,
-                descending,
-                refresh,
-            )
-        )
-
-    async def block_fund_game(
-        self,
-        symbol: str | list[str] | None = None,
-        category: str | None = None,
-        sort_by: str = "main_net_amount_5min",
-        descending: bool = True,
-        refresh: bool = False,
-    ) -> list[dict[str, object]]:
-        return list(
-            await asyncio.to_thread(
-                self._call_sync,
-                "block_fund_game",
-                symbol,
-                category,
-                sort_by,
-                descending,
-                refresh,
-            )
-        )
+        return list(await asyncio.to_thread(self._call_sync, "fund_flows", symbol))
 
     async def block_with_index(
         self,

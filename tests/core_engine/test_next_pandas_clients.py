@@ -108,28 +108,8 @@ class SyncRaw:
     def tdx_block_base(self, refresh=False):
         return [{"market": 1, "code": "880001", "circulating_market_cap": 1_000_000.0}]
 
-    def block_funds(self, symbol=None, category=None, refresh=False):
+    def fund_flows(self, symbol=None):
         return [{"code": "880001", "main_net_amount": 100.0, "main_net_amount_5min": 10.0}]
-
-    def block_fund_driver(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount",
-        descending=True,
-        refresh=False,
-    ):
-        return self.block_funds(symbol=symbol, category=category, refresh=refresh)
-
-    def block_fund_game(
-        self,
-        symbol=None,
-        category=None,
-        sort_by="main_net_amount_5min",
-        descending=True,
-        refresh=False,
-    ):
-        return self.block_funds(symbol=symbol, category=category, refresh=refresh)
 
     def f10_categories(self, symbol: str):
         return [{"name": "最新提示", "filename": "600036.txt", "start": 0, "length": 4}]
@@ -208,9 +188,7 @@ def test_pandas_client_exposes_native_and_compatibility_methods() -> None:
     assert client.block_members("880001").iloc[0]["code"] == "600036"
     assert client.block_members_all("概念").iloc[0]["code"] == "600036"
     assert client.tdx_block_base().iloc[0]["circulating_market_cap"] == 1_000_000.0
-    assert client.block_funds("880001").iloc[0]["main_net_amount"] == 100.0
-    assert client.block_fund_driver("880001").iloc[0]["main_net_amount"] == 100.0
-    assert client.block_fund_game("880001").iloc[0]["main_net_amount_5min"] == 10.0
+    assert client.fund_flows("880001").iloc[0]["main_net_amount"] == 100.0
     assert client.F10C("600036") == client.f10_categories("600036")
     assert client.F10("600036", "最新提示") == "最新提示内容"
     native_index = client.index_bars("000001", market=1)
@@ -294,12 +272,8 @@ def test_async_pandas_client_matches_sync_shapes_and_adjustment() -> None:
             await async_client.block_members_all("概念"),
         )
         pdt.assert_frame_equal(
-            sync_client.block_fund_driver("880001"),
-            await async_client.block_fund_driver("880001"),
-        )
-        pdt.assert_frame_equal(
-            sync_client.block_fund_game("880001"),
-            await async_client.block_fund_game("880001"),
+            sync_client.fund_flows("880001"),
+            await async_client.fund_flows("880001"),
         )
         pdt.assert_frame_equal(
             sync_client.price_limit("600036"),

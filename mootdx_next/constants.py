@@ -88,10 +88,9 @@ HQ_HOSTS = (
     ("补充行情主站4", "182.150.28.166", 7709),
 )
 
-# These supplemental quote nodes return the 0x054C mode-1 extension used by the
-# block fund-driver and fund-game pages. Generic quote nodes return an all-zero
-# extension for the same request.
-BLOCK_FUND_HOSTS = frozenset(
+# These supplemental quote nodes return the 0x054C mode-1 fund-flow extension.
+# Generic quote nodes return an all-zero extension for the same request.
+FUND_FLOW_HOSTS = frozenset(
     {
         ("182.140.139.191", 7709),
         ("119.6.200.40", 7709),

@@ -174,5 +174,5 @@ def test_native_probe_reserves_every_healthy_supplemental_server(
     assert {
         (item.host, item.port)
         for item in result
-        if (item.host, item.port) in candidates_module.BLOCK_FUND_HOSTS
+        if (item.host, item.port) in candidates_module.FUND_FLOW_HOSTS
     } == {(host, port) for _, host, port in fund_hosts}

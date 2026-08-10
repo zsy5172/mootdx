@@ -67,8 +67,8 @@ F10_CONTENT_HEAD_STRUCT = struct.Struct("<10sH")
 BLOCK_INFO_META_STRUCT = struct.Struct("<I1s32s1s")
 ZIP_DAY_MINUTES_STRUCT = struct.Struct("<HH")
 QUOTE_TRADING_PHASE_STRUCT = struct.Struct("<H")
-BLOCK_FUND_FIXED_STRUCT = struct.Struct("<hhfHH10fH")
-BLOCK_FUND_EXTENSION_STRUCT = struct.Struct("<fff48H")
+FUND_FLOW_FIXED_STRUCT = struct.Struct("<hhfHH10fH")
+FUND_FLOW_EXTENSION_STRUCT = struct.Struct("<fff48H")
 LIMIT_PRICE_REQUEST_STRUCT = struct.Struct("<HHHHHHHH")
 LIMIT_PRICE_ROW_STRUCT = struct.Struct("<BIff")
 CALL_AUCTION_ROW_STRUCT = struct.Struct("<HfIiBB")
@@ -232,8 +232,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.encode_stock_list_page(int(kwargs["market"]), int(kwargs["start"]))
         if api == "quotes":
             return self.encode_quotes(list(kwargs["symbols"]))
-        if api == "block_funds":
-            return self.encode_block_funds(list(kwargs["symbols"]))
+        if api == "fund_flows":
+            return self.encode_fund_flows(list(kwargs["symbols"]))
         if api == "limit_prices":
             return self.encode_limit_prices(int(kwargs["start"]), int(kwargs["count"]))
         if api == "call_auction":
@@ -299,8 +299,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.decode_stock_list_page(body)
         if api == "quotes":
             return self.decode_quotes(body, price_coefficients=kwargs.get("price_coefficients"))
-        if api == "block_funds":
-            return self.decode_block_funds(body, price_coefficients=kwargs.get("price_coefficients"))
+        if api == "fund_flows":
+            return self.decode_fund_flows(body, price_coefficients=kwargs.get("price_coefficients"))
         if api == "limit_prices":
             return self.decode_limit_prices(body)
         if api == "call_auction":
@@ -439,13 +439,13 @@ class StdQuoteProtocol(AbstractProtocol):
 
         return bytes(payload)
 
-    def encode_block_funds(self, symbols: list[tuple[int, str]]) -> bytes:
-        """Encode the mode-1 block quote request used by the fund-flow pages."""
+    def encode_fund_flows(self, symbols: list[tuple[int, str]]) -> bytes:
+        """Encode the mode-1 quote request used by the fund-flow pages."""
 
         if not symbols:
-            raise ProtocolDecodeError("block_funds request requires at least one symbol")
+            raise ProtocolDecodeError("fund_flows request requires at least one symbol")
         if len(symbols) > 80:
-            raise ProtocolDecodeError("block_funds request supports at most 80 symbols")
+            raise ProtocolDecodeError("fund_flows request supports at most 80 symbols")
 
         payload_len = len(symbols) * 7 + 12
         values = (0x10C, 0x02006320, payload_len, payload_len, 0x5054C, 0x100, 0, len(symbols))
@@ -453,28 +453,28 @@ class StdQuoteProtocol(AbstractProtocol):
 
         for market, code in symbols:
             if market not in self.quote_markets:
-                raise UnsupportedMarketError(f"unsupported market for block_funds: {market}")
+                raise UnsupportedMarketError(f"unsupported market for fund_flows: {market}")
             encoded_code = code.encode("ascii")
             if len(encoded_code) != 6 or not encoded_code.isdigit():
-                raise ProtocolDecodeError("block_funds symbols must contain six-digit numeric codes")
+                raise ProtocolDecodeError("fund_flows symbols must contain six-digit numeric codes")
             payload.extend(struct.pack("<B6s", market, encoded_code))
 
         return bytes(payload)
 
-    def decode_block_funds(
+    def decode_fund_flows(
         self,
         body: bytes,
         *,
         price_coefficients: Mapping[tuple[int, str], float] | None = None,
     ) -> list[dict[str, object]]:
-        """Decode a 0x054C mode-1 block quote and its fund-flow extension."""
+        """Decode a 0x054C mode-1 quote and its fund-flow extension."""
 
         if len(body) < 4:
-            raise ProtocolDecodeError(f"block_funds body too short: {len(body)}")
+            raise ProtocolDecodeError(f"fund_flows body too short: {len(body)}")
 
         mode, num_rows = U16_PAIR_STRUCT.unpack_from(body, 0)
         if mode != 1:
-            raise ProtocolDecodeError(f"block_funds response has unexpected mode: {mode}")
+            raise ProtocolDecodeError(f"fund_flows response has unexpected mode: {mode}")
 
         pos = 4
         rows: list[dict[str, object]] = []
@@ -510,10 +510,10 @@ class StdQuoteProtocol(AbstractProtocol):
                 (trading_status_word,) = QUOTE_TRADING_PHASE_STRUCT.unpack_from(body, pos)
                 pos += QUOTE_TRADING_PHASE_STRUCT.size
 
-                fixed = BLOCK_FUND_FIXED_STRUCT.unpack_from(body, pos)
-                pos += BLOCK_FUND_FIXED_STRUCT.size
-                extension = BLOCK_FUND_EXTENSION_STRUCT.unpack_from(body, pos)
-                pos += BLOCK_FUND_EXTENSION_STRUCT.size
+                fixed = FUND_FLOW_FIXED_STRUCT.unpack_from(body, pos)
+                pos += FUND_FLOW_FIXED_STRUCT.size
+                extension = FUND_FLOW_EXTENSION_STRUCT.unpack_from(body, pos)
+                pos += FUND_FLOW_EXTENSION_STRUCT.size
 
                 coefficient = price_coefficients.get((market, code)) if price_coefficients is not None else None
                 if coefficient is None:
@@ -603,10 +603,10 @@ class StdQuoteProtocol(AbstractProtocol):
                     }
                 )
         except (IndexError, UnicodeDecodeError, struct.error) as exc:
-            raise ProtocolDecodeError(f"failed to decode block_funds row {len(rows)}") from exc
+            raise ProtocolDecodeError(f"failed to decode fund_flows row {len(rows)}") from exc
 
         if pos != len(body):
-            raise ProtocolDecodeError(f"block_funds response has {len(body) - pos} unconsumed bytes")
+            raise ProtocolDecodeError(f"fund_flows response has {len(body) - pos} unconsumed bytes")
         return rows
 
     def encode_limit_prices(self, start: int = 0, count: int = MAX_LIMIT_PRICE_COUNT) -> bytes:
