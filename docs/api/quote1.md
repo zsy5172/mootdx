@@ -53,8 +53,13 @@ client.quotes(symbol=["000001", "600300"])
 client.quotes_all(symbol=["sh600036", "sz300750", "bj920001"])
 ```
 
-`quotes()` 保留原生单次请求语义；`quotes_all()` 只负责按协议上限分批并按批次拼接结果，不会按交易所、
-板块或证券类型隐藏过滤调用者传入的代码。
+`quotes()` 保留原生单次请求语义并严格限制为最多 80 个证券；超过上限会明确报错，不允许服务器静默
+截断。`quotes_all()` 只负责按协议上限分批并按批次拼接结果，不会按交易所、板块或证券类型隐藏过滤
+调用者传入的代码。
+
+`mootdx_next` 还公开 `resolve_stock_market()` / `resolve_stock_markets()`。它们只接受带 `sh` / `sz` /
+`bj` 前缀或能被既有代码规则识别的裸代码；未知代码不会像兼容函数 `get_stock_market()` 那样默认归到
+上海市场。债券、回购和历史北交所代码存在歧义时，应始终携带市场前缀。
 
 ### 全市场证券目录
 
@@ -66,9 +71,16 @@ chinext = securities.query("board_name == '创业板'")
 bse = securities.query("exchange == 'BSE'")
 ```
 
-`securities()` 返回沪、深、北标准市场的完整证券目录。协议市场代码和原有 `security_type` 保持兼容，
+`securities()` 返回沪、深、北标准市场的完整证券目录，不自行插入指数或其他合成证券。协议市场代码和
+原有 `security_type` 保持兼容，
 同时提供用于稳定筛选的 `exchange` / `board` 以及官方中文名称 `exchange_name` / `board_name` /
 `security_type_name`。这些字段只描述证券的客观归属，不包含是否允许交易之类的用户策略。
+
+`source` 和 `source_kind` 表达实际上游：沪深目录为 `tdx` / `tdx_security_directory`；北交所当前目录
+来自北交所网站行情快照，为 `bse` / `bse_market_snapshot`。因此兼容接口 `stocks(2)` 会比沪深目录多出
+日期、OHLC、成交量额等快照字段；需要跨市场稳定字段时应使用 `securities()`。`stock_all()` 保留原版
+默认行为，仍按 `(0, 1)` 拼接深圳、上海；同时新增可组合的 `markets` 参数，例如
+`stock_all(markets=(0, 1, 2))` 可显式加入北交所，传入顺序就是结果拼接顺序。
 
 | `exchange` | `exchange_name` | `board` | `board_name` |
 | --- | --- | --- | --- |
@@ -463,9 +475,28 @@ client = Quotes.factory(market='std')
 client.call_auction(symbol='600036')
 ```
 
-结果包含 `time`、`price`、`matched`、`unmatched`、`side` 和 `side_name`。`side` 为 `1` 表示买方未
+结果包含 `time`、`price`、`matched`、`unmatched_signed`、`unmatched`、`side` 和 `side_name`。
+`unmatched_signed` 原样保留协议中的有符号未匹配量；`unmatched` 是便于展示的绝对值。`side` 为 `1` 表示买方未
 匹配，为 `-1` 表示卖方未匹配，为 `0` 表示平衡。协议没有返回交易日期，因此不会用本机日期合成
 `datetime`。
+
+分笔成交中的 `vol` / `volume` 单位为手，返回字段 `volume_unit='lot'` 会明确标识这一点。`amount` 并非
+协议原始字段，而是通过价格和手数计算，并标记 `amount_source='calculated_price_times_lots'`。
+
+### 上游数据与派生数据
+
+Raw Client 的原始命令和组合/计算接口都保留独立名称，并在结果可承载元数据时标明来源：
+
+- `trading_days()` 是日期列表兼容接口；`trading_calendar()` 返回相同日期及
+  `source='tdx_index_bars'`、`source_symbol='sh000001'`，明确它来自上证指数实际 K 线日期，而不是交易所
+  日历命令；
+- `minute_bars_241*()` 从通达信 240 条分钟线及分笔成交拆出竞价记录，新增或调整的记录标记
+  `source='calculated'`、`derivation='call_auction_split'`；
+- `adjustment_factors()` 标记 `source='calculated'`，输入来源为 `tdx_bars` 和 `tdx_xdxr`；
+- `equity_at()`、`market_value()` 返回各自的 `source` 和 `derivation`；`turnover()` 是只使用调用者给定
+  成交量单位的纯数值计算；
+- Raw `gbbq()` 默认 `fallback=False`，不会在官方 `gbbq.zip` 失败时静默切换数据集；需要兼容回退时
+  显式传 `fallback=True`。`Quotes.factory(engine='next')` 的兼容层仍保留旧默认值。
 
 ## 16. 公共报表、板块和盘后配置
 
@@ -521,6 +552,9 @@ client.stock_statistics2()
 next 引擎返回 `DataFrame`；若直接使用 `mootdx_next.SyncClient` 或 `AsyncClient`，对应方法返回
 `list[dict]`。
 
+成分关系同时返回 `catalog_source` 和 `membership_source`。兼容字段 `source` 仍等于
+`membership_source`，不再用一个字段混淆目录来源和成分来源。
+
 `block_members_all(category=None, refresh=False)` 返回相同字段的扁平关系表，不查询行情、不筛选证券，
 方便调用者自行与 `securities()`、`quotes_all()` 或历史快照连接。
 
@@ -570,9 +604,13 @@ leaders = snapshot.sort_values('amount', ascending=False)
 资金流金额直接来自通达信 `0x054C` mode 1 的板块批量返回，不需要也不会把 `block_members()` 的全部
 成分股逐只查询后求和。只有以下两个市值比率需要额外读取 `tdxzsbase.cfg`：
 
-`block_funds` 只从支持资金扩展的补充行情节点中选择服务器。使用 `bestip=True` 时，健康的补充节点会
-保留在测速快照中。若响应中的 `fund_amount_base` 为零，客户端会将该节点视为不支持并切换到下一个
-补充节点；节点不可用或达到配置的重试次数时明确报错，不回退到只会返回全零资金扩展的普通行情节点。
+`block_funds` 只从具有 `block_funds` capability 的补充行情节点中选择服务器。内置四个已验证补充节点
+已带该 capability；自定义节点可通过 `ServerEndpoint(capabilities=frozenset({'block_funds'}))` 显式
+声明。普通行情节点不会成为隐式回退。
+
+`fund_amount_base` 为零只表示本次资金扩展不可用，不代表节点故障，也不会触发换节点。结果会保留上游
+零值，并返回 `fund_extension_available=False`、`fund_extension_status='unavailable'`。这可以准确表达
+09:25 竞价阶段尚未生成资金扩展等情况。网络、解码和 capability 路由失败仍会明确报错。
 
 - `net_buy_rate = main_buy_amount / circulating_market_cap * 100`
 - `main_force_net_ratio = main_net_amount / circulating_market_cap * 100`
