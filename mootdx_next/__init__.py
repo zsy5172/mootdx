@@ -65,6 +65,7 @@ from mootdx_next.errors import BseError
 from mootdx_next.errors import BseResponseError
 from mootdx_next.errors import ConfigArchiveError
 from mootdx_next.errors import ConfigFileError
+from mootdx_next.errors import ClientClosedError
 from mootdx_next.errors import FinancialCatalogError
 from mootdx_next.errors import FinancialDownloadError
 from mootdx_next.errors import FinancialError
@@ -86,12 +87,14 @@ from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import PayloadDecompressionError
 from mootdx_next.errors import ProtocolDecodeError
+from mootdx_next.errors import ProtocolEncodeError
 from mootdx_next.errors import ProtocolError
 from mootdx_next.errors import SchedulerError
 from mootdx_next.errors import TransportConnectionError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
+from mootdx_next.errors import ValidationError
 from mootdx_next.errors import UnsafeArchiveError
 from mootdx_next.ex_markets import ExMarket
 from mootdx_next.ex_markets import ExMarketRegistry
@@ -184,6 +187,7 @@ __all__ = [
     "classify_security",
     "CandidateRegistry",
     "CAPABILITY_FUND_FLOWS",
+    "ClientClosedError",
     "ConfigArchiveError",
     "ConfigFileError",
     "f10_categories_to_frame",
@@ -251,6 +255,7 @@ __all__ = [
     "probe_ex_candidate",
     "probe_hq_candidate",
     "ProtocolDecodeError",
+    "ProtocolEncodeError",
     "ProtocolError",
     "RequestContext",
     "Reader",
@@ -288,6 +293,7 @@ __all__ = [
     "trading_calendar_snapshot",
     "UnknownF10CategoryError",
     "UnsupportedMarketError",
+    "ValidationError",
     "UnsafeArchiveError",
     "minutes_to_frame",
     "quotes_to_frame",

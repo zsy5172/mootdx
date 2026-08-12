@@ -6,6 +6,7 @@ import pytest
 import mootdx_next.api.clients as clients_module
 from mootdx_next.api.clients import AsyncClient
 from mootdx_next.api.clients import SyncClient
+from mootdx_next.errors import ClientClosedError
 from mootdx_next.models import ConnectionPoolSnapshot
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerHealthSnapshot
@@ -140,6 +141,22 @@ def test_sync_client_close_and_reconnect_toggle_state() -> None:
     assert client.closed is True
     client.reconnect()
     assert client.closed is False
+
+
+def test_sync_client_rejects_requests_after_close() -> None:
+    client = SyncClient()
+    client.close()
+
+    with pytest.raises(ClientClosedError):
+        client.stock_count(0)
+
+
+def test_async_client_rejects_requests_after_close() -> None:
+    client = AsyncClient()
+    client.close()
+
+    with pytest.raises(ClientClosedError):
+        asyncio.run(client.stock_count(0))
 
 
 def test_connection_pool_is_instantiable() -> None:

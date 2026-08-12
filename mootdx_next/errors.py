@@ -2,6 +2,10 @@ class MootdxNextError(Exception):
     """Base exception for the next-generation core."""
 
 
+class ClientClosedError(MootdxNextError):
+    """Raised when a request is attempted after a client was closed."""
+
+
 class TransportError(MootdxNextError):
     """Base exception for transport-layer failures."""
 
@@ -34,6 +38,19 @@ class ProtocolDecodeError(ProtocolError):
     """Raised when a response cannot be decoded into a result object."""
 
 
+class ProtocolEncodeError(ProtocolDecodeError):
+    """Raised when a request cannot be encoded.
+
+    This remains a subclass of ``ProtocolDecodeError`` for compatibility with
+    callers that historically caught that broad protocol exception for both
+    request and response failures.
+    """
+
+
+class ValidationError(MootdxNextError):
+    """Base exception for invalid caller-supplied domain values."""
+
+
 class SchedulerError(MootdxNextError):
     """Base exception for scheduling and routing failures."""
 
@@ -46,19 +63,19 @@ class NoHealthyServerError(SchedulerError):
     """Raised when no server can be selected for a request."""
 
 
-class UnsupportedMarketError(SchedulerError):
+class UnsupportedMarketError(ValidationError, SchedulerError):
     """Raised when a market or endpoint is unsupported by the runtime."""
 
 
-class InvalidSymbolError(MootdxNextError):
+class InvalidSymbolError(ValidationError):
     """Raised when a symbol or symbol collection cannot be normalized."""
 
 
-class InvalidFrequencyError(MootdxNextError):
+class InvalidFrequencyError(ValidationError):
     """Raised when a frequency cannot be normalized to a supported K-line type."""
 
 
-class InvalidDateError(MootdxNextError):
+class InvalidDateError(ValidationError):
     """Raised when a date cannot be normalized to YYYYMMDD."""
 
 

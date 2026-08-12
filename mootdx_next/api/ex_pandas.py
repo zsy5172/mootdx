@@ -27,6 +27,7 @@ from mootdx_next.models import ServerEndpoint
 from .pandas import ErrorMapper
 from .pandas import normalize_server
 from .pandas import _server_endpoints
+from .pandas import _timeout_to_ms
 
 EX_VALIDATION_ERRORS = (
     InvalidDateError,
@@ -99,27 +100,34 @@ class ExPandasClient:
         self.raise_exception = raise_exception
         self._error_mapper = error_mapper
 
+        client_options = {
+            "timeout_ms": _timeout_to_ms(self.timeout),
+            "max_retries": 1 if self.auto_retry else 0,
+            "heartbeat": self.heartbeat,
+        }
+
         injected = raw_client or engine_client
         if injected is not None:
             self.client = injected
         elif self.server is not None:
             host, port = self.server
             self.client = ExSyncClient(
-                servers=[ServerEndpoint(host=host, port=port, label="ex-next")]
+                servers=[ServerEndpoint(host=host, port=port, label="ex-next")],
+                **client_options,
             )
         elif servers is not None:
-            self.client = ExSyncClient(servers=list(servers))
+            self.client = ExSyncClient(servers=list(servers), **client_options)
             if servers:
                 self.bestip = (servers[0].host, servers[0].port)
         elif bestip:
             candidates = get_ex_candidates()
             if candidates:
                 self.bestip = (candidates[0].host, candidates[0].port)
-                self.client = ExSyncClient(servers=_server_endpoints(candidates))
+                self.client = ExSyncClient(servers=_server_endpoints(candidates), **client_options)
             else:
-                self.client = ExSyncClient()
+                self.client = ExSyncClient(**client_options)
         else:
-            self.client = ExSyncClient()
+            self.client = ExSyncClient(**client_options)
 
     @property
     def raw_client(self) -> ExSyncClient:
@@ -308,6 +316,9 @@ class AsyncExPandasClient:
         server: tuple[str, int] | list[object] | None = None,
         bestip: bool = False,
         timeout: int = 15,
+        heartbeat: bool = False,
+        auto_retry: bool = True,
+        raise_exception: bool = False,
         *,
         servers: list[ServerEndpoint] | None = None,
         raw_client: AsyncExClient | None = None,
@@ -324,7 +335,16 @@ class AsyncExPandasClient:
         self.bestip = self.server
         self.timeout = timeout or 15
         self.verbose = bool(kwargs.get("verbose", False))
+        self.heartbeat = heartbeat
+        self.auto_retry = auto_retry
+        self.raise_exception = raise_exception
         self._error_mapper = error_mapper
+
+        client_options = {
+            "timeout_ms": _timeout_to_ms(self.timeout),
+            "max_retries": 1 if self.auto_retry else 0,
+            "heartbeat": self.heartbeat,
+        }
 
         injected = raw_client or engine_client
         if injected is not None:
@@ -332,21 +352,22 @@ class AsyncExPandasClient:
         elif self.server is not None:
             host, port = self.server
             self.client = AsyncExClient(
-                servers=[ServerEndpoint(host=host, port=port, label="ex-next")]
+                servers=[ServerEndpoint(host=host, port=port, label="ex-next")],
+                **client_options,
             )
         elif servers is not None:
-            self.client = AsyncExClient(servers=list(servers))
+            self.client = AsyncExClient(servers=list(servers), **client_options)
             if servers:
                 self.bestip = (servers[0].host, servers[0].port)
         elif bestip:
             candidates = get_ex_candidates()
             if candidates:
                 self.bestip = (candidates[0].host, candidates[0].port)
-                self.client = AsyncExClient(servers=_server_endpoints(candidates))
+                self.client = AsyncExClient(servers=_server_endpoints(candidates), **client_options)
             else:
-                self.client = AsyncExClient()
+                self.client = AsyncExClient(**client_options)
         else:
-            self.client = AsyncExClient()
+            self.client = AsyncExClient(**client_options)
 
     @property
     def raw_client(self) -> AsyncExClient:

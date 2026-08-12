@@ -29,6 +29,22 @@ def _bar(date: str, close: float = 10.0) -> dict[str, object]:
     }
 
 
+def test_pandas_constructor_wires_timeout_and_retry_options() -> None:
+    client = PandasClient(timeout=2.5, auto_retry=False)
+
+    assert client.raw_client.timeout_ms == 2500
+    assert client.raw_client.max_retries == 0
+    client.close()
+
+
+def test_async_pandas_constructor_wires_timeout_and_retry_options() -> None:
+    client = AsyncPandasClient(timeout=2.5, auto_retry=False)
+
+    assert client.raw_client._sync_client_kwargs["timeout_ms"] == 2500
+    assert client.raw_client._sync_client_kwargs["max_retries"] == 0
+    client.close()
+
+
 class SyncRaw:
     def __init__(self) -> None:
         self.closed = False

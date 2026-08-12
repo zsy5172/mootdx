@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import AsyncIterator
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -74,6 +75,18 @@ def normalize_server(server: object) -> tuple[str, int] | None:
     if not host or not 1 <= port <= 65535:
         raise ValueError('Server 格式错误. 例如: server = ("127.0.0.1", 7709)')
     return host, port
+
+
+def _timeout_to_ms(timeout: object) -> int:
+    """Convert the legacy seconds-based timeout to the native millisecond unit."""
+
+    try:
+        seconds = float(timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("timeout must be a positive number of seconds") from exc
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("timeout must be a positive number of seconds")
+    return max(1, int(round(seconds * 1000)))
 
 
 def _server_endpoints(candidates) -> list[ServerEndpoint]:
@@ -196,25 +209,34 @@ class PandasClient:
         self.raise_exception = raise_exception
         self._error_mapper = error_mapper
 
+        client_options = {
+            "timeout_ms": _timeout_to_ms(self.timeout),
+            "max_retries": 1 if self.auto_retry else 0,
+            "heartbeat": self.heartbeat,
+        }
+
         injected = raw_client or engine_client
         if injected is not None:
             self.client = injected
         elif self.server is not None:
             host, port = self.server
-            self.client = SyncClient(servers=[ServerEndpoint(host=host, port=port, label="std-next")])
+            self.client = SyncClient(
+                servers=[ServerEndpoint(host=host, port=port, label="std-next")],
+                **client_options,
+            )
         elif servers is not None:
-            self.client = SyncClient(servers=list(servers))
+            self.client = SyncClient(servers=list(servers), **client_options)
             if servers:
                 self.bestip = (servers[0].host, servers[0].port)
         elif bestip:
             candidates = get_hq_candidates()
             if candidates:
                 self.bestip = (candidates[0].host, candidates[0].port)
-                self.client = SyncClient(servers=_server_endpoints(candidates))
+                self.client = SyncClient(servers=_server_endpoints(candidates), **client_options)
             else:
-                self.client = SyncClient()
+                self.client = SyncClient(**client_options)
         else:
-            self.client = SyncClient()
+            self.client = SyncClient(**client_options)
 
         self._adjustments = AdjustmentService(self.client)
 
@@ -985,6 +1007,9 @@ class AsyncPandasClient:
         server: tuple[str, int] | list[object] | None = None,
         bestip: bool = False,
         timeout: int = 15,
+        heartbeat: bool = False,
+        auto_retry: bool = True,
+        raise_exception: bool = False,
         *,
         servers: list[ServerEndpoint] | None = None,
         raw_client: AsyncClient | None = None,
@@ -1001,27 +1026,39 @@ class AsyncPandasClient:
         self.bestip = self.server
         self.timeout = timeout or 15
         self.verbose = bool(kwargs.get("verbose", False))
+        self.heartbeat = heartbeat
+        self.auto_retry = auto_retry
+        self.raise_exception = raise_exception
         self._error_mapper = error_mapper
+
+        client_options = {
+            "timeout_ms": _timeout_to_ms(self.timeout),
+            "max_retries": 1 if self.auto_retry else 0,
+            "heartbeat": self.heartbeat,
+        }
 
         injected = raw_client or engine_client
         if injected is not None:
             self.client = injected
         elif self.server is not None:
             host, port = self.server
-            self.client = AsyncClient(servers=[ServerEndpoint(host=host, port=port, label="std-next")])
+            self.client = AsyncClient(
+                servers=[ServerEndpoint(host=host, port=port, label="std-next")],
+                **client_options,
+            )
         elif servers is not None:
-            self.client = AsyncClient(servers=list(servers))
+            self.client = AsyncClient(servers=list(servers), **client_options)
             if servers:
                 self.bestip = (servers[0].host, servers[0].port)
         elif bestip:
             candidates = get_hq_candidates()
             if candidates:
                 self.bestip = (candidates[0].host, candidates[0].port)
-                self.client = AsyncClient(servers=_server_endpoints(candidates))
+                self.client = AsyncClient(servers=_server_endpoints(candidates), **client_options)
             else:
-                self.client = AsyncClient()
+                self.client = AsyncClient(**client_options)
         else:
-            self.client = AsyncClient()
+            self.client = AsyncClient(**client_options)
 
         self._adjustments = AsyncAdjustmentService(self.client)
 

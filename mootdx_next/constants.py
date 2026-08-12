@@ -17,6 +17,11 @@ KLINE_RI_K = 9
 KLINE_3MONTH = 10
 KLINE_YEARLY = 11
 
+# A request context uses this timeout unless a caller supplies a more
+# specific value.  Public Pandas compatibility clients express their timeout
+# in seconds and convert it to this unit when constructing a native client.
+DEFAULT_REQUEST_TIMEOUT_MS = 15_000
+
 FREQUENCIES = (
     "5m",
     "15m",

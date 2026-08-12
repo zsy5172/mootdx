@@ -9,6 +9,7 @@ from mootdx_next.api.clients import SyncClient
 from mootdx_next.bse import BseRegistry
 from mootdx_next.bse import BseSecurity
 from mootdx_next.errors import NoHealthyServerError
+from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportTimeoutError
 from mootdx_next.errors import UnsupportedMarketError
@@ -44,6 +45,7 @@ class RecordingTransport:
         self.send_error = send_error
         self.metrics = TransportMetrics(last_latency_ms=1.5)
         self.sent_payloads: list[bytes] = []
+        self.contexts: list[RequestContext] = []
         self.closed = False
 
     def connect(self, server: ServerEndpoint, timeout_ms: int | None = None) -> None:
@@ -56,6 +58,7 @@ class RecordingTransport:
         return True
 
     def send(self, context: RequestContext, payload: bytes, server: ServerEndpoint) -> ResponseEnvelope:
+        self.contexts.append(context)
         self.sent_payloads.append(payload)
         if self.send_error is not None:
             raise self.send_error
@@ -123,6 +126,22 @@ def test_sync_client_stock_count_returns_decoded_value() -> None:
     assert len(pool.released) == 1
     assert not pool.discarded
     assert scheduler.success_calls[0][0] == pool.server
+
+
+def test_sync_client_applies_client_timeout_to_default_context() -> None:
+    transport = RecordingTransport(responses=[struct.pack("<H", 321)])
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(
+        protocol=StdQuoteProtocol(),
+        connection_pool=pool,
+        scheduler=scheduler,
+        timeout_ms=1234,
+    )
+
+    client.stock_count(1)
+
+    assert transport.contexts[0].timeout_ms == 1234
 
 
 @pytest.mark.parametrize("count, expected_page_starts", [(999, [0]), (1000, [0]), (1001, [0, 1000])])
@@ -300,6 +319,27 @@ def test_sync_client_propagates_scheduler_failure() -> None:
 
     assert not pool.released
     assert not pool.discarded
+
+
+def test_pool_exhaustion_does_not_mark_server_as_unhealthy() -> None:
+    class ExhaustedPool(RecordingConnectionPool):
+        def acquire(self, server: ServerEndpoint) -> ConnectionLease:
+            raise PoolExhaustedError("capacity")
+
+    transport = RecordingTransport()
+    pool = ExhaustedPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client = SyncClient(
+        protocol=StdQuoteProtocol(),
+        connection_pool=pool,
+        scheduler=scheduler,
+        max_retries=0,
+    )
+
+    with pytest.raises(PoolExhaustedError):
+        client.stock_count(1)
+
+    assert scheduler.failure_calls == []
 
 
 def test_sync_client_discards_lease_on_transport_failure() -> None:

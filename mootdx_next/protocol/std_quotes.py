@@ -10,6 +10,7 @@ from mootdx_next.constants import MARKET_BJ
 from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.constants import MAX_QUOTE_COUNT
 from mootdx_next.errors import ProtocolDecodeError
+from mootdx_next.errors import ProtocolEncodeError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.models import ResponseEnvelope
@@ -426,9 +427,9 @@ class StdQuoteProtocol(AbstractProtocol):
 
     def encode_quotes(self, symbols: list[tuple[int, str]]) -> bytes:
         if not symbols:
-            raise ProtocolDecodeError("quotes request requires at least one symbol")
+            raise ProtocolEncodeError("quotes request requires at least one symbol")
         if len(symbols) > MAX_QUOTE_COUNT:
-            raise ProtocolDecodeError(
+            raise ProtocolEncodeError(
                 f"quotes request supports at most {MAX_QUOTE_COUNT} symbols; use quotes_all for larger inputs"
             )
 
@@ -448,9 +449,9 @@ class StdQuoteProtocol(AbstractProtocol):
         """Encode the mode-1 quote request used by the fund-flow pages."""
 
         if not symbols:
-            raise ProtocolDecodeError("fund_flows request requires at least one symbol")
+            raise ProtocolEncodeError("fund_flows request requires at least one symbol")
         if len(symbols) > MAX_QUOTE_COUNT:
-            raise ProtocolDecodeError(
+            raise ProtocolEncodeError(
                 f"fund_flows request supports at most {MAX_QUOTE_COUNT} symbols"
             )
 
@@ -463,7 +464,7 @@ class StdQuoteProtocol(AbstractProtocol):
                 raise UnsupportedMarketError(f"unsupported market for fund_flows: {market}")
             encoded_code = code.encode("ascii")
             if len(encoded_code) != 6 or not encoded_code.isdigit():
-                raise ProtocolDecodeError("fund_flows symbols must contain six-digit numeric codes")
+                raise ProtocolEncodeError("fund_flows symbols must contain six-digit numeric codes")
             payload.extend(struct.pack("<B6s", market, encoded_code))
 
         return bytes(payload)

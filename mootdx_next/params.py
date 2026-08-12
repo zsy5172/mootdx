@@ -25,6 +25,12 @@ VALID_FREQUENCIES = set(range(12))
 
 
 def normalize_frequency(frequency: int | str) -> int:
+    # ``bool`` is an ``int`` subclass, but accepting True/False here silently
+    # maps to the 15-minute/5-minute wire values and is almost certainly a
+    # caller bug.
+    if isinstance(frequency, bool):
+        raise InvalidFrequencyError(f"unsupported frequency type: {type(frequency).__name__}")
+
     if isinstance(frequency, int):
         if frequency in VALID_FREQUENCIES:
             return frequency

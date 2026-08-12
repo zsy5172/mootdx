@@ -90,6 +90,15 @@ def _client() -> tuple[ExSyncClient, ExMatrixProtocol]:
     )
 
 
+def test_ex_request_rejects_lifecycle_and_unknown_apis() -> None:
+    client, _ = _client()
+
+    with pytest.raises(NotImplementedError):
+        client.request("close")
+    with pytest.raises(NotImplementedError):
+        client.request("connection_pool")
+
+
 @dataclass(frozen=True)
 class ExCallCase:
     method: str

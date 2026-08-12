@@ -46,6 +46,7 @@ from mootdx_next.constants import BLOCK_FG
 from mootdx_next.constants import BLOCK_GN
 from mootdx_next.constants import BLOCK_SZ
 from mootdx_next.constants import CAPABILITY_FUND_FLOWS
+from mootdx_next.constants import DEFAULT_REQUEST_TIMEOUT_MS
 from mootdx_next.constants import FUND_FLOW_HOSTS
 from mootdx_next.constants import HQ_HOSTS
 from mootdx_next.constants import MAX_HISTORY_TRANSACTION_COUNT
@@ -53,6 +54,7 @@ from mootdx_next.constants import MAX_LIMIT_PRICE_COUNT
 from mootdx_next.constants import MAX_QUOTE_COUNT
 from mootdx_next.constants import MAX_TRANSACTION_COUNT
 from mootdx_next.errors import ConfigFileError
+from mootdx_next.errors import ClientClosedError
 from mootdx_next.errors import GbbqError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import PoolExhaustedError
@@ -90,6 +92,7 @@ from mootdx_next.symbols import normalize_symbol_input
 from mootdx_next.symbols import resolve_stock_market
 from mootdx_next.symbols import resolve_stock_markets
 from mootdx_next.transport.socket_transport import SyncSocketTransport
+from mootdx_next.transport.constants import DEFAULT_HEARTBEAT_INTERVAL_SEC
 from mootdx_next.trading_calendar import TradingCalendarRegistry
 from mootdx_next.trading_calendar import trading_calendar_registry as default_trading_calendar_registry
 
@@ -367,6 +370,8 @@ class SyncClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+        heartbeat: bool = False,
         config_registry: ZhbRegistry | None = None,
         bse_registry: BseRegistry | None = None,
         bse_provider: BseProvider | None = None,
@@ -380,6 +385,12 @@ class SyncClient:
         self.transport = transport
         self.protocol = protocol or StdQuoteProtocol()
         self.max_retries = max_retries
+        if int(timeout_ms) <= 0:
+            raise ValueError("timeout_ms must be greater than zero")
+        self.timeout_ms = int(timeout_ms)
+        self.heartbeat = bool(heartbeat)
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread: threading.Thread | None = None
         self.config_registry = config_registry or zhb_registry
         self.bse_registry = (
             bse_registry
@@ -405,18 +416,23 @@ class SyncClient:
             servers=servers or _default_servers(),
             connection_pool=self.connection_pool,
         )
+        if self.heartbeat:
+            self._start_heartbeat()
 
     @property
     def closed(self) -> bool:
         return self._closed
 
     def close(self) -> None:
+        self._stop_heartbeat()
         self.connection_pool.close_all()
         self._closed = True
 
     def reconnect(self) -> None:
         self.connection_pool.close_all()
         self._closed = False
+        if self.heartbeat:
+            self._start_heartbeat()
 
     def request(self, api: str, **kwargs: Any) -> object:
         if api not in REQUEST_APIS:
@@ -1320,7 +1336,11 @@ class SyncClient:
         rows: list[dict[str, object]] = []
         for start in range(0, len(symbols), FUND_FLOW_PAGE_SIZE):
             page = symbols[start : start + FUND_FLOW_PAGE_SIZE]
-            context = RequestContext(api="fund_flows", params={"symbols": tuple(page)})
+            context = RequestContext(
+                api="fund_flows",
+                params={"symbols": tuple(page)},
+                required_capabilities=frozenset({CAPABILITY_FUND_FLOWS}),
+            )
             payload = self.protocol.encode("fund_flows", symbols=page)
             price_coefficients = {(market, code): self._price_coefficient(market, code) for market, code in page}
             decoded_page: list[dict[str, object]] = []
@@ -2063,7 +2083,13 @@ class SyncClient:
         response_validator: Callable[[Any], None] | None = None,
     ):
         if self._closed:
-            self._closed = False
+            raise ClientClosedError("client is closed; call reconnect() before sending requests")
+
+        # Most client APIs use the RequestContext default.  Preserve explicit
+        # per-request timeouts while allowing Pandas/async wrappers to set a
+        # client-wide timeout without rewriting every API method.
+        if context.timeout_ms == DEFAULT_REQUEST_TIMEOUT_MS:
+            context.timeout_ms = self.timeout_ms
 
         excluded: set[tuple[str, int]] = set()
         attempts = self.max_retries + 1
@@ -2074,8 +2100,7 @@ class SyncClient:
 
             try:
                 lease = self.connection_pool.acquire(server)
-            except PoolExhaustedError as exc:
-                self.scheduler.record_failure(server, exc)
+            except PoolExhaustedError:
                 excluded.add(server_key)
                 if attempt < self.max_retries:
                     continue
@@ -2099,6 +2124,39 @@ class SyncClient:
 
         raise RuntimeError("unreachable")
 
+    def _start_heartbeat(self) -> None:
+        if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
+            return
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name="mootdx-next-heartbeat",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _stop_heartbeat(self) -> None:
+        self._heartbeat_stop.set()
+        thread = self._heartbeat_thread
+        self._heartbeat_thread = None
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop.wait(DEFAULT_HEARTBEAT_INTERVAL_SEC):
+            if self._closed:
+                continue
+            try:
+                # This is the same lightweight request used by the legacy
+                # client heartbeat thread and keeps the TCP session active.
+                self.stock_count(1)
+            except ClientClosedError:
+                return
+            except Exception:
+                # A failed heartbeat is handled by the normal scheduler and
+                # must not terminate the worker thread.
+                continue
+
 
 class AsyncClient:
     def __init__(
@@ -2109,6 +2167,8 @@ class AsyncClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+        heartbeat: bool = False,
         sync_client: SyncClient | None = None,
         config_registry: ZhbRegistry | None = None,
         bse_registry: BseRegistry | None = None,
@@ -2123,6 +2183,7 @@ class AsyncClient:
         self._clients_lock = threading.Lock()
         self._worker_clients: list[SyncClient] = []
         self._closed = False
+        self._heartbeat = bool(heartbeat)
         self._sync_client_kwargs = {
             "transport": transport,
             "protocol": protocol,
@@ -2130,6 +2191,10 @@ class AsyncClient:
             "connection_pool": connection_pool,
             "servers": servers,
             "max_retries": max_retries,
+            "timeout_ms": timeout_ms,
+            # AsyncClient owns at most one heartbeat worker; passing this
+            # through to every thread-local SyncClient would multiply probes.
+            "heartbeat": False,
             "config_registry": config_registry,
             "bse_registry": bse_registry,
             "bse_provider": bse_provider,
@@ -2789,9 +2854,13 @@ class AsyncClient:
 
         client = getattr(self._thread_local, "client", None)
         if client is None or client.closed:
-            client = SyncClient(**self._sync_client_kwargs)
-            self._thread_local.client = client
             with self._clients_lock:
+                if self._closed:
+                    raise ClientClosedError("client is closed; call reconnect() before sending requests")
+                client_options = dict(self._sync_client_kwargs)
+                client_options["heartbeat"] = self._heartbeat and not self._worker_clients
+                client = SyncClient(**client_options)
+                self._thread_local.client = client
                 self._worker_clients.append(client)
                 self._closed = False
         return client

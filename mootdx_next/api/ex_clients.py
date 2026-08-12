@@ -5,11 +5,13 @@ import threading
 from typing import Any
 
 from mootdx_next.constants import EX_HOSTS
+from mootdx_next.constants import DEFAULT_REQUEST_TIMEOUT_MS
 from mootdx_next.constants import MAX_EX_INSTRUMENT_COUNT
 from mootdx_next.constants import MAX_EX_KLINE_COUNT
 from mootdx_next.constants import MAX_EX_QUOTE_LIST_COUNT
 from mootdx_next.constants import MAX_EX_TRANSACTION_COUNT
 from mootdx_next.errors import PoolExhaustedError
+from mootdx_next.errors import ClientClosedError
 from mootdx_next.errors import TransportError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.ex_markets import ExMarket
@@ -26,6 +28,7 @@ from mootdx_next.protocol import ExQuoteProtocol
 from mootdx_next.scheduler.pools import ConnectionPool
 from mootdx_next.scheduler.pools import ServerPool
 from mootdx_next.transport.constants import EX_SETUP_PAYLOADS
+from mootdx_next.transport.constants import DEFAULT_HEARTBEAT_INTERVAL_SEC
 from mootdx_next.transport.socket_transport import SyncSocketTransport
 
 
@@ -35,6 +38,24 @@ def _default_ex_servers() -> list[ServerEndpoint]:
 
 def _ex_transport_factory() -> SyncSocketTransport:
     return SyncSocketTransport(setup_payloads=EX_SETUP_PAYLOADS)
+
+
+EX_REQUEST_APIS = frozenset(
+    {
+        "markets",
+        "instrument_count",
+        "instrument",
+        "instruments",
+        "quote",
+        "quotes",
+        "bars",
+        "minute",
+        "minutes",
+        "transaction",
+        "transactions",
+        "bars_range",
+    }
+)
 
 
 class ExSyncClient:
@@ -48,11 +69,19 @@ class ExSyncClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+        heartbeat: bool = False,
         market_registry: ExMarketRegistry | None = None,
     ) -> None:
         self.transport = transport
         self.protocol = protocol or ExQuoteProtocol()
         self.max_retries = max_retries
+        if int(timeout_ms) <= 0:
+            raise ValueError("timeout_ms must be greater than zero")
+        self.timeout_ms = int(timeout_ms)
+        self.heartbeat = bool(heartbeat)
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread: threading.Thread | None = None
         self.market_registry = market_registry or default_ex_market_registry
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
@@ -62,21 +91,26 @@ class ExSyncClient:
             servers=servers or _default_ex_servers(),
             connection_pool=self.connection_pool,
         )
+        if self.heartbeat:
+            self._start_heartbeat()
 
     @property
     def closed(self) -> bool:
         return self._closed
 
     def close(self) -> None:
+        self._stop_heartbeat()
         self.connection_pool.close_all()
         self._closed = True
 
     def reconnect(self) -> None:
         self.connection_pool.close_all()
         self._closed = False
+        if self.heartbeat:
+            self._start_heartbeat()
 
     def request(self, api: str, **kwargs: Any) -> object:
-        if not hasattr(self, api) or api.startswith("_") or api == "request":
+        if api not in EX_REQUEST_APIS:
             raise NotImplementedError(f"ExSyncClient.request() does not support api: {api}")
         return getattr(self, api)(**kwargs)
 
@@ -301,7 +335,10 @@ class ExSyncClient:
 
     def _send(self, context: RequestContext, payload: bytes):
         if self._closed:
-            self._closed = False
+            raise ClientClosedError("client is closed; call reconnect() before sending requests")
+
+        if context.timeout_ms == DEFAULT_REQUEST_TIMEOUT_MS:
+            context.timeout_ms = self.timeout_ms
 
         excluded: set[tuple[str, int]] = set()
         attempts = self.max_retries + 1
@@ -310,8 +347,7 @@ class ExSyncClient:
             server_key = (server.host, server.port)
             try:
                 lease = self.connection_pool.acquire(server)
-            except PoolExhaustedError as exc:
-                self.scheduler.record_failure(server, exc)
+            except PoolExhaustedError:
                 excluded.add(server_key)
                 if attempt < self.max_retries:
                     continue
@@ -339,6 +375,35 @@ class ExSyncClient:
         if count <= 0 or count > maximum:
             raise ValueError(f"offset must be between 1 and {maximum}")
 
+    def _start_heartbeat(self) -> None:
+        if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
+            return
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name="mootdx-next-ex-heartbeat",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _stop_heartbeat(self) -> None:
+        self._heartbeat_stop.set()
+        thread = self._heartbeat_thread
+        self._heartbeat_thread = None
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop.wait(DEFAULT_HEARTBEAT_INTERVAL_SEC):
+            if self._closed:
+                continue
+            try:
+                self.instrument_count()
+            except ClientClosedError:
+                return
+            except Exception:
+                continue
+
 
 class AsyncExClient:
     """Async ExHq wrapper with one independent sync client per worker thread."""
@@ -351,6 +416,8 @@ class AsyncExClient:
         connection_pool: ConnectionPool | None = None,
         servers: list[ServerEndpoint] | None = None,
         max_retries: int = 1,
+        timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+        heartbeat: bool = False,
         sync_client: ExSyncClient | None = None,
         market_registry: ExMarketRegistry | None = None,
     ) -> None:
@@ -359,6 +426,7 @@ class AsyncExClient:
         self._clients_lock = threading.Lock()
         self._worker_clients: list[ExSyncClient] = []
         self._closed = False
+        self._heartbeat = bool(heartbeat)
         self._sync_client_kwargs = {
             "transport": transport,
             "protocol": protocol,
@@ -366,6 +434,8 @@ class AsyncExClient:
             "connection_pool": connection_pool,
             "servers": servers,
             "max_retries": max_retries,
+            "timeout_ms": timeout_ms,
+            "heartbeat": False,
             "market_registry": market_registry,
         }
 
@@ -550,9 +620,13 @@ class AsyncExClient:
             return self._explicit_sync_client
         client = getattr(self._thread_local, "client", None)
         if client is None or client.closed:
-            client = ExSyncClient(**self._sync_client_kwargs)
-            self._thread_local.client = client
             with self._clients_lock:
+                if self._closed:
+                    raise ClientClosedError("client is closed; call reconnect() before sending requests")
+                client_options = dict(self._sync_client_kwargs)
+                client_options["heartbeat"] = self._heartbeat and not self._worker_clients
+                client = ExSyncClient(**client_options)
+                self._thread_local.client = client
                 self._worker_clients.append(client)
                 self._closed = False
         return client

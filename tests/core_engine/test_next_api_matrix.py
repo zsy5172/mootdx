@@ -566,6 +566,14 @@ def test_frequency_matrix_covers_all_wire_values() -> None:
     assert set(FREQUENCY_ALIASES) <= {value for value, _ in FREQUENCY_CASES if isinstance(value, str)}
 
 
+@pytest.mark.parametrize("frequency", [True, False])
+def test_frequency_rejects_boolean_int_subclasses(frequency: bool) -> None:
+    client, _, _ = _matrix_client()
+
+    with pytest.raises(InvalidFrequencyError):
+        client.bars("600036", frequency=frequency, start=0, offset=1)
+
+
 @pytest.mark.parametrize(
     ("method", "kwargs"),
     [

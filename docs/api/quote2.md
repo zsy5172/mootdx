@@ -84,9 +84,13 @@ bars = client.bars(
 )
 ```
 
-`frequency` 接受 `0`～`11` 以及 `5m`、`15m`、`30m`、`1h`、`1m`、`day`、`week`、`mon`、
+`frequency` 接受 `0`～`11` 以及 `5m`、`15m`、`30m`、`1h`、`1m`、`day`、`days`、`dk`、`week`、`mon`、
 `3mon`、`year`。真实节点单次最多返回 700 条；请求 800 或更多时服务端仍只返回 700，因此 next 会对
 `offset > 700` 明确报错。
+
+协议中 `4` 和 `9` 都是日线，但成交量编码不同：`4` 是 alternate daily/share encoding，`9` 是标准
+日线编码；字符串别名分别是 `days` 和 `day`/`dk`。不要把它们当成可互换的 wire value。`True`/`False`
+不会再被当成整数频率接受。
 
 结果包含 `datetime`、OHLC、`position`、`trade`、`settlement_price` 和 `amount`。协议中的
 `amount` 是将 `position` 所在四个字节按 float 重新解释所得，与既有 TDX 解码方式一致；它对港股等
@@ -183,6 +187,14 @@ asyncio.run(main())
 
 `ExPandasClient` 和 `AsyncExPandasClient` 提供相同业务接口并返回 DataFrame。异步实现只共享不可变的
 候选 IP 快照；每个工作线程会在线程内部创建自己的 `ExSyncClient`、连接池和服务器健康状态。
+
+`timeout` 是兼容层的秒单位，创建 native client 时会转换为 `timeout_ms`；`auto_retry=False` 会将 native
+重试次数设为 0。`heartbeat=True` 会启动每 10 秒一次的轻量股票/品种计数请求来保持 TCP 会话；异步
+客户端只为第一个工作线程启动一个心跳 worker。`raise_exception` 保留用于旧构造函数，native 客户端
+统一抛出明确的异常。
+
+调用 `close()` 后客户端处于终止状态，业务请求会抛出 `ClientClosedError`；需要继续使用时显式调用
+`reconnect()`。这避免了把资源关闭误解为“下次请求自动重建”。
 
 ## 09. 真实验证
 

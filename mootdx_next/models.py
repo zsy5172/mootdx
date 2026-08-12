@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import TYPE_CHECKING
 
+from mootdx_next.constants import DEFAULT_REQUEST_TIMEOUT_MS
+
 if TYPE_CHECKING:
     from mootdx_next.interfaces import AbstractTransport
 
@@ -21,8 +23,9 @@ class ServerEndpoint:
 class RequestContext:
     api: str
     params: dict[str, object] = field(default_factory=dict)
-    timeout_ms: int = 15000
+    timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS
     request_id: str | None = None
+    required_capabilities: frozenset[str] = field(default_factory=frozenset)
 
 
 @dataclass(slots=True)

@@ -104,6 +104,24 @@ def test_fund_flows_accepts_custom_server_capability() -> None:
     assert pool.select(RequestContext(api="fund_flows")) == capable
 
 
+def test_scheduler_matches_arbitrary_request_capabilities() -> None:
+    clock = Clock()
+    generic = ServerEndpoint(host="127.0.0.1", port=7709, label="generic")
+    capable = ServerEndpoint(
+        host="127.0.0.2",
+        port=7709,
+        label="custom",
+        capabilities=frozenset({"custom_api"}),
+    )
+    pool = ServerPool([generic, capable], connection_pool=_pool(clock), time_fn=clock)
+
+    context = RequestContext(
+        api="future_api",
+        required_capabilities=frozenset({"custom_api"}),
+    )
+    assert pool.select(context) == capable
+
+
 def test_mark_failure_enters_cooldown_after_threshold() -> None:
     clock = Clock()
     server = ServerEndpoint(host="127.0.0.1", port=7709, label="a")
