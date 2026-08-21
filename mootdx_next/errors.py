@@ -115,6 +115,18 @@ class GbbqDecodeError(GbbqError):
     """Raised when encrypted GBBQ records cannot be decoded safely."""
 
 
+class EtfPcfError(MootdxNextError):
+    """Base exception for the official TDX ETF PCF summary endpoint."""
+
+
+class EtfPcfDownloadError(EtfPcfError):
+    """Raised when the ETF PCF response cannot be downloaded."""
+
+
+class EtfPcfDecodeError(EtfPcfError):
+    """Raised when the ETF PCF response has an unexpected schema."""
+
+
 class BseError(MootdxNextError):
     """Base exception for the Beijing Stock Exchange directory provider."""
 

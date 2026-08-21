@@ -67,6 +67,8 @@ from mootdx_next.gbbq import GbbqProvider
 from mootdx_next.gbbq import GbbqRegistry
 from mootdx_next.gbbq import gbbq_provider as default_gbbq_provider
 from mootdx_next.gbbq import gbbq_registry as default_gbbq_registry
+from mootdx_next.etf import EtfPcfProvider
+from mootdx_next.etf import default_etf_pcf_provider
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.interfaces import AbstractScheduler
 from mootdx_next.interfaces import AbstractTransport
@@ -212,6 +214,7 @@ REQUEST_APIS = frozenset(
         "block",
         "gbbq_all",
         "gbbq",
+        "etf_pcf",
         "xdxr",
         "xdxr_by_date",
         "iter_xdxr",
@@ -405,6 +408,7 @@ class SyncClient(MacClientMixin):
         trading_calendar_registry: TradingCalendarRegistry | None = None,
         gbbq_registry: GbbqRegistry | None = None,
         gbbq_provider: GbbqProvider | None = None,
+        etf_pcf_provider: EtfPcfProvider | None = None,
         mac_transport: AbstractTransport | None = None,
         mac_protocol: AbstractProtocol | None = None,
         mac_scheduler: AbstractScheduler | None = None,
@@ -432,6 +436,7 @@ class SyncClient(MacClientMixin):
         self.trading_calendar_registry = trading_calendar_registry or default_trading_calendar_registry
         self.gbbq_registry = gbbq_registry or default_gbbq_registry
         self.gbbq_provider = gbbq_provider or default_gbbq_provider
+        self.etf_pcf_provider = etf_pcf_provider or default_etf_pcf_provider
         self._init_mac(
             mac_transport=mac_transport,
             mac_protocol=mac_protocol,
@@ -1769,6 +1774,15 @@ class SyncClient(MacClientMixin):
         rows = self.xdxr(normalized_symbol)
         return [dict(row, source="tdx") for row in rows]
 
+    def etf_pcf(
+        self,
+        code: str,
+        trading_date: str | int | Date | datetime,
+    ) -> list[dict[str, object]]:
+        """Download the ETF PCF summary directly from TDX's HTTP endpoint."""
+
+        return self.etf_pcf_provider.load(code, trading_date)
+
     def xdxr(self, symbol: str) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
             raise InvalidSymbolError("symbol cannot be blank")
@@ -2338,6 +2352,7 @@ class AsyncClient:
         trading_calendar_registry: TradingCalendarRegistry | None = None,
         gbbq_registry: GbbqRegistry | None = None,
         gbbq_provider: GbbqProvider | None = None,
+        etf_pcf_provider: EtfPcfProvider | None = None,
         mac_transport: AbstractTransport | None = None,
         mac_protocol: AbstractProtocol | None = None,
         mac_scheduler: AbstractScheduler | None = None,
@@ -2368,6 +2383,7 @@ class AsyncClient:
             "trading_calendar_registry": trading_calendar_registry,
             "gbbq_registry": gbbq_registry,
             "gbbq_provider": gbbq_provider,
+            "etf_pcf_provider": etf_pcf_provider,
             "mac_transport": mac_transport,
             "mac_protocol": mac_protocol,
             "mac_scheduler": mac_scheduler,
@@ -2831,6 +2847,13 @@ class AsyncClient:
                 fallback=fallback,
             )
         )
+
+    async def etf_pcf(
+        self,
+        code: str,
+        trading_date: str | int | Date | datetime,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "etf_pcf", code, trading_date))
 
     async def xdxr(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "xdxr", symbol))

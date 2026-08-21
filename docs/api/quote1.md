@@ -500,6 +500,26 @@ Raw Client 的原始命令和组合/计算接口都保留独立名称，并在�
 
 ## 16. 公共报表、板块和盘后配置
 
+### ETF 申赎清单摘要
+
+TDXQuant 的 `download_file(..., down_type=2)` 并不需要 17709 或行情二进制
+协议。客户端最终请求官方 HTTP 接口：
+`http://www.tdx.com.cn/fastapi/api/quantload/downdata?type=etf&code=...&rq=...`。
+next API 已提供同一数据源的直接调用：
+
+```python
+from mootdx_next import PandasClient, SyncClient, download_etf_pcf
+
+raw = SyncClient().etf_pcf("510300.SH", "20260630")
+frame = PandasClient().etf_pcf("510300.SH", "20260630")
+rows = download_etf_pcf("510300.SH", "20260630")
+```
+
+返回的是通达信 `etfpcf<code>_<date>.json` 的一行摘要（现金差额、最小申赎
+单位、净值日期、申赎状态等）；没有成分证券篮子。`[]` 表示上游该日期没有
+文件，不能当作网络失败。需要成分权重时仍要另行解析 TDX 的基金成分数据或
+交易所 PCF 文件。
+
 ```python
 # 五类板块的统一目录（Pandas DataFrame）
 catalog = client.block_catalog()

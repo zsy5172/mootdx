@@ -769,6 +769,14 @@ class PandasClient:
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
 
+    def etf_pcf(self, code="", trading_date="", **kwargs) -> pd.DataFrame:
+        try:
+            return pd.DataFrame.from_records(
+                self.client.etf_pcf(str(code), trading_date)
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
     def iter_xdxr(
         self,
         symbols=None,
@@ -1666,6 +1674,14 @@ class AsyncPandasClient:
                     refresh=bool(refresh),
                     fallback=bool(fallback),
                 )
+            )
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def etf_pcf(self, code="", trading_date="", **kwargs) -> pd.DataFrame:
+        try:
+            return pd.DataFrame.from_records(
+                await self.client.etf_pcf(str(code), trading_date)
             )
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
