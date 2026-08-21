@@ -110,6 +110,7 @@ BAR_MAX_START = 0xFFFF
 F10_CONTENT_PAGE_SIZE = 0x7800
 QUOTE_PAGE_SIZE = MAX_QUOTE_COUNT
 FUND_FLOW_PAGE_SIZE = MAX_QUOTE_COUNT
+HISTORICAL_FUND_FLOW_PAGE_SIZE = 800
 BarPredicate = Callable[[Mapping[str, object]], bool]
 BLOCK_CATEGORY_NAMES = {
     "region": "地区板块",
@@ -201,6 +202,7 @@ REQUEST_APIS = frozenset(
         "block_members_all",
         "tdx_block_base",
         "fund_flows",
+        "historical_fund_flows",
         "block_with_index",
         "sp_blocks",
         "tdx_industries",
@@ -1432,6 +1434,83 @@ class SyncClient(MacClientMixin):
             row["fund_extension_available"] = extension_available
             row["fund_extension_status"] = "available" if extension_available else "unavailable"
             row["quote_source"] = "tdx_0x054c_mode1"
+        return rows
+
+    def historical_fund_flows(
+        self,
+        symbol: str,
+        *,
+        start: int = 0,
+        count: int = HISTORICAL_FUND_FLOW_PAGE_SIZE,
+    ) -> list[dict[str, object]]:
+        """Query native Category-22 historical daily fund-flow rows.
+
+        This method intentionally exposes only server-provided data. It does
+        not mix in transaction-derived analytics when the upstream command is
+        unavailable.
+        """
+
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+        if start < 0 or start > 0xFFFF:
+            raise ValueError("start must be between 0 and 65535")
+        if count <= 0 or start + count > 0x10000:
+            raise ValueError("count must be positive and keep start + count within 65536")
+
+        normalized_symbol = symbol.strip()
+        market = int(resolve_stock_market(normalized_symbol, string=False))
+        code = normalize_symbol(normalized_symbol)
+        rows: list[dict[str, object]] = []
+        fetched = 0
+        offset = start
+        previous_page: list[dict[str, object]] | None = None
+        while fetched < count:
+            requested = min(count - fetched, HISTORICAL_FUND_FLOW_PAGE_SIZE)
+            context = RequestContext(
+                api="historical_fund_flows",
+                params={
+                    "symbol": normalized_symbol,
+                    "market": market,
+                    "start": offset,
+                    "count": requested,
+                },
+            )
+            payload = self.protocol.encode(
+                "historical_fund_flows",
+                market=market,
+                code=code,
+                start=offset,
+                count=requested,
+            )
+            page: list[dict[str, object]] = []
+
+            def accept_response(envelope: Any) -> bool:
+                page.clear()
+                page.extend(
+                    dict(row)
+                    for row in self.protocol.decode(
+                        "historical_fund_flows", envelope
+                    )
+                )
+                return bool(page)
+
+            self._send(context, payload, response_acceptor=accept_response)
+            if not page:
+                break
+            if page == previous_page:
+                raise ProtocolDecodeError(
+                    "historical_fund_flows pagination did not advance"
+                )
+            for row in page:
+                row["market"] = market
+                row["code"] = code
+                row["source"] = "tdx_category_22"
+            rows = page + rows
+            fetched += len(page)
+            offset += len(page)
+            if len(page) < requested:
+                break
+            previous_page = page
         return rows
 
     def _resolve_block_catalog_entry(
@@ -2946,6 +3025,23 @@ class AsyncClient:
         symbol: str | list[str] | None = None,
     ) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "fund_flows", symbol))
+
+    async def historical_fund_flows(
+        self,
+        symbol: str,
+        *,
+        start: int = 0,
+        count: int = HISTORICAL_FUND_FLOW_PAGE_SIZE,
+    ) -> list[dict[str, object]]:
+        return list(
+            await asyncio.to_thread(
+                self._call_sync,
+                "historical_fund_flows",
+                symbol,
+                start=start,
+                count=count,
+            )
+        )
 
     async def block_with_index(
         self,

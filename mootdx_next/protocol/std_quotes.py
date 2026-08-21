@@ -236,6 +236,13 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.encode_quotes(list(kwargs["symbols"]))
         if api == "fund_flows":
             return self.encode_fund_flows(list(kwargs["symbols"]))
+        if api == "historical_fund_flows":
+            return self.encode_historical_fund_flows(
+                int(kwargs["market"]),
+                str(kwargs["code"]),
+                int(kwargs["start"]),
+                int(kwargs["count"]),
+            )
         if api == "limit_prices":
             return self.encode_limit_prices(int(kwargs["start"]), int(kwargs["count"]))
         if api == "call_auction":
@@ -303,6 +310,8 @@ class StdQuoteProtocol(AbstractProtocol):
             return self.decode_quotes(body, price_coefficients=kwargs.get("price_coefficients"))
         if api == "fund_flows":
             return self.decode_fund_flows(body, price_coefficients=kwargs.get("price_coefficients"))
+        if api == "historical_fund_flows":
+            return self.decode_historical_fund_flows(body)
         if api == "limit_prices":
             return self.decode_limit_prices(body)
         if api == "call_auction":
@@ -468,6 +477,101 @@ class StdQuoteProtocol(AbstractProtocol):
             payload.extend(struct.pack("<B6s", market, encoded_code))
 
         return bytes(payload)
+
+    def encode_historical_fund_flows(
+        self,
+        market: int,
+        code: str,
+        start: int,
+        count: int,
+    ) -> bytes:
+        """Encode the native Category-22 daily fund-flow request (0x052D)."""
+
+        if market not in self.quote_markets:
+            raise UnsupportedMarketError(
+                f"unsupported market for historical_fund_flows: {market}"
+            )
+        encoded_code = code.encode("ascii")
+        if len(encoded_code) != 6 or not encoded_code.isdigit():
+            raise ProtocolEncodeError(
+                "historical_fund_flows requires a six-digit numeric code"
+            )
+        if not 0 <= start <= 0xFFFF:
+            raise ValueError("start must be between 0 and 65535")
+        if not 1 <= count <= 0xFFFF:
+            raise ValueError("count must be between 1 and 65535")
+
+        return struct.pack(
+            "<HIHHHH6sHHHHIIH",
+            0x010C,
+            0x01016408,
+            0x001C,
+            0x001C,
+            0x052D,
+            market,
+            encoded_code,
+            22,
+            1,
+            start,
+            count,
+            0,
+            0,
+            0,
+        )
+
+    @staticmethod
+    def decode_historical_fund_flows(body: bytes) -> list[dict[str, object]]:
+        """Decode native Category-22 rows without adding calculated fallback data."""
+
+        # Some quote nodes return an intentionally short body for an
+        # unsupported Category-22 query. Treat that as a valid empty result so
+        # the client can try another endpoint semantically.
+        if len(body) < 11:
+            return []
+
+        try:
+            (declared_count,) = U16_STRUCT.unpack_from(body, 9)
+        except struct.error as exc:
+            raise ProtocolDecodeError("failed to decode historical_fund_flows count") from exc
+
+        available_count = max(0, (len(body) - 11) // 36)
+        count = min(declared_count, available_count)
+        rows: list[dict[str, object]] = []
+        for index in range(count):
+            pos = 11 + index * 36
+            try:
+                values = struct.unpack_from("<9I", body, pos)
+            except struct.error as exc:
+                raise ProtocolDecodeError(
+                    f"failed to decode historical_fund_flows row {index}"
+                ) from exc
+            raw_date = int(values[0])
+            year = raw_date // 10000
+            month = raw_date % 10000 // 100
+            day = raw_date % 100
+            try:
+                date_value = datetime(year, month, day).strftime("%Y-%m-%d")
+            except ValueError as exc:
+                raise ProtocolDecodeError(
+                    f"historical_fund_flows row {index} has invalid date {raw_date}"
+                ) from exc
+            rows.append(
+                {
+                    "date": date_value,
+                    "year": year,
+                    "month": month,
+                    "day": day,
+                    "super_in": _get_volume(values[1]),
+                    "large_in": _get_volume(values[2]),
+                    "medium_in": _get_volume(values[3]),
+                    "small_in": _get_volume(values[4]),
+                    "super_out": _get_volume(values[5]),
+                    "large_out": _get_volume(values[6]),
+                    "medium_out": _get_volume(values[7]),
+                    "small_out": _get_volume(values[8]),
+                }
+            )
+        return rows
 
     def decode_fund_flows(
         self,

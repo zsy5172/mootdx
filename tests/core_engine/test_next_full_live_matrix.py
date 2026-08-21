@@ -157,6 +157,15 @@ def test_live_mac_ex_login_and_quote_matrix(live_mac_ex_client) -> None:
     assert len(paged_transactions) <= 1801
 
 
+def test_live_native_historical_fund_flows(live_client: SyncClient) -> None:
+    rows = live_client.historical_fund_flows("sh600036", count=3)
+
+    assert isinstance(rows, list)
+    if rows:
+        assert rows[0]["source"] == "tdx_category_22"
+        assert {"super_in", "large_in", "medium_in", "small_in"} <= set(rows[0])
+
+
 @pytest.mark.parametrize("market", [0, 1, 2])
 def test_live_stock_count_market_matrix(live_client: SyncClient, market: int) -> None:
     assert live_client.stock_count(market) >= 0

@@ -957,6 +957,11 @@ class PandasClient:
     def fund_flows(self, symbol=None, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(self.client.fund_flows(symbol=symbol))
 
+    def historical_fund_flows(self, symbol, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            self.client.historical_fund_flows(symbol, **kwargs)
+        )
+
     def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(
             self.client.block_with_index(str(tofile), refresh=bool(refresh))
@@ -1860,6 +1865,11 @@ class AsyncPandasClient:
 
     async def fund_flows(self, symbol=None, **kwargs) -> pd.DataFrame:
         return pd.DataFrame.from_records(await self.client.fund_flows(symbol=symbol))
+
+    async def historical_fund_flows(self, symbol, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(
+            await self.client.historical_fund_flows(symbol, **kwargs)
+        )
 
     async def block_with_index(self, tofile="block_gn.dat", refresh=False, **kwargs) -> pd.DataFrame:
         return block_to_frame(
