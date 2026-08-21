@@ -57,6 +57,7 @@ from mootdx_next.errors import ConfigFileError
 from mootdx_next.errors import ClientClosedError
 from mootdx_next.errors import GbbqError
 from mootdx_next.errors import InvalidSymbolError
+from mootdx_next.errors import NoHealthyServerError
 from mootdx_next.errors import PoolExhaustedError
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.errors import TransportError
@@ -681,8 +682,20 @@ class SyncClient(MacClientMixin):
             start=start,
             count=offset,
         )
-        envelope = self._send(context, payload)
-        return list(self.protocol.decode("bars", envelope, frequency=normalized_frequency))
+        rows: list[dict[str, object]] = []
+
+        def accept_response(envelope: Any) -> bool:
+            rows.clear()
+            rows.extend(
+                dict(row)
+                for row in self.protocol.decode(
+                    "bars", envelope, frequency=normalized_frequency
+                )
+            )
+            return bool(rows)
+
+        self._send(context, payload, response_acceptor=accept_response)
+        return rows
 
     def bars_until(
         self,
@@ -811,8 +824,20 @@ class SyncClient(MacClientMixin):
             start=start,
             count=offset,
         )
-        envelope = self._send(context, payload)
-        return list(self.protocol.decode("index_bars", envelope, frequency=normalized_frequency))
+        rows: list[dict[str, object]] = []
+
+        def accept_response(envelope: Any) -> bool:
+            rows.clear()
+            rows.extend(
+                dict(row)
+                for row in self.protocol.decode(
+                    "index_bars", envelope, frequency=normalized_frequency
+                )
+            )
+            return bool(rows)
+
+        self._send(context, payload, response_acceptor=accept_response)
+        return rows
 
     def index_bars_until(
         self,
@@ -2120,6 +2145,7 @@ class SyncClient(MacClientMixin):
         context: RequestContext,
         payload: bytes,
         response_validator: Callable[[Any], None] | None = None,
+        response_acceptor: Callable[[Any], bool] | None = None,
     ):
         if self._closed:
             raise ClientClosedError("client is closed; call reconnect() before sending requests")
@@ -2132,10 +2158,21 @@ class SyncClient(MacClientMixin):
 
         excluded: set[tuple[str, int]] = set()
         attempts = self.max_retries + 1
+        last_rejected_envelope: Any | None = None
 
         for attempt in range(attempts):
-            server = self.scheduler.select_server(context, excluded=excluded)
+            try:
+                server = self.scheduler.select_server(context, excluded=excluded)
+            except NoHealthyServerError:
+                if last_rejected_envelope is not None:
+                    return last_rejected_envelope
+                raise
             server_key = (server.host, server.port)
+            # Compatibility with simple injected schedulers that do not honour
+            # ``excluded``. A semantic retry must never resend to the same
+            # endpoint merely to consume the retry budget.
+            if server_key in excluded and last_rejected_envelope is not None:
+                return last_rejected_envelope
 
             try:
                 lease = self.connection_pool.acquire(server)
@@ -2149,8 +2186,14 @@ class SyncClient(MacClientMixin):
                 envelope = lease.transport.send(context, payload, server)
                 if response_validator is not None:
                     response_validator(envelope)
+                accepted = response_acceptor(envelope) if response_acceptor is not None else True
                 self.scheduler.record_success(server, lease.transport.metrics)
                 self.connection_pool.release(lease)
+                if not accepted:
+                    last_rejected_envelope = envelope
+                    excluded.add(server_key)
+                    if attempt < self.max_retries:
+                        continue
                 return envelope
             except Exception as exc:
                 self.scheduler.record_failure(server, exc)
