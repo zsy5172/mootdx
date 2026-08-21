@@ -106,6 +106,19 @@ FUND_FLOW_HOSTS = frozenset(
 )
 
 CAPABILITY_FUND_FLOWS = "fund_flows"
+CAPABILITY_MAC_A = "mac_a"
+CAPABILITY_MAC_EX = "mac_ex"
+
+MAC_HOSTS = (
+    ("MAC行情主站1", "121.36.248.138", 7709),
+    ("MAC行情主站2", "123.60.47.136", 7709),
+    ("MAC行情主站3", "121.37.207.165", 7709),
+)
+
+MAC_EX_HOSTS = (
+    ("MAC扩展行情主站1", "116.205.135.205", 7727),
+    ("MAC扩展行情主站2", "121.37.232.167", 7727),
+)
 
 EX_HOSTS = (
     # Sourced from the TDX connect.cfg [DSHOST] ecosystem and independently

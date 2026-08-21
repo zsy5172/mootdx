@@ -41,6 +41,7 @@ from mootdx_next.errors import OutsideTradingSessionError
 from mootdx_next.errors import UnknownF10CategoryError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.mac import MacPeriod
 from mootdx_next.params import normalize_date
 from mootdx_next.params import normalize_frequency
 from mootdx_next.symbols import get_stock_market
@@ -271,6 +272,69 @@ class PandasClient:
             return quotes_to_frame(self.client.quotes(symbol=symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
+
+    def _mac_frame(self, method: str, *args, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(getattr(self.client, method)(*args, **kwargs))
+
+    def mac_quotes(self, symbols=None, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_quotes", symbols, **kwargs)
+
+    def mac_quotes_list(self, category=6, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_quotes_list", category, **kwargs)
+
+    def mac_board_list(self, board_type=255, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_board_list", board_type, **kwargs)
+
+    def mac_board_members(self, block, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_board_members", block, **kwargs)
+
+    def mac_belong_board(self, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_belong_board", symbol, **kwargs)
+
+    def mac_capital_flow(self, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_capital_flow", symbol, **kwargs)
+
+    def mac_symbol_info(self, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_symbol_info", symbol, **kwargs)
+
+    def mac_bars(self, symbol="000001", frequency=MacPeriod.DAY, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_bars", symbol, frequency, **kwargs)
+
+    def mac_tick_chart(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_tick_chart", symbol, **kwargs)
+
+    def mac_tick_charts(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_tick_charts", symbol, **kwargs)
+
+    def mac_chart_sampling(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_chart_sampling", symbol, **kwargs)
+
+    def mac_transactions(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_transactions", symbol, **kwargs)
+
+    def mac_auction(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_auction", symbol, **kwargs)
+
+    def mac_unusual(self, market=1, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_unusual", market, **kwargs)
+
+    def mac_server_info(self, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_server_info", **kwargs)
+
+    def mac_kline_offset(self, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_kline_offset", **kwargs)
+
+    def mac_goods_list(self, market, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_goods_list", market, **kwargs)
+
+    def mac_file_meta(self, filename, **kwargs):
+        return self.client.mac_file_meta(filename, **kwargs)
+
+    def mac_file_chunk(self, filename, **kwargs) -> bytes:
+        return self.client.mac_file_chunk(filename, **kwargs)
+
+    def mac_file(self, filename, **kwargs) -> bytes:
+        return self.client.mac_file(filename, **kwargs)
 
     def quotes_all(self, symbol=None, **kwargs) -> pd.DataFrame:
         if not symbol:
@@ -1092,6 +1156,69 @@ class AsyncPandasClient:
             return quotes_to_frame(await self.client.quotes(symbol=symbol))
         except VALIDATION_ERRORS as exc:
             self._raise_mapped(exc)
+
+    async def _mac_frame(self, method: str, *args, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(await getattr(self.client, method)(*args, **kwargs))
+
+    async def mac_quotes(self, symbols=None, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_quotes", symbols, **kwargs)
+
+    async def mac_quotes_list(self, category=6, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_quotes_list", category, **kwargs)
+
+    async def mac_board_list(self, board_type=255, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_board_list", board_type, **kwargs)
+
+    async def mac_board_members(self, block, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_board_members", block, **kwargs)
+
+    async def mac_belong_board(self, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_belong_board", symbol, **kwargs)
+
+    async def mac_capital_flow(self, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_capital_flow", symbol, **kwargs)
+
+    async def mac_symbol_info(self, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_symbol_info", symbol, **kwargs)
+
+    async def mac_bars(self, symbol="000001", frequency=MacPeriod.DAY, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_bars", symbol, frequency, **kwargs)
+
+    async def mac_tick_chart(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_tick_chart", symbol, **kwargs)
+
+    async def mac_tick_charts(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_tick_charts", symbol, **kwargs)
+
+    async def mac_chart_sampling(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_chart_sampling", symbol, **kwargs)
+
+    async def mac_transactions(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_transactions", symbol, **kwargs)
+
+    async def mac_auction(self, symbol="000001", **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_auction", symbol, **kwargs)
+
+    async def mac_unusual(self, market=1, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_unusual", market, **kwargs)
+
+    async def mac_server_info(self, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_server_info", **kwargs)
+
+    async def mac_kline_offset(self, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_kline_offset", **kwargs)
+
+    async def mac_goods_list(self, market, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_goods_list", market, **kwargs)
+
+    async def mac_file_meta(self, filename, **kwargs):
+        return await self.client.mac_file_meta(filename, **kwargs)
+
+    async def mac_file_chunk(self, filename, **kwargs) -> bytes:
+        return await self.client.mac_file_chunk(filename, **kwargs)
+
+    async def mac_file(self, filename, **kwargs) -> bytes:
+        return await self.client.mac_file(filename, **kwargs)
 
     async def quotes_all(self, symbol=None, **kwargs) -> pd.DataFrame:
         if not symbol:

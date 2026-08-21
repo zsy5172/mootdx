@@ -23,6 +23,7 @@ from mootdx_next.errors import InvalidFrequencyError
 from mootdx_next.errors import InvalidSymbolError
 from mootdx_next.errors import UnsupportedMarketError
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.mac import MacPeriod
 
 from .pandas import ErrorMapper
 from .pandas import normalize_server
@@ -188,6 +189,27 @@ class ExPandasClient:
         return ex_quotes_to_frame(
             self.client.quotes(int(market), int(category), int(start), int(offset))
         )
+
+    def _mac_frame(self, method: str, *args, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(getattr(self.client, method)(*args, **kwargs))
+
+    def mac_quotes(self, stocks, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_quotes", stocks, **kwargs)
+
+    def mac_quotes_list(self, market, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_quotes_list", market=market, **kwargs)
+
+    def mac_bars(self, market, symbol, frequency=MacPeriod.DAY, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_bars", market, symbol, frequency, **kwargs)
+
+    def mac_tick_chart(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_tick_chart", market, symbol, **kwargs)
+
+    def mac_chart_sampling(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_chart_sampling", market, symbol, **kwargs)
+
+    def mac_transactions(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return self._mac_frame("mac_transactions", market, symbol, **kwargs)
 
     def bars(
         self,
@@ -429,6 +451,27 @@ class AsyncExPandasClient:
         return ex_quotes_to_frame(
             await self.client.quotes(int(market), int(category), int(start), int(offset))
         )
+
+    async def _mac_frame(self, method: str, *args, **kwargs) -> pd.DataFrame:
+        return pd.DataFrame.from_records(await getattr(self.client, method)(*args, **kwargs))
+
+    async def mac_quotes(self, stocks, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_quotes", stocks, **kwargs)
+
+    async def mac_quotes_list(self, market, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_quotes_list", market=market, **kwargs)
+
+    async def mac_bars(self, market, symbol, frequency=MacPeriod.DAY, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_bars", market, symbol, frequency, **kwargs)
+
+    async def mac_tick_chart(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_tick_chart", market, symbol, **kwargs)
+
+    async def mac_chart_sampling(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_chart_sampling", market, symbol, **kwargs)
+
+    async def mac_transactions(self, market, symbol, **kwargs) -> pd.DataFrame:
+        return await self._mac_frame("mac_transactions", market, symbol, **kwargs)
 
     async def bars(
         self,

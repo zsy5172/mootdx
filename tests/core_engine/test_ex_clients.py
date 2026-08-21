@@ -34,6 +34,12 @@ EX_PUBLIC_API = {
     "transaction",
     "transactions",
     "bars_range",
+    "mac_quotes",
+    "mac_quotes_list",
+    "mac_bars",
+    "mac_tick_chart",
+    "mac_chart_sampling",
+    "mac_transactions",
 }
 
 
@@ -97,6 +103,66 @@ def test_ex_request_rejects_lifecycle_and_unknown_apis() -> None:
         client.request("close")
     with pytest.raises(NotImplementedError):
         client.request("connection_pool")
+
+
+def test_mac_ex_hk_transactions_use_exhq_compatibility_route(monkeypatch) -> None:
+    client, _ = _client()
+    calls: list[tuple[int, str, int, int]] = []
+
+    def fake_transaction(market: int, symbol: str, start: int = 0, offset: int = 1800):
+        calls.append((market, symbol, start, offset))
+        return [{"time": "09:30:01", "price": 431.4, "volume": 100, "nature": 1}]
+
+    monkeypatch.setattr(client, "transaction", fake_transaction)
+
+    assert client.mac_transactions(31, "00700", start=20, count=15) == [
+        {"time": "09:30:01", "price": 431.4, "vol": 100, "trade_count": 0, "bs_flag": 1}
+    ]
+    assert calls == [(31, "00700", 20, 15)]
+
+
+def test_mac_ex_hk_transactions_page_above_exhq_limit(monkeypatch) -> None:
+    client, _ = _client()
+    calls: list[tuple[int, int]] = []
+
+    def fake_transaction(market: int, symbol: str, start: int = 0, offset: int = 1800):
+        calls.append((start, offset))
+        return [
+            {"time": "09:30:01", "price": 431.4, "volume": 1, "nature": 1}
+            for _ in range(offset)
+        ]
+
+    monkeypatch.setattr(client, "transaction", fake_transaction)
+
+    rows = client.mac_transactions(31, "00700", count=2000)
+
+    assert len(rows) == 2000
+    assert calls == [(0, 1800), (1800, 200)]
+
+
+def test_mac_ex_quotes_list_uses_standard_directory_then_mac_batches(monkeypatch) -> None:
+    client, _ = _client()
+    directory = [{"market": 31, "code": f"{index:05d}"} for index in range(120)]
+    quote_calls: list[list[tuple[int, str]]] = []
+
+    monkeypatch.setattr(
+        client,
+        "_instrument_market_slice",
+        lambda market, *, start, count: directory[start : start + count],
+    )
+
+    def fake_mac_quotes(symbols, *, fields=None):
+        quote_calls.append(list(symbols))
+        return [{"market": market, "code": code} for market, code in symbols]
+
+    monkeypatch.setattr(client, "mac_quotes", fake_mac_quotes)
+
+    rows = client.mac_quotes_list(31, count=120)
+
+    assert len(rows) == 120
+    assert [len(page) for page in quote_calls] == [80, 40]
+    assert rows[0]["code"] == "00000"
+    assert rows[-1]["code"] == "00119"
 
 
 @dataclass(frozen=True)

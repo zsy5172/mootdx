@@ -27,3 +27,12 @@ EX_SETUP_PAYLOADS = (
 )
 
 EX_INSTRUMENT_COUNT_PAYLOAD = bytes.fromhex("01 03 48 66 00 01 02 00 02 00 f0 23")
+
+MAC_EX_LOGIN_PAYLOAD = bytes.fromhex(
+    "01 00 00 00 00 01 52 00 52 00"
+    "54 24"
+    "e5bb1c2fafe52594 1f32c6e5d53dfb41 5b734cc9cdbf0ac9"
+    "2021bfdd1eb06d22 d008884c1611cb13 78f6abd824d899d2"
+    "1f32c6e5d53dfb41 1f32c6e5d53dfb41 a9325ac935dc0837"
+    "335a16e4ce17c1bb"
+)

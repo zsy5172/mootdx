@@ -20,6 +20,9 @@ from mootdx_next.ex_markets import ex_market_registry as default_ex_market_regis
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.interfaces import AbstractScheduler
 from mootdx_next.interfaces import AbstractTransport
+from mootdx_next.mac import MacAdjust
+from mootdx_next.mac import MacFieldSelection
+from mootdx_next.mac import MacPeriod
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
 from mootdx_next.params import normalize_date
@@ -30,6 +33,9 @@ from mootdx_next.scheduler.pools import ServerPool
 from mootdx_next.transport.constants import EX_SETUP_PAYLOADS
 from mootdx_next.transport.constants import DEFAULT_HEARTBEAT_INTERVAL_SEC
 from mootdx_next.transport.socket_transport import SyncSocketTransport
+from mootdx_next.api.mac_clients import MacClientMixin
+
+MAC_EX_HK_TRANSACTION_MARKETS = frozenset({27, 31, 48, 49, 71, 98})
 
 
 def _default_ex_servers() -> list[ServerEndpoint]:
@@ -54,11 +60,17 @@ EX_REQUEST_APIS = frozenset(
         "transaction",
         "transactions",
         "bars_range",
+        "mac_quotes",
+        "mac_quotes_list",
+        "mac_bars",
+        "mac_tick_chart",
+        "mac_chart_sampling",
+        "mac_transactions",
     }
 )
 
 
-class ExSyncClient:
+class ExSyncClient(MacClientMixin):
     """Native synchronous client for TDX extended markets (ExHq)."""
 
     def __init__(
@@ -72,6 +84,11 @@ class ExSyncClient:
         timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
         heartbeat: bool = False,
         market_registry: ExMarketRegistry | None = None,
+        mac_transport: AbstractTransport | None = None,
+        mac_protocol: AbstractProtocol | None = None,
+        mac_scheduler: AbstractScheduler | None = None,
+        mac_connection_pool: ConnectionPool | None = None,
+        mac_servers: list[ServerEndpoint] | None = None,
     ) -> None:
         self.transport = transport
         self.protocol = protocol or ExQuoteProtocol()
@@ -83,6 +100,15 @@ class ExSyncClient:
         self._heartbeat_stop = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
         self.market_registry = market_registry or default_ex_market_registry
+        self._init_mac(
+            mac_transport=mac_transport,
+            mac_protocol=mac_protocol,
+            mac_scheduler=mac_scheduler,
+            mac_connection_pool=mac_connection_pool,
+            mac_servers=mac_servers,
+            mac_capability="mac_ex",
+            mac_ex=True,
+        )
         self._closed = False
         self.connection_pool = connection_pool or ConnectionPool(
             transport_factory=transport.__class__ if transport is not None else _ex_transport_factory
@@ -101,10 +127,14 @@ class ExSyncClient:
     def close(self) -> None:
         self._stop_heartbeat()
         self.connection_pool.close_all()
+        if getattr(self, "_mac_connection_pool", None) is not None:
+            self._mac_connection_pool.close_all()
         self._closed = True
 
     def reconnect(self) -> None:
         self.connection_pool.close_all()
+        if getattr(self, "_mac_connection_pool", None) is not None:
+            self._mac_connection_pool.close_all()
         self._closed = False
         if self.heartbeat:
             self._start_heartbeat()
@@ -112,7 +142,123 @@ class ExSyncClient:
     def request(self, api: str, **kwargs: Any) -> object:
         if api not in EX_REQUEST_APIS:
             raise NotImplementedError(f"ExSyncClient.request() does not support api: {api}")
+        if api.startswith("mac_"):
+            return getattr(self, api)(**kwargs)
         return getattr(self, api)(**kwargs)
+
+    def mac_quotes(
+        self,
+        stocks: Any,
+        *,
+        fields: MacFieldSelection | None = None,
+    ) -> list[dict[str, object]]:
+        return MacClientMixin.mac_quotes(self, stocks, fields=fields)
+
+    def mac_quotes_list(
+        self,
+        market: int,
+        *,
+        start: int = 0,
+        count: int = 80,
+        fields: MacFieldSelection | None = None,
+    ) -> list[dict[str, object]]:
+        instruments = self._instrument_market_slice(
+            int(market), start=int(start), count=int(count)
+        )
+        symbols = [
+            (int(market), str(row.get("code", "")).strip())
+            for row in instruments
+            if str(row.get("code", "")).strip()
+        ]
+        rows: list[dict[str, object]] = []
+        for offset in range(0, len(symbols), 80):
+            rows.extend(self.mac_quotes(symbols[offset : offset + 80], fields=fields))
+        return rows
+
+    def mac_bars(
+        self,
+        market: int,
+        symbol: str,
+        frequency: MacPeriod = MacPeriod.DAY,
+        *,
+        start: int = 0,
+        count: int = 700,
+        adjust: MacAdjust = MacAdjust.NONE,
+    ) -> list[dict[str, object]]:
+        return MacClientMixin.mac_bars(
+            self,
+            (int(market), str(symbol)),
+            frequency,
+            start=start,
+            count=count,
+            adjust=adjust,
+        )
+
+    def mac_tick_chart(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        date: object | None = None,
+    ) -> list[dict[str, object]]:
+        return MacClientMixin.mac_tick_chart(self, (int(market), str(symbol)), date=date)
+
+    def mac_chart_sampling(self, market: int, symbol: str) -> list[dict[str, object]]:
+        return MacClientMixin.mac_chart_sampling(self, (int(market), str(symbol)))
+
+    def mac_transactions(
+        self,
+        market: int,
+        symbol: str,
+        *,
+        date: object | None = None,
+        start: int = 0,
+        count: int = 2000,
+    ) -> list[dict[str, object]]:
+        # 0x122F is not wired to the Hong Kong stock data source. Preserve the
+        # established ExHq 0x23FC/0x2406 compatibility route and normalize it
+        # into the MAC transaction schema.
+        if int(market) in MAC_EX_HK_TRANSACTION_MARKETS:
+            if start < 0:
+                raise ValueError("start must be greater than or equal to zero")
+            if count <= 0:
+                raise ValueError("count must be greater than zero")
+            result: list[dict[str, object]] = []
+            offset = start
+            while len(result) < count:
+                page_size = min(count - len(result), MAX_EX_TRANSACTION_COUNT)
+                page = (
+                    self.transaction(
+                        int(market), str(symbol), start=offset, offset=page_size
+                    )
+                    if date is None
+                    else self.transactions(
+                        int(market), str(symbol), date, start=offset, offset=page_size
+                    )
+                )
+                if not page:
+                    break
+                result.extend(
+                    {
+                        "time": row.get("time"),
+                        "price": row.get("price"),
+                        "vol": row.get("volume", 0),
+                        "trade_count": 0,
+                        "bs_flag": row.get("nature", 0),
+                    }
+                    for row in page
+                )
+                offset += len(page)
+                if len(page) < page_size:
+                    break
+            return result
+        return MacClientMixin.mac_transactions(
+            self,
+            (int(market), str(symbol)),
+            date=date,
+            start=start,
+            count=count,
+        )
 
     def markets(self, refresh: bool = False) -> list[dict[str, object]]:
         snapshot = self.market_registry.get(self._load_markets, refresh=bool(refresh))
@@ -137,6 +283,65 @@ class ExSyncClient:
             rows.extend(page)
             if len(page) < min(page_size, total - start):
                 break
+        return rows
+
+    def _instrument_market_slice(
+        self,
+        market: int,
+        *,
+        start: int,
+        count: int,
+    ) -> list[dict[str, object]]:
+        """Return a market-local slice from the standard Ex instrument directory."""
+
+        if start < 0:
+            raise ValueError("start must be greater than or equal to zero")
+        if count <= 0:
+            raise ValueError("count must be greater than zero")
+        total = self.instrument_count()
+        if total <= 0:
+            return []
+
+        # The upstream Ex directory is ordered by market. Locate the first
+        # candidate without downloading unrelated markets.
+        low, high = 0, total
+        while low < high:
+            middle = (low + high) // 2
+            probe = self.instrument(start=middle, offset=1)
+            if not probe:
+                high = middle
+                continue
+            probe_market = int(probe[0].get("market", -1))
+            if probe_market < market:
+                low = middle + 1
+            else:
+                high = middle
+
+        rows: list[dict[str, object]] = []
+        skipped = 0
+        position = low
+        while position < total and len(rows) < count:
+            requested = min(MAX_EX_INSTRUMENT_COUNT, total - position)
+            page = self.instrument(start=position, offset=requested)
+            if not page:
+                break
+            reached_later_market = False
+            for item in page:
+                item_market = int(item.get("market", -1))
+                if item_market < market:
+                    continue
+                if item_market > market:
+                    reached_later_market = True
+                    break
+                if skipped < start:
+                    skipped += 1
+                    continue
+                rows.append(dict(item))
+                if len(rows) >= count:
+                    break
+            if len(rows) >= count or reached_later_market or len(page) < requested:
+                break
+            position += len(page)
         return rows
 
     def quote(
@@ -302,6 +507,8 @@ class ExSyncClient:
         )
 
     def _request(self, api: str, **kwargs: Any) -> object:
+        if api.startswith("mac_"):
+            return self.request(api, **kwargs)
         context = RequestContext(api=api, params=dict(kwargs))
         payload = self.protocol.encode(api, **kwargs)
         envelope = self._send(context, payload)
@@ -420,6 +627,11 @@ class AsyncExClient:
         heartbeat: bool = False,
         sync_client: ExSyncClient | None = None,
         market_registry: ExMarketRegistry | None = None,
+        mac_transport: AbstractTransport | None = None,
+        mac_protocol: AbstractProtocol | None = None,
+        mac_scheduler: AbstractScheduler | None = None,
+        mac_connection_pool: ConnectionPool | None = None,
+        mac_servers: list[ServerEndpoint] | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -437,6 +649,11 @@ class AsyncExClient:
             "timeout_ms": timeout_ms,
             "heartbeat": False,
             "market_registry": market_registry,
+            "mac_transport": mac_transport,
+            "mac_protocol": mac_protocol,
+            "mac_scheduler": mac_scheduler,
+            "mac_connection_pool": mac_connection_pool,
+            "mac_servers": mac_servers,
         }
 
     @property
@@ -469,6 +686,30 @@ class AsyncExClient:
 
     async def request(self, api: str, **kwargs: Any) -> object:
         return await asyncio.to_thread(self._call_sync, "request", api, **kwargs)
+
+    async def mac_quotes(self, stocks: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_quotes", stocks, **kwargs))
+
+    async def mac_quotes_list(self, market: int, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_quotes_list", market=market, **kwargs))
+
+    async def mac_bars(
+        self,
+        market: int,
+        symbol: str,
+        frequency: MacPeriod = MacPeriod.DAY,
+        **kwargs: Any,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_bars", market, symbol, frequency, **kwargs))
+
+    async def mac_tick_chart(self, market: int, symbol: str, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_tick_chart", market, symbol, **kwargs))
+
+    async def mac_chart_sampling(self, market: int, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_chart_sampling", market, symbol))
+
+    async def mac_transactions(self, market: int, symbol: str, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_transactions", market, symbol, **kwargs))
 
     async def markets(self, refresh: bool = False) -> list[dict[str, object]]:
         if refresh:
@@ -630,6 +871,21 @@ class AsyncExClient:
                 self._worker_clients.append(client)
                 self._closed = False
         return client
+
+
+# Keep only the MAC EX methods that have an explicit extended-market signature
+# on ExSyncClient. A-share-only helpers remain on SyncClient and are not
+# advertised as extended-market APIs.
+for _mac_method_name in (
+    "mac_quotes",
+    "mac_quotes_list",
+    "mac_bars",
+    "mac_tick_chart",
+    "mac_chart_sampling",
+    "mac_transactions",
+):
+    if _mac_method_name not in ExSyncClient.__dict__:
+        setattr(ExSyncClient, _mac_method_name, getattr(MacClientMixin, _mac_method_name))
 
 
 __all__ = ["AsyncExClient", "ExSyncClient"]

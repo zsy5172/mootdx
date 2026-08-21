@@ -72,8 +72,11 @@ from mootdx_next.interfaces import AbstractTransport
 from mootdx_next.limits import calculate_normal_stock_price_limit
 from mootdx_next.limits import get_price_limit_snapshot
 from mootdx_next.limits import refresh_price_limit_snapshot
+from mootdx_next.mac.types import MacPeriod
 from mootdx_next.models import RequestContext
 from mootdx_next.models import ServerEndpoint
+from mootdx_next.api.mac_clients import MAC_METHOD_NAMES
+from mootdx_next.api.mac_clients import MacClientMixin
 from mootdx_next.minute_bars import rebuild_minute_bars_241
 from mootdx_next.params import normalize_date
 from mootdx_next.params import normalize_frequency
@@ -216,6 +219,26 @@ REQUEST_APIS = frozenset(
         "f10_categories",
         "f10_content",
         "f10_content_range",
+        "mac_quotes",
+        "mac_quotes_list",
+        "mac_board_list",
+        "mac_board_members",
+        "mac_belong_board",
+        "mac_capital_flow",
+        "mac_symbol_info",
+        "mac_bars",
+        "mac_tick_chart",
+        "mac_tick_charts",
+        "mac_chart_sampling",
+        "mac_transactions",
+        "mac_auction",
+        "mac_unusual",
+        "mac_server_info",
+        "mac_kline_offset",
+        "mac_file_meta",
+        "mac_file_chunk",
+        "mac_file",
+        "mac_goods_list",
     }
 )
 
@@ -361,7 +384,7 @@ def _listing_month_start(rows: Iterable[Mapping[str, object]]) -> Date | None:
     return earliest.replace(day=1)
 
 
-class SyncClient:
+class SyncClient(MacClientMixin):
     def __init__(
         self,
         transport: AbstractTransport | None = None,
@@ -379,6 +402,11 @@ class SyncClient:
         trading_calendar_registry: TradingCalendarRegistry | None = None,
         gbbq_registry: GbbqRegistry | None = None,
         gbbq_provider: GbbqProvider | None = None,
+        mac_transport: AbstractTransport | None = None,
+        mac_protocol: AbstractProtocol | None = None,
+        mac_scheduler: AbstractScheduler | None = None,
+        mac_connection_pool: ConnectionPool | None = None,
+        mac_servers: list[ServerEndpoint] | None = None,
     ) -> None:
         if bse_registry is not None and bse_provider is not None:
             raise ValueError("bse_registry and bse_provider are mutually exclusive")
@@ -401,6 +429,13 @@ class SyncClient:
         self.trading_calendar_registry = trading_calendar_registry or default_trading_calendar_registry
         self.gbbq_registry = gbbq_registry or default_gbbq_registry
         self.gbbq_provider = gbbq_provider or default_gbbq_provider
+        self._init_mac(
+            mac_transport=mac_transport,
+            mac_protocol=mac_protocol,
+            mac_scheduler=mac_scheduler,
+            mac_connection_pool=mac_connection_pool,
+            mac_servers=mac_servers,
+        )
         self._adjustment_service: Any | None = None
         self._base_finance_cache: tuple[dict[str, object], ...] | None = None
         self._base_finance_lock = threading.RLock()
@@ -426,10 +461,14 @@ class SyncClient:
     def close(self) -> None:
         self._stop_heartbeat()
         self.connection_pool.close_all()
+        if getattr(self, "_mac_connection_pool", None) is not None:
+            self._mac_connection_pool.close_all()
         self._closed = True
 
     def reconnect(self) -> None:
         self.connection_pool.close_all()
+        if getattr(self, "_mac_connection_pool", None) is not None:
+            self._mac_connection_pool.close_all()
         self._closed = False
         if self.heartbeat:
             self._start_heartbeat()
@@ -2177,6 +2216,11 @@ class AsyncClient:
         trading_calendar_registry: TradingCalendarRegistry | None = None,
         gbbq_registry: GbbqRegistry | None = None,
         gbbq_provider: GbbqProvider | None = None,
+        mac_transport: AbstractTransport | None = None,
+        mac_protocol: AbstractProtocol | None = None,
+        mac_scheduler: AbstractScheduler | None = None,
+        mac_connection_pool: ConnectionPool | None = None,
+        mac_servers: list[ServerEndpoint] | None = None,
     ) -> None:
         self._explicit_sync_client = sync_client
         self._thread_local = threading.local()
@@ -2202,6 +2246,11 @@ class AsyncClient:
             "trading_calendar_registry": trading_calendar_registry,
             "gbbq_registry": gbbq_registry,
             "gbbq_provider": gbbq_provider,
+            "mac_transport": mac_transport,
+            "mac_protocol": mac_protocol,
+            "mac_scheduler": mac_scheduler,
+            "mac_connection_pool": mac_connection_pool,
+            "mac_servers": mac_servers,
         }
 
     @property
@@ -2234,6 +2283,71 @@ class AsyncClient:
 
     async def request(self, api: str, **kwargs: Any) -> object:
         return await asyncio.to_thread(self._call_sync, "request", api, **kwargs)
+
+    async def mac_quotes(self, symbols: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_quotes", symbols, **kwargs))
+
+    async def mac_quotes_list(self, category: int = 6, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_quotes_list", category, **kwargs))
+
+    async def mac_board_list(self, board_type: int = 255, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_board_list", board_type, **kwargs))
+
+    async def mac_board_members(self, block: str, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_board_members", block, **kwargs))
+
+    async def mac_belong_board(self, symbol: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_belong_board", symbol))
+
+    async def mac_capital_flow(self, symbol: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_capital_flow", symbol))
+
+    async def mac_symbol_info(self, symbol: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_symbol_info", symbol))
+
+    async def mac_bars(
+        self,
+        symbol: Any,
+        frequency: MacPeriod = MacPeriod.DAY,
+        **kwargs: Any,
+    ) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_bars", symbol, frequency, **kwargs))
+
+    async def mac_tick_chart(self, symbol: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_tick_chart", symbol, **kwargs))
+
+    async def mac_tick_charts(self, symbol: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_tick_charts", symbol, **kwargs))
+
+    async def mac_chart_sampling(self, symbol: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_chart_sampling", symbol))
+
+    async def mac_transactions(self, symbol: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_transactions", symbol, **kwargs))
+
+    async def mac_auction(self, symbol: Any, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_auction", symbol, **kwargs))
+
+    async def mac_unusual(self, market: int, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_unusual", market, **kwargs))
+
+    async def mac_server_info(self) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_server_info"))
+
+    async def mac_kline_offset(self, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_kline_offset", **kwargs))
+
+    async def mac_file_meta(self, filename: str, **kwargs: Any) -> dict[str, object]:
+        return dict(await asyncio.to_thread(self._call_sync, "mac_file_meta", filename, **kwargs))
+
+    async def mac_file_chunk(self, filename: str, **kwargs: Any) -> bytes:
+        return bytes(await asyncio.to_thread(self._call_sync, "mac_file_chunk", filename, **kwargs))
+
+    async def mac_file(self, filename: str, **kwargs: Any) -> bytes:
+        return bytes(await asyncio.to_thread(self._call_sync, "mac_file", filename, **kwargs))
+
+    async def mac_goods_list(self, market: int, **kwargs: Any) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "mac_goods_list", market, **kwargs))
 
     async def stock_count(self, market: int) -> int:
         return int(await asyncio.to_thread(self._call_sync, "stock_count", market))
@@ -2949,3 +3063,11 @@ def _validate_remote_filename(filename: str) -> str:
     if len(encoded) > 100:
         raise ValueError("filename must fit within 100 UTF-8 bytes")
     return normalized
+
+
+# Keep the native MAC methods discoverable on SyncClient itself.  The mixin is
+# deliberately private implementation plumbing, while the API inventory and
+# generated documentation inspect the concrete client class dictionary.
+for _mac_method_name in MAC_METHOD_NAMES:
+    if _mac_method_name not in SyncClient.__dict__:
+        setattr(SyncClient, _mac_method_name, getattr(MacClientMixin, _mac_method_name))

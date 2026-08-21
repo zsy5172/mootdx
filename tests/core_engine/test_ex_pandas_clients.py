@@ -36,6 +36,12 @@ EX_PANDAS_PUBLIC_API = {
     "transaction",
     "transactions",
     "bars_range",
+    "mac_quotes",
+    "mac_quotes_list",
+    "mac_bars",
+    "mac_tick_chart",
+    "mac_chart_sampling",
+    "mac_transactions",
 }
 
 

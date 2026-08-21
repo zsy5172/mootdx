@@ -132,6 +132,8 @@ from mootdx_next.limits import PriceLimit
 from mootdx_next.limits import PriceLimitRegistry
 from mootdx_next.limits import price_limit_snapshot
 from mootdx_next.protocol import ExQuoteProtocol
+from mootdx_next.protocol import MacExProtocol
+from mootdx_next.protocol import MacProtocol
 from mootdx_next.protocol import StdQuoteProtocol
 from mootdx_next.protocol import TRADING_PHASES
 from mootdx_next.parse import BaseParse
@@ -149,6 +151,7 @@ from mootdx_next.securities import security_snapshot
 from mootdx_next.symbols import resolve_stock_market
 from mootdx_next.symbols import resolve_stock_markets
 from mootdx_next.transport.socket_transport import SyncSocketTransport
+from mootdx_next.mac import MacAdjust, MacBoardType, MacCategory, MacField, MacFieldPreset, MacFieldSelection, MacFilter, MacPeriod, MacSortOrder, MacSortType
 from mootdx_next.trading_calendar import invalidate_trading_calendar
 from mootdx_next.trading_calendar import trading_calendar_snapshot
 from mootdx_next.trading_calendar import TradingCalendarRegistry
@@ -223,6 +226,18 @@ __all__ = [
     "ExMarket",
     "ExMarketRegistry",
     "ExQuoteProtocol",
+    "MacAdjust",
+    "MacBoardType",
+    "MacCategory",
+    "MacExProtocol",
+    "MacField",
+    "MacFieldPreset",
+    "MacFieldSelection",
+    "MacFilter",
+    "MacPeriod",
+    "MacProtocol",
+    "MacSortOrder",
+    "MacSortType",
     "ExSyncClient",
     "ex_candidate_snapshot",
     "ExtBarReader",

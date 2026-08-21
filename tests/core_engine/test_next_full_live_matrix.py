@@ -15,11 +15,14 @@ from mootdx.exceptions import MootdxValidationException
 from mootdx.quotes import Quotes
 from mootdx_next import AsyncClient
 from mootdx_next import CAPABILITY_FUND_FLOWS
+from mootdx_next import MacFieldPreset
 from mootdx_next import ServerEndpoint
 from mootdx_next import SyncClient
 from mootdx_next.analytics import forward_returns
 from mootdx_next.analytics import ma
 from mootdx_next.constants import FUND_FLOW_HOSTS
+from mootdx_next.constants import MAC_EX_HOSTS
+from mootdx_next.constants import MAC_HOSTS
 from mootdx_next.errors import ProtocolDecodeError
 from mootdx_next.session import is_trading_session
 
@@ -78,6 +81,80 @@ def live_fund_flow_client():
     client = SyncClient(servers=servers, max_retries=len(servers) - 2)
     yield client
     client.close()
+
+
+def _mac_servers() -> list[ServerEndpoint]:
+    return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in MAC_HOSTS]
+
+
+def _mac_ex_servers() -> list[ServerEndpoint]:
+    return [ServerEndpoint(host=host, port=port, label=label) for label, host, port in MAC_EX_HOSTS]
+
+
+@pytest.fixture(scope="module")
+def live_mac_client():
+    client = SyncClient(mac_servers=_mac_servers(), max_retries=2)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="module")
+def live_mac_ex_client():
+    from mootdx_next import ExSyncClient
+
+    client = ExSyncClient(mac_servers=_mac_ex_servers(), max_retries=1)
+    yield client
+    client.close()
+
+
+def test_live_mac_a_capability_matrix(live_mac_client: SyncClient) -> None:
+    quotes = live_mac_client.mac_quotes("sh600519", fields=MacFieldPreset.BASIC)
+    boards = live_mac_client.mac_board_list(count=2)
+    members = live_mac_client.mac_board_members("881001", count=2, fields=MacFieldPreset.FUND_FLOW)
+    capital = live_mac_client.mac_capital_flow("sh600519")
+    server_info = live_mac_client.mac_server_info()
+
+    assert quotes and {"market", "code", "name", "close", "vol"} <= set(quotes[0])
+    assert len(boards) <= 2
+    assert members and "main_net_5m_amount" in members[0]
+    assert capital and {"main_in", "main_out", "main_net"} <= set(capital[0])
+    assert server_info and server_info[0]["today"]
+    assert server_info[0]["sessions_1"][:2] == [
+        {"open": "9:30", "close": "11:30"},
+        {"open": "13:00", "close": "15:00"},
+    ]
+
+    paged_members = live_mac_client.mac_board_members(
+        "880001", count=90, fields=MacFieldPreset.BASIC
+    )
+    assert len(paged_members) == 90
+    assert len({(row.get("market"), row.get("code")) for row in paged_members}) == 90
+
+
+def test_live_mac_ex_login_and_quote_matrix(live_mac_ex_client) -> None:
+    rows = live_mac_ex_client.mac_quotes([(31, "00700")], fields=MacFieldPreset.BASIC)
+    bars = live_mac_ex_client.mac_bars(31, "00700", count=2)
+    ticks = live_mac_ex_client.mac_tick_chart(31, "00700")
+    transactions = live_mac_ex_client.mac_transactions(31, "00700", count=2)
+
+    assert rows and rows[0]["code"] == "00700"
+    assert bars and len(bars) <= 2
+    assert isinstance(ticks, list)
+    # The HK compatibility route legitimately returns no rows before the
+    # first trade of the session (and on holidays).  The capability check is
+    # therefore about shape, not whether the market currently has prints.
+    assert isinstance(transactions, list)
+    assert len(transactions) <= 2
+
+    listed = live_mac_ex_client.mac_quotes_list(
+        31, count=3, fields=MacFieldPreset.BASIC
+    )
+    assert len(listed) == 3
+    assert all(row.get("code") for row in listed)
+
+    paged_transactions = live_mac_ex_client.mac_transactions(31, "00700", count=1801)
+    assert isinstance(paged_transactions, list)
+    assert len(paged_transactions) <= 1801
 
 
 @pytest.mark.parametrize("market", [0, 1, 2])

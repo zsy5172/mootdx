@@ -112,6 +112,11 @@ SYNC_PUBLIC_API = {
     "f10_categories",
     "f10_content",
     "f10_content_range",
+    "mac_quotes", "mac_quotes_list", "mac_board_list", "mac_board_members",
+    "mac_belong_board", "mac_capital_flow", "mac_symbol_info", "mac_bars",
+    "mac_tick_chart", "mac_tick_charts", "mac_chart_sampling", "mac_transactions",
+    "mac_auction", "mac_unusual", "mac_server_info", "mac_kline_offset",
+    "mac_file_meta", "mac_file_chunk", "mac_file", "mac_goods_list",
 }
 
 ASYNC_PUBLIC_API = {
@@ -182,6 +187,11 @@ ASYNC_PUBLIC_API = {
     "f10_categories",
     "f10_content",
     "f10_content_range",
+    "mac_quotes", "mac_quotes_list", "mac_board_list", "mac_board_members",
+    "mac_belong_board", "mac_capital_flow", "mac_symbol_info", "mac_bars",
+    "mac_tick_chart", "mac_tick_charts", "mac_chart_sampling", "mac_transactions",
+    "mac_auction", "mac_unusual", "mac_server_info", "mac_kline_offset",
+    "mac_file_meta", "mac_file_chunk", "mac_file", "mac_goods_list",
 }
 
 PANDAS_PUBLIC_API = {
@@ -261,6 +271,11 @@ PANDAS_PUBLIC_API = {
     "get_k_data",
     "k",
     "ohlc",
+    "mac_quotes", "mac_quotes_list", "mac_board_list", "mac_board_members",
+    "mac_belong_board", "mac_capital_flow", "mac_symbol_info", "mac_bars",
+    "mac_tick_chart", "mac_tick_charts", "mac_chart_sampling", "mac_transactions",
+    "mac_auction", "mac_unusual", "mac_server_info", "mac_kline_offset",
+    "mac_goods_list", "mac_file_meta", "mac_file_chunk", "mac_file",
 }
 
 
@@ -396,6 +411,18 @@ def _matrix_client() -> tuple[SyncClient, MatrixProtocol, MatrixTransport]:
     return client, protocol, transport
 
 
+def _matrix_mac_client() -> tuple[SyncClient, MatrixProtocol, MatrixTransport, RecordingScheduler]:
+    client, _, _ = _matrix_client()
+    protocol = MatrixProtocol()
+    transport = MatrixTransport()
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    client._mac_protocol = protocol
+    client._mac_connection_pool = pool
+    client._mac_scheduler = scheduler
+    return client, protocol, transport, scheduler
+
+
 @dataclass(frozen=True)
 class SyncCallCase:
     method: str
@@ -509,6 +536,43 @@ def test_sync_client_executes_every_business_api(case: SyncCallCase) -> None:
     getattr(client, case.method)(**case.kwargs)
 
     assert tuple(api for api, _ in protocol.encode_calls) == case.protocol_apis
+
+
+def test_mac_matrix_routes_through_independent_transport_and_capability() -> None:
+    client, protocol, transport, _scheduler = _matrix_mac_client()
+
+    assert client.request("mac_board_members", block="881001") == []
+    assert [api for api, _ in protocol.encode_calls] == ["mac_board_members"]
+    assert transport.contexts[0].required_capabilities == frozenset({"mac_a"})
+    assert transport.contexts[0].api == "mac_board_members"
+
+
+def test_mac_matrix_preserves_field_selection_argument() -> None:
+    client, protocol, _transport, _scheduler = _matrix_mac_client()
+
+    fields = object()
+    client.mac_quotes("sh600519", fields=fields)
+
+    assert protocol.encode_calls[0][0] == "mac_quotes"
+    assert protocol.encode_calls[0][1]["fields"] is fields
+
+
+def test_mac_matrix_uses_independent_ex_capability_route() -> None:
+    protocol = MatrixProtocol()
+    transport = MatrixTransport()
+    pool = RecordingConnectionPool(transport)
+    scheduler = RecordingScheduler(server=pool.server)
+    from mootdx_next.api.ex_clients import ExSyncClient
+
+    client = ExSyncClient(
+        protocol=protocol,
+        mac_connection_pool=pool,
+        mac_scheduler=scheduler,
+    )
+    client.mac_quotes([(31, "00700")])
+
+    assert transport.contexts[0].required_capabilities == frozenset({"mac_ex"})
+    assert transport.contexts[0].api == "mac_ex_quotes"
 
 
 def test_sync_iter_transactions_executes_when_consumed() -> None:
