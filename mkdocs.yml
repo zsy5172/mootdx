@@ -20,6 +20,7 @@ nav:
 
   - 行情接口:
     - 标准行情: api/quote1.md
+    - MAC 协议: mac.md
     - 扩展行情: api/quote2.md
     - 数据读取: api/reader.md
     - 财务数据: api/affair.md

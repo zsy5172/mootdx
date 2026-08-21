@@ -619,6 +619,16 @@ leaders = snapshot.sort_values('amount', ascending=False)
 09:25 竞价阶段尚未生成资金扩展等情况。每行同时标记 `quote_source='tdx_0x054c_mode1'`。网络、解码和
 capability 路由失败仍会明确报错。
 
+历史资金流是另一个上游命令，不与当日资金扩展混用：
+
+```python
+history = client.historical_fund_flows('sh600036', start=0, count=30)
+```
+
+`historical_fund_flows()` 对应 Category 22 / `0x052D`，返回日期以及超大单、大单、中单、小单的流入、
+流出金额，并标记 `source='tdx_category_22'`。接口只表达服务器原始数据；某个节点返回空结果时会在
+客户端重试预算内尝试其他标准行情节点，全部为空时返回空结果，不会自动用历史逐笔成交重算并混入。
+
 如需按板块流通市值计算比率，调用者可单独取得 `tdx_block_base()` 并按 `market` 和 `code` 连接：
 
 - `net_buy_rate = main_buy_amount / circulating_market_cap * 100`
