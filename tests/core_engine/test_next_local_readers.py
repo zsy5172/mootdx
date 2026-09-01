@@ -7,6 +7,7 @@ import pytest
 
 from mootdx_next import BaseParse
 from mootdx_next import Customize
+from mootdx_next import ExtBarReader
 from mootdx_next import LocalFileFormatError
 from mootdx_next import Reader
 from mootdx_next import StdDailyBarReader
@@ -37,6 +38,40 @@ def test_ext_reader_local_files_work_without_legacy_reader() -> None:
 
     minute = reader.minute(symbol="4#CF7D0LAO")
     assert minute is None
+
+
+def test_ext_daily_reader_preserves_float_amount_and_integer_volume(tmp_path) -> None:
+    path = tmp_path / "4#CF7D0LAO.day"
+    path.write_bytes(
+        struct.pack(
+            "<IfffffIf",
+            20230911,
+            102.5,
+            105.0,
+            101.0,
+            104.0,
+            186871758848.0,
+            105358016,
+            103.5,
+        )
+    )
+
+    frame = ExtBarReader().get_df(path)
+
+    assert list(frame.columns) == [
+        "open",
+        "high",
+        "low",
+        "close",
+        "amount",
+        "volume",
+        "jiesuan",
+    ]
+    assert frame.loc[pd.Timestamp("2023-09-11"), "amount"] == pytest.approx(
+        186871758848.0
+    )
+    assert frame.loc[pd.Timestamp("2023-09-11"), "volume"] == 105358016
+    assert frame.loc[pd.Timestamp("2023-09-11"), "jiesuan"] == pytest.approx(103.5)
 
 
 def test_reader_accepts_tdx_root_or_vipdoc_path() -> None:

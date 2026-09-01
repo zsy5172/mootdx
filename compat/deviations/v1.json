@@ -19,6 +19,26 @@
       "status": "accepted"
     },
     {
+      "id": "ext-daily-wire-format",
+      "apis": ["reader.daily"],
+      "case_ids": ["ext_daily"],
+      "legacy_behavior": "The amount slot is decoded as uint32 and its bits are exposed a second time as the synthetic hk_stock_amount column.",
+      "next_behavior": "The official 32-byte extension-market daily record is decoded as <IfffffIf: float32 amount, uint32 volume and float32 settlement, without a synthetic hk_stock_amount column.",
+      "rationale": "The sixth wire value is the traded amount itself; interpreting the same bits twice produces invalid values and shifts the public schema away from the upstream record.",
+      "evidence": [
+        "The TDX extension-market daily record is 32 bytes and uses float32 for amount at slot six.",
+        "easy_tdx 1.23.3 corrected its ExtBarReader to the same <IfffffIf layout."
+      ],
+      "regression_tests": ["tests/core_engine/test_next_local_readers.py"],
+      "allowed_paths": [
+        "result.columns",
+        "result.first_records",
+        "result.last_records",
+        "result.sha256"
+      ],
+      "status": "accepted"
+    },
+    {
       "id": "historical-kline-date-pagination",
       "apis": ["get_k_data", "k", "ohlc"],
       "case_ids": ["historical_date_window"],

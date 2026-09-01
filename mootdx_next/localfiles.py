@@ -238,21 +238,20 @@ class ExtBarReader(_BinaryReader):
         if not path.is_file():
             raise LocalFileNotFoundError(f"no tdx kline data, please check path {path}")
 
-        return self.unpack_records("<IffffIIf", path.read_bytes())
+        return self.unpack_records("<IfffffIf", path.read_bytes())
 
     def get_df(self, filename: str | Path) -> pd.DataFrame:
-        columns = ["date", "open", "high", "low", "close", "amount", "volume", "jiesuan", "hk_stock_amount"]
+        columns = ["date", "open", "high", "low", "close", "amount", "volume", "jiesuan"]
         data = [self._convert_row(row) for row in self.parse_data_by_file(filename)]
         df = pd.DataFrame(data=data, columns=columns)
         df.index = pd.to_datetime(df.date)
-        return df[["open", "high", "low", "close", "amount", "volume", "jiesuan", "hk_stock_amount"]]
+        return df[["open", "high", "low", "close", "amount", "volume", "jiesuan"]]
 
     @staticmethod
     def _convert_row(row):
         t_date = str(row[0])
         datestr = f"{t_date[:4]}-{t_date[4:6]}-{t_date[6:]}"
-        (hk_stock_amount,) = struct.unpack("<f", struct.pack("<I", row[5]))
-        return (datestr, row[1], row[2], row[3], row[4], row[5], row[6], row[7], hk_stock_amount)
+        return (datestr, row[1], row[2], row[3], row[4], row[5], row[6], row[7])
 
 
 class BlockReader:

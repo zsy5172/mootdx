@@ -14,6 +14,7 @@ def test_committed_deviation_registry_is_valid_and_pins_baseline() -> None:
     assert registry.version == 1
     assert registry.baseline == {"python": "3.11", "mootdx": "0.11.7", "tdxpy": "0.2.7"}
     assert registry.require("historical-kline-date-pagination").status == "accepted"
+    assert registry.require("ext-daily-wire-format").status == "accepted"
     assert registry.require("trading-phase-field").status == "accepted"
 
 

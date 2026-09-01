@@ -40,6 +40,10 @@ reader = Reader.factory(market='ext', tdxdir='c:/new_tdx')
 reader.daily(symbol='29#A1801')
 ```
 
+next 引擎按通达信扩展市场日线的 32 字节原始结构解析：`amount` 是 float32，
+`volume` 是 uint32，`jiesuan` 是 float32。旧版本把 `amount` 的原始位模式重复解释成
+`hk_stock_amount`；该字段没有独立的上游数据槽，现已移除。
+
 ## 03. 历史分钟数据
 
 > 读取分钟K线（目前支持1，5分钟k线）

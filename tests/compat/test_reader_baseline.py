@@ -12,6 +12,7 @@ from compat.reader_matrix import READER_CASES
 ROOT = Path(__file__).resolve().parents[2]
 BASELINES = ROOT / "compat" / "reader_baselines" / "v1"
 FIXTURES = ROOT / "tests" / "fixtures"
+READER_DEVIATIONS = {"ext_daily": "ext-daily-wire-format"}
 
 
 @pytest.mark.parametrize("case", READER_CASES, ids=lambda case: case.case_id)
@@ -19,4 +20,12 @@ def test_next_reader_matches_python311_mootdx0117_baseline(case) -> None:
     expected = load_json(BASELINES / f"{case.case_id}.json")
     actual = capture_reader_case(case, runtime="next", tdxdir=FIXTURES)
 
-    assert compare_payloads(expected, actual, "scalar_exact") == []
+    assert (
+        compare_payloads(
+            expected,
+            actual,
+            "scalar_exact",
+            deviation_id=READER_DEVIATIONS.get(case.case_id),
+        )
+        == []
+    )
