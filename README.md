@@ -373,16 +373,6 @@ client.stock_statistics2()
 `fund_extension_available=False`、`fund_extension_status='unavailable'`，不会误判节点故障或切换节点。
 每行同时标记 `quote_source='tdx_0x054c_mode1'`。网络、解码和 capability 路由失败仍会明确报错。
 
-历史日线资金流使用独立的标准协议接口：
-
-```python
-history = client.historical_fund_flows('sh600036', start=0, count=30)
-```
-
-`historical_fund_flows()` 对应 Category 22 / `0x052D`，只返回上游的超大单、大单、中单、小单流入流出，
-并标记 `source='tdx_category_22'`。空结果会在重试预算内切换标准行情节点；所有节点均为空时返回空列表，
-不会把逐笔成交本地推算的数据伪装成服务器原始结果。
-
 如需主力净比或净买率，可单独调用 `tdx_block_base()`，按 `market` 和 `code` 与资金流结果连接后计算：
 
 - `main_force_net_ratio = main_net_amount / circulating_market_cap * 100`

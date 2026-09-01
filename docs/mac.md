@@ -50,6 +50,5 @@ MAC `0x122B`。MAC `0x2562` 的 `mac_goods_list()` 仅由 A 股 MAC 客户端原
 品种目录，也不在 Ex 客户端上注册。
 
 标准 `fund_flows()` 使用的是 `0x054C` 当日资金扩展，不等同于
-`mac_capital_flow()`。标准客户端另提供 `historical_fund_flows()`，直接读取 Category 22 / `0x052D`
-历史日线资金流。该接口只返回服务器原始数据并标记 `source='tdx_category_22'`；服务器返回空数据时
-会尝试其他行情节点，但不会无声混入逐笔成交推算值。
+`mac_capital_flow()`。当前尚未确认标准行情服务器存在可用的历史日线资金流原始命令；
+Category 22 / `0x052D` 在实测节点上只返回空响应，因此 next 引擎不对外暴露该接口。
