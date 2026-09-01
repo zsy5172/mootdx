@@ -14,6 +14,7 @@ from mootdx_next.errors import (
 )
 from mootdx_next.mac.types import (
     MacAdjust,
+    MacBoardSortColumn,
     MacBoardType,
     MacCategory,
     MacFieldSelection,
@@ -209,10 +210,21 @@ class MacClientMixin:
             page_size=80,
         )
 
-    def mac_board_list(self, board_type: MacBoardType = MacBoardType.ALL, *, start: int = 0, count: int = 150) -> list[dict[str, object]]:
+    def mac_board_list(
+        self,
+        board_type: MacBoardType = MacBoardType.ALL,
+        *,
+        start: int = 0,
+        count: int = 150,
+        sort_column: MacBoardSortColumn = MacBoardSortColumn.CHANGE_PCT,
+    ) -> list[dict[str, object]]:
         return self._collect_mac_pages(
             lambda offset, size: self._mac_request(
-                "mac_board_list", board_type=board_type, start=offset, count=size
+                "mac_board_list",
+                board_type=board_type,
+                start=offset,
+                count=size,
+                sort_column=sort_column,
             ),
             start=start,
             count=count,

@@ -22,6 +22,10 @@ MAC 返回的是服务器提供的动态报价字段；板块汇总和排名应�
 是本地板块目录，`mac_board_list()` 则是实时 MAC 板块目录，两者不保证数量和
 更新时间一致。
 
+`mac_board_list()` 的 `sort_column` 使用独立的 `MacBoardSortColumn` 枚举，支持涨幅、
+涨速、3/5/10/20/60 日涨幅和年初至今涨幅。返回记录中的 `sort_value` 与
+`symbol_sort_value` 表示当前所选排序列的值，并不固定表示涨速。
+
 常用接口包括：
 
 * `mac_quotes()` / `mac_quotes_list()`：动态字段报价和分类排行；

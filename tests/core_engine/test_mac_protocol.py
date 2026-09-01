@@ -4,7 +4,12 @@ import struct
 
 import pytest
 
-from mootdx_next.mac import MacField, MacFieldPreset, MacFieldSelection
+from mootdx_next.mac import (
+    MacBoardSortColumn,
+    MacField,
+    MacFieldPreset,
+    MacFieldSelection,
+)
 from mootdx_next.models import RequestContext, ResponseEnvelope, ServerEndpoint
 from mootdx_next.protocol.mac import MacExProtocol, MacProtocol, build_mac_request
 from mootdx_next.transport.constants import MAC_EX_LOGIN_PAYLOAD
@@ -153,6 +158,42 @@ def test_mac_command_message_ids_are_stable() -> None:
     for api, kwargs, expected in cases:
         payload = protocol.encode(api, **kwargs)
         assert struct.unpack_from("<H", payload, 10)[0] == expected
+
+
+def test_mac_board_list_encodes_requested_sort_column() -> None:
+    payload = MacProtocol().encode(
+        "mac_board_list", sort_column=MacBoardSortColumn.CHANGE_10D
+    )
+
+    assert payload[16] == MacBoardSortColumn.CHANGE_10D
+
+
+def test_mac_board_list_sort_values_follow_requested_column() -> None:
+    row = struct.pack(
+        "<H6s16s44sfffH6s16s44sfff",
+        1,
+        b"880001",
+        b"",
+        "行业板块".encode("gbk"),
+        1234.5,
+        6.25,
+        1200.0,
+        1,
+        b"600519",
+        b"",
+        "贵州茅台".encode("gbk"),
+        1500.0,
+        4.5,
+        1490.0,
+    )
+    decoded = MacProtocol().decode(
+        "mac_board_list", ResponseEnvelope(body=struct.pack("<HH", 2, 1) + row)
+    )
+
+    assert decoded[0]["sort_value"] == pytest.approx(6.25)
+    assert decoded[0]["symbol_sort_value"] == pytest.approx(4.5)
+    assert "rise_speed" not in decoded[0]
+    assert "symbol_rise_speed" not in decoded[0]
 
 
 def test_mac_binary_decoders_cover_market_data_commands() -> None:

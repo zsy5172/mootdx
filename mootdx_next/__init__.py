@@ -161,7 +161,19 @@ from mootdx_next.securities import security_snapshot
 from mootdx_next.symbols import resolve_stock_market
 from mootdx_next.symbols import resolve_stock_markets
 from mootdx_next.transport.socket_transport import SyncSocketTransport
-from mootdx_next.mac import MacAdjust, MacBoardType, MacCategory, MacField, MacFieldPreset, MacFieldSelection, MacFilter, MacPeriod, MacSortOrder, MacSortType
+from mootdx_next.mac import (
+    MacAdjust,
+    MacBoardSortColumn,
+    MacBoardType,
+    MacCategory,
+    MacField,
+    MacFieldPreset,
+    MacFieldSelection,
+    MacFilter,
+    MacPeriod,
+    MacSortOrder,
+    MacSortType,
+)
 from mootdx_next.trading_calendar import invalidate_trading_calendar
 from mootdx_next.trading_calendar import trading_calendar_snapshot
 from mootdx_next.trading_calendar import TradingCalendarRegistry
@@ -245,6 +257,7 @@ __all__ = [
     "ExMarketRegistry",
     "ExQuoteProtocol",
     "MacAdjust",
+    "MacBoardSortColumn",
     "MacBoardType",
     "MacCategory",
     "MacExProtocol",

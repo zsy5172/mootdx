@@ -70,6 +70,19 @@ class MacBoardType(IntEnum):
     ALL = 255
 
 
+class MacBoardSortColumn(IntEnum):
+    """Sort columns supported by the MAC 0x1231 board-list command."""
+
+    CHANGE_PCT = 0
+    SPEED = 1
+    CHANGE_3D = 2
+    CHANGE_20D = 3
+    CHANGE_60D = 4
+    YTD = 5
+    CHANGE_5D = 6
+    CHANGE_10D = 7
+
+
 class MacSortType(IntEnum):
     CODE = 0x00
     NAME = 0x01

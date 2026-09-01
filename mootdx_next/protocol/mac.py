@@ -16,6 +16,7 @@ from mootdx_next.errors import ProtocolDecodeError, ProtocolEncodeError
 from mootdx_next.interfaces import AbstractProtocol
 from mootdx_next.mac.types import (
     MacAdjust,
+    MacBoardSortColumn,
     MacBoardType,
     MacField,
     MacPeriod,
@@ -176,8 +177,13 @@ class MacProtocol(AbstractProtocol):
             return build_mac_request(0x122C, body, head_flag=self.head_flag)
         if api == "mac_board_list":
             body = struct.pack(
-                "<HHBBHH8x", int(kwargs.get("count", 150)), int(kwargs.get("board_type", MacBoardType.ALL)),
-                0, 0, int(kwargs.get("start", 0)), 1,
+                "<HHBBHH8x",
+                int(kwargs.get("count", 150)),
+                int(kwargs.get("board_type", MacBoardType.ALL)),
+                int(kwargs.get("sort_column", MacBoardSortColumn.CHANGE_PCT)),
+                0,
+                int(kwargs.get("start", 0)),
+                1,
             )
             return build_mac_request(0x1231, body, head_flag=self.head_flag)
         if api in {"mac_belong_board", "mac_capital_flow"}:
@@ -354,13 +360,22 @@ class MacProtocol(AbstractProtocol):
         rows = []
         for i in range(min(count_all // 2, (len(body) - 4) // row_fmt.size)):
             values = row_fmt.unpack_from(body, 4 + i * row_fmt.size)
-            rows.append({
-                "market": values[0], "code": _decode_text(values[1]), "name": _decode_text(values[3]),
-                "price": values[4], "rise_speed": values[5], "pre_close": values[6],
-                "symbol_market": values[7], "symbol_code": _decode_text(values[8]),
-                "symbol_name": _decode_text(values[10]), "symbol_price": values[11],
-                "symbol_rise_speed": values[12], "symbol_pre_close": values[13],
-            })
+            rows.append(
+                {
+                    "market": values[0],
+                    "code": _decode_text(values[1]),
+                    "name": _decode_text(values[3]),
+                    "price": values[4],
+                    "sort_value": values[5],
+                    "pre_close": values[6],
+                    "symbol_market": values[7],
+                    "symbol_code": _decode_text(values[8]),
+                    "symbol_name": _decode_text(values[10]),
+                    "symbol_price": values[11],
+                    "symbol_sort_value": values[12],
+                    "symbol_pre_close": values[13],
+                }
+            )
         return rows
 
     @staticmethod

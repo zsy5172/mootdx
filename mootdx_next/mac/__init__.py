@@ -2,6 +2,7 @@
 
 from mootdx_next.mac.types import (
     MacAdjust,
+    MacBoardSortColumn,
     MacBoardType,
     MacCategory,
     MacField,
@@ -15,6 +16,7 @@ from mootdx_next.mac.types import (
 
 __all__ = [
     "MacAdjust",
+    "MacBoardSortColumn",
     "MacBoardType",
     "MacCategory",
     "MacField",
