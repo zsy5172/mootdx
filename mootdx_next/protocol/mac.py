@@ -22,6 +22,7 @@ from mootdx_next.mac.types import (
     MacPeriod,
     MacSortOrder,
     MacSortType,
+    UNUSUAL_TYPE_NAMES,
     active_mac_fields,
     mac_field_value,
     normalize_mac_fields,
@@ -98,7 +99,7 @@ def _json_body(body: bytes, offset: int = 27) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _describe_unusual(unusual_type: int, data: bytes) -> tuple[str, str]:
+def _describe_unusual(unusual_type: int, data: bytes, hour: int = 9) -> tuple[str, str]:
     """Decode the compact value payload used by 0x1237 descriptions."""
 
     if len(data) < 13:
@@ -125,7 +126,7 @@ def _describe_unusual(unusual_type: int, data: bytes) -> tuple[str, str]:
     if unusual_type == 0x12:
         return "大单锁盘", ""
     if unusual_type == 0x13:
-        return "竞价试买", f"{v2:.2f}/{v3:.2f}"
+        return "竞价试卖" if v1 == 0x01 else "竞价试买", f"{v2:.2f}/{v3:.0f}手"
     if unusual_type == 0x14:
         direction = "涨" if v1 == 0 else "跌"
         # Type 0x14 uses a subtype byte followed by two floats instead of the
@@ -139,6 +140,16 @@ def _describe_unusual(unusual_type: int, data: bytes) -> tuple[str, str]:
             0x05: f"打开{direction}停",
         }
         return descriptions.get(subtype, f"涨跌停({direction})"), f"{value_1:.2f}/{value_2:.2f}"
+    if unusual_type == 0x15:
+        stage = "竞价" if hour < 12 else "尾盘"
+        direction = {0x01: "平稳", 0x02: "拉升", 0x03: "下跌"}.get(v1, "异动")
+        return f"{stage}{direction}", f"{v2 * 100:.2f}%/{v3:.0f}手"
+    if unusual_type == 0x16:
+        return "盘中强势" if v2 >= 0 else "盘中弱势", f"{v2 * 100:.2f}%"
+    if unusual_type == 0x1D:
+        return "急速拉升", f"{v2 * 100:.2f}%"
+    if unusual_type == 0x1E:
+        return "急速下跌", f"{v2 * 100:.2f}%"
     return f"异动类型{unusual_type:#04x}", ""
 
 
@@ -552,7 +563,11 @@ class MacProtocol(AbstractProtocol):
             pos = 2 + i * 32
             market, code, _pad1, unusual_type, _pad2, index, _z = struct.unpack_from("<H6sBBBHH", body, pos)
             hour, minute_second = struct.unpack_from("<BH", body, pos + 29)
-            description, value = _describe_unusual(unusual_type, body[pos + 15 : pos + 28])
+            description, value = _describe_unusual(
+                unusual_type,
+                body[pos + 15 : pos + 28],
+                hour=hour,
+            )
             rows.append({
                 "index": index,
                 "market": market,
@@ -560,6 +575,7 @@ class MacProtocol(AbstractProtocol):
                 "name": "",
                 "time": time(hour, minute_second // 100, minute_second % 100),
                 "unusual_type": unusual_type,
+                "unusual_type_name": UNUSUAL_TYPE_NAMES.get(unusual_type),
                 "description": description,
                 "value": value,
                 "raw": body[pos:pos + 32],

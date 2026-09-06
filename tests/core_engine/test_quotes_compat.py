@@ -24,6 +24,7 @@ class DummyNextClient:
     def __init__(self) -> None:
         self.closed = False
         self.last_bars_call: dict[str, object] | None = None
+        self.last_minute_call: dict[str, object] | None = None
         self.last_minutes_call: dict[str, object] | None = None
         self.last_index_bars_call: dict[str, object] | None = None
 
@@ -118,6 +119,13 @@ class DummyNextClient:
     def minutes(self, symbol: str, date: str | int):
         self.last_minutes_call = {"symbol": symbol, "date": str(date)}
         return [{"price": 10.0, "vol": 100, "date": str(date)}]
+
+    def minute(self, symbol: str):
+        self.last_minute_call = {"symbol": symbol}
+        return [{"price": 10.0, "vol": 100, "datetime": "2026-09-04 09:31"}]
+
+    def latest_minutes(self, symbol: str):
+        return self.minute(symbol)
 
     def call_auction(self, symbol: str):
         return [
@@ -343,14 +351,16 @@ def test_next_bars_clamps_offset() -> None:
     assert client.client.last_bars_call["offset"] == 800
 
 
-def test_next_minute_matches_minutes_today() -> None:
+def test_next_minute_and_minutes_keep_current_and_history_routes_separate() -> None:
     client = _client()
     today = datetime.now().strftime("%Y%m%d")
 
     data0 = client.minute(symbol="000001")
     data1 = client.minutes(symbol="000001", date=today)
 
-    assert data0.equals(data1)
+    assert not data0.empty
+    assert not data1.empty
+    assert client.client.last_minute_call == {"symbol": "000001"}
     assert client.client.last_minutes_call == {"symbol": "000001", "date": today}
 
 

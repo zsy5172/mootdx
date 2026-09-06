@@ -539,8 +539,32 @@ class PandasClient:
         return pd.concat([self.stocks(market) for market in normalized_markets], ignore_index=True)
 
     def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
-        today = datetime.now().strftime("%Y%m%d")
-        return self.minutes(symbol=symbol, date=today, **kwargs)
+        adjust = normalize_adjustment(kwargs.pop("adjust", None))
+        try:
+            data = minutes_to_frame(self.client.minute(str(symbol)))
+            if adjust:
+                data = self._adjustments.apply(
+                    data,
+                    str(symbol),
+                    adjust,
+                    as_of=datetime.now().strftime("%Y%m%d"),
+                )
+            return data
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    def latest_minutes(self, symbol=None, **kwargs) -> pd.DataFrame:
+        adjust = normalize_adjustment(kwargs.pop("adjust", None))
+        try:
+            data = minutes_to_frame(self.client.latest_minutes(str(symbol)))
+            if adjust:
+                as_of = datetime.now().strftime("%Y%m%d")
+                if not data.empty and "datetime" in data.columns:
+                    as_of = str(data.iloc[0]["datetime"])[:10].replace("-", "")
+                data = self._adjustments.apply(data, str(symbol), adjust, as_of=as_of)
+            return data
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
 
     def call_auction(self, symbol="", **kwargs) -> pd.DataFrame:
         try:
@@ -1431,8 +1455,32 @@ class AsyncPandasClient:
         return pd.concat(frames, ignore_index=True)
 
     async def minute(self, symbol=None, **kwargs) -> pd.DataFrame:
-        today = datetime.now().strftime("%Y%m%d")
-        return await self.minutes(symbol=symbol, date=today, **kwargs)
+        adjust = normalize_adjustment(kwargs.pop("adjust", None))
+        try:
+            data = minutes_to_frame(await self.client.minute(str(symbol)))
+            if adjust:
+                data = await self._adjustments.apply(
+                    data,
+                    str(symbol),
+                    adjust,
+                    as_of=datetime.now().strftime("%Y%m%d"),
+                )
+            return data
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
+
+    async def latest_minutes(self, symbol=None, **kwargs) -> pd.DataFrame:
+        adjust = normalize_adjustment(kwargs.pop("adjust", None))
+        try:
+            data = minutes_to_frame(await self.client.latest_minutes(str(symbol)))
+            if adjust:
+                as_of = datetime.now().strftime("%Y%m%d")
+                if not data.empty and "datetime" in data.columns:
+                    as_of = str(data.iloc[0]["datetime"])[:10].replace("-", "")
+                data = await self._adjustments.apply(data, str(symbol), adjust, as_of=as_of)
+            return data
+        except VALIDATION_ERRORS as exc:
+            self._raise_mapped(exc)
 
     async def call_auction(self, symbol="", **kwargs) -> pd.DataFrame:
         try:

@@ -72,6 +72,7 @@ SYNC_PUBLIC_API = {
     "index_bars_all",
     "minutes",
     "minute",
+    "latest_minutes",
     "call_auction",
     "transaction",
     "transaction_all",
@@ -145,6 +146,7 @@ ASYNC_PUBLIC_API = {
     "minute_bars_241_all",
     "minutes",
     "minute",
+    "latest_minutes",
     "call_auction",
     "transaction",
     "transaction_all",
@@ -223,6 +225,7 @@ PANDAS_PUBLIC_API = {
     "index_codes",
     "stock_all",
     "minute",
+    "latest_minutes",
     "call_auction",
     "minutes",
     "transaction",
@@ -479,7 +482,12 @@ SYNC_CALL_CASES = (
         ("index_bars",),
     ),
     SyncCallCase("minutes", {"symbol": "sz000001", "date": "2017-10-10"}, ("minutes",)),
-    SyncCallCase("minute", {"symbol": "000001"}, ("minutes",)),
+    SyncCallCase("minute", {"symbol": "000001"}, ("minute",)),
+    SyncCallCase(
+        "latest_minutes",
+        {"symbol": "000001"},
+        ("bars", "index_bars", "minutes"),
+    ),
     SyncCallCase("transaction", {"symbol": "600036", "start": 1, "offset": 1}, ("transaction",)),
     SyncCallCase("transaction_all", {"symbol": "600036"}, ("transaction",)),
     SyncCallCase(
@@ -918,6 +926,7 @@ ASYNC_CALL_CASES = (
     ),
     AsyncCallCase("minutes", ("600036", "2017-10-10"), {}, "minutes", ("600036", "2017-10-10"), {}),
     AsyncCallCase("minute", ("600036",), {}, "minute", ("600036",), {}),
+    AsyncCallCase("latest_minutes", ("600036",), {}, "latest_minutes", ("600036",), {}),
     AsyncCallCase("transaction", ("600036", 20, 15), {}, "transaction", ("600036", 20, 15), {}),
     AsyncCallCase(
         "transaction_all",
@@ -1218,6 +1227,12 @@ class FacadeRecorder:
     def minutes(self, symbol, date):
         return [{"date": f"{date} 09:30", "price": 10.0}]
 
+    def minute(self, symbol):
+        return [{"datetime": "2026-09-04 09:31", "price": 10.0}]
+
+    def latest_minutes(self, symbol):
+        return [{"datetime": "2026-09-04 09:31", "price": 10.0}]
+
     def transaction(self, symbol, start=0, offset=800):
         return [{"time": "09:30", "price": 10.0, "vol": 1}]
 
@@ -1383,6 +1398,7 @@ FACADE_CASES = (
     FacadeCase("index_codes", {}, list),
     FacadeCase("stock_all", {}, pd.DataFrame),
     FacadeCase("minute", {"symbol": "600036"}, pd.DataFrame),
+    FacadeCase("latest_minutes", {"symbol": "600036"}, pd.DataFrame),
     FacadeCase("minutes", {"symbol": "600036", "date": "2017-10-10"}, pd.DataFrame),
     FacadeCase("transaction", {"symbol": "600036", "start": 20, "offset": 15}, pd.DataFrame),
     FacadeCase("transaction_all", {"symbol": "600036", "max_pages": 1}, pd.DataFrame),

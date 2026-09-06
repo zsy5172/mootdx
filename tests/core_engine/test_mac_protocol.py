@@ -9,6 +9,7 @@ from mootdx_next.mac import (
     MacField,
     MacFieldPreset,
     MacFieldSelection,
+    UNUSUAL_TYPE_NAMES,
 )
 from mootdx_next.models import RequestContext, ResponseEnvelope, ServerEndpoint
 from mootdx_next.protocol.mac import MacExProtocol, MacProtocol, build_mac_request
@@ -227,6 +228,7 @@ def test_mac_binary_decoders_cover_market_data_commands() -> None:
         ResponseEnvelope(body=struct.pack("<H", 1) + unusual_row + ",贵州茅台".encode("gbk")),
     )
     assert unusual[0]["description"] == "单笔冲涨"
+    assert unusual[0]["unusual_type_name"] == "单笔冲涨跌"
     assert unusual[0]["name"] == "贵州茅台"
 
     limit_row = struct.pack("<H6sBBBHH", 1, b"600519", 0, 0x14, 0, 7, 0)
@@ -266,6 +268,46 @@ def test_mac_binary_decoders_cover_market_data_commands() -> None:
     goods_row = struct.pack("<H23sHIBfffHH", 31, b"00700\x00" + b"\x00" * 18, 1, 2, 1, 1.0, 2.0, 3.0, 4, 5)
     goods = protocol.decode("mac_goods_list", ResponseEnvelope(body=struct.pack("<H", 1) + goods_row))
     assert goods[0]["name"] == "00700"
+
+
+@pytest.mark.parametrize(
+    ("unusual_type", "data_hex", "hour", "description", "value"),
+    [
+        (0x13, "0152b8ce400000c94300000000", 9, "竞价试卖", "6.46/402手"),
+        (0x15, "030c9846bc003e1d4700000000", 9, "竞价下跌", "-1.21%/40254手"),
+        (0x15, "027bb4dd3b0004a84500000000", 15, "尾盘拉升", "0.68%/5376手"),
+        (0x16, "010f506e3dcb846e3d00000000", 9, "盘中强势", "5.82%"),
+        (0x1D, "009d50843c0000000000000000", 9, "急速拉升", "1.62%"),
+        (0x1E, "019cd393bc0000000000000000", 9, "急速下跌", "-1.80%"),
+    ],
+)
+def test_mac_unusual_decodes_confirmed_live_payloads(
+    unusual_type: int,
+    data_hex: str,
+    hour: int,
+    description: str,
+    value: str,
+) -> None:
+    row = struct.pack("<H6sBBBHH", 1, b"600519", 0, unusual_type, 0, 7, 0)
+    row += bytes.fromhex(data_hex)
+    row += b"\x00" + struct.pack("<BH", hour, 2530)
+
+    decoded = MacProtocol().decode(
+        "mac_unusual",
+        ResponseEnvelope(body=struct.pack("<H", 1) + row + ",贵州茅台".encode("gbk")),
+    )
+
+    assert len(row) == 32
+    assert decoded[0]["description"] == description
+    assert decoded[0]["value"] == value
+    assert decoded[0]["unusual_type_name"] == UNUSUAL_TYPE_NAMES[unusual_type]
+
+
+def test_unusual_type_names_are_exported_from_top_level() -> None:
+    from mootdx_next import UNUSUAL_TYPE_NAMES as exported
+
+    assert exported is UNUSUAL_TYPE_NAMES
+    assert len(exported) == 19
 
 
 def test_mac_client_pages_lists_bars_and_transactions_without_truncation(monkeypatch) -> None:

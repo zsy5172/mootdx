@@ -173,6 +173,7 @@ from mootdx_next.mac import (
     MacPeriod,
     MacSortOrder,
     MacSortType,
+    UNUSUAL_TYPE_NAMES,
 )
 from mootdx_next.trading_calendar import invalidate_trading_calendar
 from mootdx_next.trading_calendar import trading_calendar_snapshot
@@ -269,6 +270,7 @@ __all__ = [
     "MacProtocol",
     "MacSortOrder",
     "MacSortType",
+    "UNUSUAL_TYPE_NAMES",
     "ExSyncClient",
     "ex_candidate_snapshot",
     "ExtBarReader",

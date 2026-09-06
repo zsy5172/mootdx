@@ -68,6 +68,7 @@ def live_snapshot() -> dict[str, object]:
     client = SyncClient(servers=_servers(), max_retries=2)
     try:
         minute_rows = client.minute(SYMBOL)
+        latest_minute_rows = client.latest_minutes(SYMBOL)
         explicit_minute_rows = client.minutes(SYMBOL, _today())
         transactions = {
             f"{start}:{offset}": client.transaction(SYMBOL, start=start, offset=offset)
@@ -78,6 +79,7 @@ def live_snapshot() -> dict[str, object]:
 
     return {
         "minute": minute_rows,
+        "latest_minutes": latest_minute_rows,
         "minutes": explicit_minute_rows,
         "transactions": transactions,
     }
@@ -85,15 +87,18 @@ def live_snapshot() -> dict[str, object]:
 
 def test_populated_today_minute_raw_matrix(live_snapshot: dict[str, object]) -> None:
     minute_rows = live_snapshot["minute"]
+    latest_rows = live_snapshot["latest_minutes"]
     explicit_rows = live_snapshot["minutes"]
     assert isinstance(minute_rows, list) and minute_rows
-    assert isinstance(explicit_rows, list) and explicit_rows
+    assert isinstance(latest_rows, list) and latest_rows
+    assert isinstance(explicit_rows, list)
     assert {"price", "vol", "volume"} <= set(minute_rows[0])
     assert len(minute_rows) <= 240
+    assert len(latest_rows) <= 240
     assert len(explicit_rows) <= 240
 
-    stable_count = max(0, min(len(minute_rows), len(explicit_rows)) - 1)
-    assert minute_rows[:stable_count] == explicit_rows[:stable_count]
+    stable_count = max(0, min(len(minute_rows), len(latest_rows)) - 1)
+    assert minute_rows[:stable_count] == latest_rows[:stable_count]
 
 
 def test_populated_today_transaction_window_matrix(
@@ -120,6 +125,14 @@ class SnapshotRawClient:
         assert str(date) == _today()
         return self.snapshot["minutes"]
 
+    def minute(self, symbol: str):
+        assert symbol == SYMBOL
+        return self.snapshot["minute"]
+
+    def latest_minutes(self, symbol: str):
+        assert symbol == SYMBOL
+        return self.snapshot["latest_minutes"]
+
     def transaction(self, symbol: str, start: int = 0, offset: int = 800):
         assert symbol == SYMBOL
         return self.snapshot["transactions"][f"{start}:{offset}"]
@@ -133,13 +146,16 @@ def test_high_level_wrappers_match_same_response_artifact(
 ) -> None:
     client = PandasClient(raw_client=SnapshotRawClient(live_snapshot))
     minute = client.minute(SYMBOL)
-    expected_minute = minutes_to_frame(live_snapshot["minutes"])
+    latest = client.latest_minutes(SYMBOL)
+    expected_minute = minutes_to_frame(live_snapshot["minute"])
+    expected_latest = minutes_to_frame(live_snapshot["latest_minutes"])
     transactions = {
         f"{start}:{offset}": client.transaction(SYMBOL, start=start, offset=offset)
         for start, offset in TRANSACTION_WINDOWS
     }
 
     pdt.assert_frame_equal(minute, expected_minute)
+    pdt.assert_frame_equal(latest, expected_latest)
     for start, offset in TRANSACTION_WINDOWS:
         expected = transaction_to_frame(
             live_snapshot["transactions"][f"{start}:{offset}"]
@@ -155,6 +171,12 @@ def test_high_level_wrappers_match_same_response_artifact(
                 api="minute",
                 comparator="table_exact",
                 result=minute,
+            ),
+            "latest_minutes": build_artifact(
+                case_id="latest_sh_600036",
+                api="latest_minutes",
+                comparator="table_exact",
+                result=latest,
             ),
             "transactions": {
                 key: build_artifact(
@@ -173,17 +195,20 @@ def test_quotes_factory_next_populated_high_level_live_artifact() -> None:
     client = Quotes.factory(engine="next", servers=_servers(), timeout=5)
     try:
         minute = client.minute(SYMBOL)
+        latest = client.latest_minutes(SYMBOL)
         explicit_minute = client.minutes(SYMBOL, _today())
         transaction = client.transaction(SYMBOL, start=0, offset=1800)
     finally:
         client.close()
 
     assert not minute.empty
-    assert not explicit_minute.empty
+    assert not latest.empty
     assert not transaction.empty
     assert isinstance(minute.index, pd.RangeIndex)
+    assert isinstance(latest.index, pd.RangeIndex)
     assert isinstance(explicit_minute.index, pd.RangeIndex)
     assert len(minute) <= 240
+    assert len(latest) <= 240
     assert len(explicit_minute) <= 240
     assert len(transaction) <= 1800
 
@@ -203,6 +228,12 @@ def test_quotes_factory_next_populated_high_level_live_artifact() -> None:
                 comparator="table_exact",
                 result=explicit_minute,
             ),
+            "latest_minutes": build_artifact(
+                case_id="latest_sh_600036",
+                api="latest_minutes",
+                comparator="table_exact",
+                result=latest,
+            ),
             "transaction": build_artifact(
                 case_id="today_sh_600036_offset1800",
                 api="transaction",
@@ -215,32 +246,37 @@ def test_quotes_factory_next_populated_high_level_live_artifact() -> None:
 
 def test_async_today_minute_and_transaction_boundaries() -> None:
     async def run() -> tuple[
-        list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]
+        list[dict[str, object]],
+        list[dict[str, object]],
+        list[dict[str, object]],
+        list[dict[str, object]],
     ]:
         sync_client = SyncClient(servers=_servers(), max_retries=2)
         client = AsyncClient(sync_client=sync_client)
         try:
             minute = await client.minute(SYMBOL)
+            latest = await client.latest_minutes(SYMBOL)
             transaction_one = await client.transaction(SYMBOL, start=0, offset=1)
             transaction_max = await client.transaction(SYMBOL, start=0, offset=1800)
-            return minute, transaction_one, transaction_max
+            return minute, latest, transaction_one, transaction_max
         finally:
             client.close()
 
-    minute, transaction_one, transaction_max = asyncio.run(run())
+    minute, latest, transaction_one, transaction_max = asyncio.run(run())
 
     assert minute
+    assert latest
     assert len(transaction_one) == 1
     assert transaction_max
     assert len(transaction_max) <= 1800
 
 
 @pytest.mark.network
-@pytest.mark.parametrize("api", ["minutes", "transaction"])
+@pytest.mark.parametrize("api", ["minute", "transaction"])
 def test_today_protocol_decode_matches_legacy_artifact(api: str) -> None:
     kwargs = (
-        {"symbol": SYMBOL, "date": _today()}
-        if api == "minutes"
+        {"symbol": SYMBOL}
+        if api == "minute"
         else {
             "symbol": SYMBOL,
             "start": 0,

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
-import mootdx_next.api.pandas as pandas_module
 from compat.common import build_artifact
 from compat.common import load_json
 from compat.comparators import compare_payloads
@@ -46,6 +44,7 @@ class WrapperRaw:
     closed = False
 
     def __init__(self) -> None:
+        self.current_minute_calls: list[str] = []
         self.minute_dates: list[str] = []
         self.sh_stocks = _frame_from_baseline("stocks", "sh_full_market").to_dict("records")
         self.sz_stocks = _frame_from_baseline("stocks", "sz_full_market").to_dict("records")
@@ -59,6 +58,10 @@ class WrapperRaw:
 
     def minutes(self, symbol: str, date: str):
         self.minute_dates.append(str(date))
+        return self.minutes_rows
+
+    def minute(self, symbol: str):
+        self.current_minute_calls.append(symbol)
         return self.minutes_rows
 
     def f10_categories(self, symbol: str):
@@ -92,19 +95,14 @@ def test_stock_all_matches_composed_legacy_market_artifacts() -> None:
     _assert_exact_artifact("stock_all", "sz_then_sh", client.stock_all(), expected)
 
 
-def test_minute_wrapper_matches_legacy_minutes_artifact(monkeypatch: pytest.MonkeyPatch) -> None:
-    class FrozenDateTime:
-        @classmethod
-        def now(cls):
-            return datetime(2017, 10, 10, 10, 0)
-
-    monkeypatch.setattr(pandas_module, "datetime", FrozenDateTime)
+def test_minute_wrapper_preserves_shape_while_using_current_endpoint() -> None:
     raw = WrapperRaw()
     client = PandasClient(raw_client=raw)
     expected = _frame_from_baseline("minutes", "history_sz_000001_20171010")
 
     _assert_exact_artifact("minute", "sz_000001_20171010", client.minute("000001"), expected)
-    assert raw.minute_dates == ["20171010"]
+    assert raw.current_minute_calls == ["000001"]
+    assert raw.minute_dates == []
 
 
 def test_f10_wrappers_match_legacy_category_and_content_artifacts() -> None:

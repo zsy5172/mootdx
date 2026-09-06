@@ -258,6 +258,8 @@ class StdQuoteProtocol(AbstractProtocol):
             )
         if api == "minutes":
             return self.encode_minutes(int(kwargs["market"]), str(kwargs["code"]), kwargs["date"])
+        if api == "minute":
+            return self.encode_minute(int(kwargs["market"]), str(kwargs["code"]))
         if api == "transaction":
             return self.encode_transaction(
                 int(kwargs["market"]),
@@ -317,6 +319,14 @@ class StdQuoteProtocol(AbstractProtocol):
                 int(kwargs["market"]),
                 str(kwargs["code"]),
                 date=kwargs["date"],
+                price_coefficient=kwargs.get("price_coefficient"),
+            )
+        if api == "minute":
+            return self.decode_minute(
+                body,
+                int(kwargs["market"]),
+                str(kwargs["code"]),
+                date=kwargs.get("date"),
                 price_coefficient=kwargs.get("price_coefficient"),
             )
         if api == "transaction":
@@ -984,6 +994,15 @@ class StdQuoteProtocol(AbstractProtocol):
         payload.extend(struct.pack("<IB6s", date, market, encoded_code))
         return bytes(payload)
 
+    def encode_minute(self, market: int, code: str) -> bytes:
+        if market not in self.security_markets:
+            raise UnsupportedMarketError(f"unsupported market for minute: {market}")
+
+        encoded_code = code.encode("utf-8")
+        payload = bytearray.fromhex("0c 02 08 00 01 00 0e 00 0e 00 37 05")
+        payload.extend(struct.pack("<H6sHH", market, encoded_code, 0, 240))
+        return bytes(payload)
+
     def encode_call_auction(self, market: int, code: str) -> bytes:
         if market not in self.security_markets:
             raise UnsupportedMarketError(f"unsupported market for call_auction: {market}")
@@ -1049,6 +1068,82 @@ class StdQuoteProtocol(AbstractProtocol):
         date: str | int | None = None,
         price_coefficient: float | None = None,
     ) -> list[dict[str, object]]:
+        return self._decode_minute_rows(
+            body,
+            market,
+            code,
+            date=date,
+            price_coefficient=price_coefficient,
+            data_offset=6,
+        )
+
+    def decode_minute(
+        self,
+        body: bytes,
+        market: int,
+        code: str,
+        *,
+        date: str | int | None = None,
+        price_coefficient: float | None = None,
+    ) -> list[dict[str, object]]:
+        if len(body) < 4:
+            raise ProtocolDecodeError(f"minute body too short: {len(body)}")
+
+        try:
+            (num,) = U16_STRUCT.unpack_from(body, 0)
+        except struct.error as exc:
+            raise ProtocolDecodeError("failed to decode minute count") from exc
+
+        pos = 4
+        base_price = 0
+        base_average = 0
+        coefficient = (
+            _get_security_coefficient(market, code)
+            if price_coefficient is None
+            else float(price_coefficient)
+        )
+        date_prefix = _format_yyyymmdd(date) if date is not None else None
+        rows: list[dict[str, object]] = []
+
+        try:
+            for index in range(num):
+                price_delta, pos = _get_price(body, pos)
+                average_delta, pos = _get_price(body, pos)
+                vol, pos = _get_price(body, pos)
+                if index == 0:
+                    base_price = price_delta
+                    base_average = average_delta
+                price = float(base_price + price_delta if index else base_price) * coefficient
+                average = float(base_average + average_delta if index else base_average) * coefficient / 100
+                hour, minute = _minute_slot(index)
+                time_value = f"{hour:02d}:{minute:02d}"
+                row: dict[str, object] = {
+                    "time": time_value,
+                    "hour": hour,
+                    "minute": minute,
+                    "price": price,
+                    "average_price": average,
+                    "vol": vol,
+                    "volume": vol,
+                }
+                if date_prefix is not None:
+                    row["datetime"] = f"{date_prefix} {time_value}"
+                rows.append(row)
+        except (IndexError, struct.error) as exc:
+            raise ProtocolDecodeError(f"failed to decode minute row {len(rows)}") from exc
+
+        return rows
+
+    def _decode_minute_rows(
+        self,
+        body: bytes,
+        market: int,
+        code: str,
+        *,
+        date: str | int | None,
+        price_coefficient: float | None,
+        data_offset: int,
+    ) -> list[dict[str, object]]:
         if len(body) < 2:
             raise ProtocolDecodeError(f"minutes body too short: {len(body)}")
 
@@ -1057,7 +1152,7 @@ class StdQuoteProtocol(AbstractProtocol):
         except struct.error as exc:
             raise ProtocolDecodeError("failed to decode minutes count") from exc
 
-        pos = 6
+        pos = data_offset
         last_price = 0
         coefficient = (
             _get_security_coefficient(market, code)

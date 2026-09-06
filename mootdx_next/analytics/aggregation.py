@@ -400,6 +400,8 @@ def _normalize_frequency(value: int | str) -> tuple[str, int]:
         "60m": 60,
         "60min": 60,
         "1h": 60,
+        "120m": 120,
+        "120min": 120,
     }
     if normalized in minute_aliases:
         return "minute", minute_aliases[normalized]

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import pytest
 
 from mootdx_next import ServerEndpoint
@@ -42,10 +40,11 @@ def test_next_minutes_live_smoke() -> None:
 def test_next_minute_live_smoke() -> None:
     client = SyncClient(servers=_preferred_servers())
     try:
-        today = datetime.now().strftime("%Y%m%d")
         minute_rows = client.minute(symbol="000001")
-        minutes_rows = client.minutes(symbol="000001", date=today)
+        latest_rows = client.latest_minutes(symbol="000001")
     finally:
         client.connection_pool.close_all()
 
-    assert minute_rows == minutes_rows
+    assert isinstance(minute_rows, list)
+    assert latest_rows
+    assert latest_rows[0]["price"] > 0

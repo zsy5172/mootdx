@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,23 @@ def _bars_body(case_id: str) -> bytes:
 
 def _minutes_body(case_id: str) -> bytes:
     return (ROOT / "compat" / "corpus" / "minutes" / case_id / "steps" / "01_minutes" / "response.body.bin").read_bytes()
+
+
+def _encode_price(value: int) -> bytes:
+    remaining = abs(value)
+    encoded = bytearray([(remaining & 0x3F) | (0x40 if value < 0 else 0)])
+    remaining >>= 6
+    while remaining:
+        encoded[-1] |= 0x80
+        encoded.append(remaining & 0x7F)
+        remaining >>= 7
+    return bytes(encoded)
+
+
+def _current_minutes_body() -> bytes:
+    return struct.pack("<HH", 1, 0) + b"".join(
+        _encode_price(value) for value in (1000, 100000, 10)
+    )
 
 
 def test_sync_client_bars_decodes_daily_rows() -> None:
@@ -76,16 +94,100 @@ def test_sync_client_minutes_returns_empty_for_empty_history() -> None:
 
 
 @freeze_time("2026-04-11 10:00:00")
-def test_sync_client_minute_wraps_minutes_for_today() -> None:
-    transport = RecordingTransport(responses=[_minutes_body("history_sh_000001_20171010")])
+def test_sync_client_minute_uses_current_minute_command() -> None:
+    transport = RecordingTransport(responses=[_current_minutes_body()])
     pool = RecordingConnectionPool(transport)
     scheduler = RecordingScheduler(server=pool.server)
     client = SyncClient(protocol=StdQuoteProtocol(), connection_pool=pool, scheduler=scheduler)
 
-    client.minute("000001")
+    rows = client.minute("000001")
 
     payload = transport.sent_payloads[0]
-    assert int.from_bytes(payload[12:16], "little") == 20260411
+    assert payload[:12] == bytes.fromhex("0c02080001000e000e003705")
+    assert transport.contexts[0].api == "minute"
+    assert rows[0]["datetime"] == "2026-04-11 09:31"
+
+
+@freeze_time("2026-09-04 10:00:00")
+def test_sync_client_latest_minutes_uses_current_data_for_today(monkeypatch) -> None:
+    client = SyncClient()
+    calls: list[str] = []
+    monkeypatch.setattr(
+        client,
+        "bars",
+        lambda *args, **kwargs: [{"datetime": "2026-09-04 15:00"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "minute",
+        lambda symbol: calls.append("minute") or [{"price": 41.0, "datetime": "2026-09-04 09:31"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "minutes",
+        lambda symbol, date: calls.append(f"minutes:{date}") or [],
+    )
+
+    rows = client.latest_minutes("600036")
+
+    assert rows[0]["price"] == 41.0
+    assert calls == ["minute"]
+
+
+@freeze_time("2026-09-04 08:00:00")
+def test_sync_client_latest_minutes_uses_latest_historical_trade_day(monkeypatch) -> None:
+    client = SyncClient()
+    calls: list[str] = []
+    monkeypatch.setattr(
+        client,
+        "bars",
+        lambda *args, **kwargs: [{"datetime": "116785687-01-01 15:00"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "index_bars",
+        lambda *args, **kwargs: [{"datetime": "2026-09-03 15:00"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "minute",
+        lambda symbol: calls.append("minute") or [],
+    )
+    monkeypatch.setattr(
+        client,
+        "minutes",
+        lambda symbol, date: calls.append(f"minutes:{date}")
+        or [{"price": 40.91, "datetime": "2026-09-03 09:31"}],
+    )
+
+    rows = client.latest_minutes("sh000001")
+
+    assert rows[0]["datetime"].startswith("2026-09-03")
+    assert calls == ["minutes:20260903"]
+
+
+@freeze_time("2026-09-04 08:00:00")
+def test_sync_client_latest_minutes_rejects_live_placeholder(monkeypatch) -> None:
+    client = SyncClient()
+    calls: list[str] = []
+    monkeypatch.setattr(
+        client,
+        "bars",
+        lambda *args, **kwargs: [{"datetime": "2026-09-04 15:00"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "minute",
+        lambda symbol: calls.append("minute") or [{"price": 0.0, "datetime": "2026-09-04 09:31"}],
+    )
+    monkeypatch.setattr(
+        client,
+        "minutes",
+        lambda symbol, date: calls.append(f"minutes:{date}") or [],
+    )
+
+    assert client.latest_minutes("600036") == []
+    assert calls == ["minute", "minutes:20260904"]
 
 
 def test_sync_client_rejects_invalid_history_params() -> None:

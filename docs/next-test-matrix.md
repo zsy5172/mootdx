@@ -103,7 +103,8 @@ nox -s next_live_matrix
 A-share session and requires populated data. This is a live-test precondition,
 not a production API gate. It covers:
 
-- `minute()` and `minutes(today)` with stable-row equivalence;
+- raw real-time `minute()`, explicit historical `minutes(date)`, and the
+  latest-trading-day fallback in `latest_minutes()`;
 - `transaction()` at `start=0/10` and `offset=1/10/800/1800`;
 - raw, async, Pandas, and `Quotes.factory(engine="next")` entry points;
 - legacy and next decoding of the same minute/transaction response;

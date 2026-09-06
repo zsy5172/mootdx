@@ -12,6 +12,7 @@ from mootdx_next.mac.types import (
     MacPeriod,
     MacSortOrder,
     MacSortType,
+    UNUSUAL_TYPE_NAMES,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "MacPeriod",
     "MacSortOrder",
     "MacSortType",
+    "UNUSUAL_TYPE_NAMES",
 ]

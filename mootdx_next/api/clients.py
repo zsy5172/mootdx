@@ -182,6 +182,7 @@ REQUEST_APIS = frozenset(
         "index_bars_all",
         "minutes",
         "minute",
+        "latest_minutes",
         "call_auction",
         "transaction",
         "transaction_all",
@@ -914,7 +915,79 @@ class SyncClient(MacClientMixin):
         )
 
     def minute(self, symbol: str) -> list[dict[str, object]]:
-        return self.minutes(symbol=symbol, date=today_yyyymmdd())
+        """Return the current session's raw real-time minute response."""
+
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+
+        normalized_symbol = symbol.strip()
+        market = int(resolve_stock_market(normalized_symbol, string=False))
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for minute: only sh/sz/bj are supported")
+
+        code = normalize_symbol(normalized_symbol)
+        normalized_date = today_yyyymmdd()
+        price_coefficient = self._price_coefficient(market, code)
+        context = RequestContext(
+            api="minute",
+            params={"symbol": normalized_symbol, "market": market},
+        )
+        payload = self.protocol.encode("minute", market=market, code=code)
+        envelope = self._send(context, payload)
+        return list(
+            self.protocol.decode(
+                "minute",
+                envelope,
+                market=market,
+                code=code,
+                date=normalized_date,
+                price_coefficient=price_coefficient,
+            )
+        )
+
+    def latest_minutes(self, symbol: str) -> list[dict[str, object]]:
+        """Return minutes for the latest trading day, using real-time data when available."""
+
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise InvalidSymbolError("symbol cannot be blank")
+
+        normalized_symbol = symbol.strip()
+        market = int(resolve_stock_market(normalized_symbol, string=False))
+        if market not in {0, 1, 2}:
+            raise UnsupportedMarketError("unsupported market for latest_minutes: only sh/sz/bj are supported")
+
+        today = today_yyyymmdd()
+        latest = self._latest_trade_date(normalized_symbol, market, today)
+        if latest == today:
+            rows = self.minute(normalized_symbol)
+            if rows and float(rows[0].get("price", 0) or 0) > 0:
+                return rows
+        elif latest is not None:
+            rows = self.minutes(normalized_symbol, latest)
+            if rows:
+                return rows
+
+        # Preserve the old no-daily-bar fallback: ask the historical command
+        # for today even though it can legitimately be empty before close.
+        return self.minutes(normalized_symbol, today)
+
+    def _latest_trade_date(self, symbol: str, market: int, today: str) -> str | None:
+        """Find the newest valid daily-bar date for either a security or an index."""
+
+        for loader in (
+            lambda: self.bars(symbol, frequency=9, start=0, offset=2),
+            lambda: self.index_bars(symbol, frequency=9, start=0, offset=2, market=market),
+        ):
+            try:
+                rows = loader()
+            except ProtocolDecodeError:
+                continue
+            if not rows:
+                continue
+            value = str(rows[-1].get("datetime", ""))[:10].replace("-", "")
+            if len(value) == 8 and value.isdigit() and "19900101" <= value <= today:
+                return value
+        return None
 
     def call_auction(self, symbol: str) -> list[dict[str, object]]:
         if not isinstance(symbol, str) or not symbol.strip():
@@ -2576,6 +2649,9 @@ class AsyncClient:
 
     async def minute(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "minute", symbol))
+
+    async def latest_minutes(self, symbol: str) -> list[dict[str, object]]:
+        return list(await asyncio.to_thread(self._call_sync, "latest_minutes", symbol))
 
     async def call_auction(self, symbol: str) -> list[dict[str, object]]:
         return list(await asyncio.to_thread(self._call_sync, "call_auction", symbol))

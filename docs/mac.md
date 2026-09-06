@@ -35,6 +35,19 @@ MAC 返回的是服务器提供的动态报价字段；板块汇总和排名应�
 * `mac_auction()` / `mac_unusual()` / `mac_server_info()`；
 * `mac_file_meta()` / `mac_file_chunk()` / `mac_file()` / `mac_goods_list()`。
 
+`mac_unusual()` 同时返回服务器类型码 `unusual_type`、粗粒度名称 `unusual_type_name`、具体描述
+`description` 和格式化数值 `value`。19 种已确认类型的公共映射可从顶层导入：
+
+```python
+from mootdx_next import UNUSUAL_TYPE_NAMES
+```
+
+其中 `0x13` 会区分竞价试买/试卖，`0x15` 按记录时刻区分竞价/尾盘，`0x16` 区分盘中强势/弱势，
+`0x1D` / `0x1E` 分别表示急速拉升/下跌；未知类型仍保留原始数值码。
+
+MAC 原生可用 `MacPeriod.MINS` 配合 `times=120` 请求 120 分钟 K 线；已有分钟记录也可交给
+`aggregate_bars(rows, "120m")` 或 `aggregate_bars(rows, "120min")` 本地聚合。
+
 列表、板块成分、K 线和逐笔接口的 `count` 表示调用者希望取得的总条数。客户端会按协议单页上限
 自动分页，不会将大于 80 / 150 / 700 / 1000 的请求静默缩小。其中排序报价和逐笔保持服务器顺序；
 K 线分页后仍按从旧到新的时间顺序返回。

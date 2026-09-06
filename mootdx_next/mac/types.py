@@ -8,6 +8,29 @@ from collections.abc import Iterable
 from enum import Enum, IntEnum
 
 
+UNUSUAL_TYPE_NAMES: dict[int, str] = {
+    0x03: "主力买入卖出",
+    0x04: "加速拉升",
+    0x05: "加速下跌",
+    0x06: "低位反弹",
+    0x07: "高位回落",
+    0x08: "撑杆跳高",
+    0x09: "平台跳水",
+    0x0A: "单笔冲涨跌",
+    0x0B: "区间放量",
+    0x0C: "区间缩量",
+    0x10: "大单托盘",
+    0x11: "大单压盘",
+    0x12: "大单锁盘",
+    0x13: "竞价试盘",
+    0x14: "涨跌停",
+    0x15: "竞价/尾盘异动",
+    0x16: "盘中强势弱势",
+    0x1D: "急速拉升",
+    0x1E: "急速下跌",
+}
+
+
 class MacPeriod(IntEnum):
     MIN_5 = 0
     MIN_15 = 1
@@ -500,5 +523,5 @@ def mac_field_value(data: bytes, field: MacField) -> object:
 __all__ = [
     "MacAdjust", "MacBoardType", "MacCategory", "MacField", "MacFieldPreset",
     "MacFieldSelection", "MacFilter", "MacPeriod", "MacSortOrder", "MacSortType",
-    "active_mac_fields", "mac_field_value", "normalize_mac_fields",
+    "UNUSUAL_TYPE_NAMES", "active_mac_fields", "mac_field_value", "normalize_mac_fields",
 ]

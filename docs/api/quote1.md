@@ -290,7 +290,8 @@ client.index(frequency=9, market=MARKET_SH, symbol='000001', start=1, offset=2)
 
 ## 06. 查询分时行情
 
-> 网友反馈，此接口数据有误，不建议使用，可以使用 后面的 `历史分时行情` 来替代
+`minute()` 直接调用通达信当前分时图命令 `0x0537`。它保留原始实时语义：盘前服务器可能返回首价
+为零的占位记录，休市或节点不支持时也可能为空，不会静默替换成其他日期的数据。
 
 ** 参数说明: **
 
@@ -304,6 +305,16 @@ from mootdx.quotes import Quotes
 client = Quotes.factory(market='std')
 client.minute(symbol='000001')
 ```
+
+如果应用希望任何时候都显示最近一个交易日的有效分时，使用 `latest_minutes()`：
+
+```python
+client.latest_minutes(symbol='000001')
+```
+
+它先读取最新日 K 的日期；日期为今天时采用实时分时，若首价为零则拒绝盘前占位数据；最新日 K
+早于今天时，自动查询该日历史分时。指数先尝试普通日 K 解析，日期不合法时自动改用指数 K 线命令，
+不依赖证券代码前缀猜测。
 
 ## 07. 历史分时行情
 
@@ -321,6 +332,8 @@ from mootdx.quotes import Quotes
 client = Quotes.factory(market='std')
 client.minutes(symbol='000001', date='20171010')
 ```
+
+`minutes()` 始终是指定日期的历史分时命令 `0x0FB4`，不会根据日期切换到实时协议。
 
 注意，在引入 consts 之后， （`from mootdx import consts`） 我们可以使用 consts.MARKET_SH , consts.MARKET_SZ 常量来代替 1 和 0 作为参数
 

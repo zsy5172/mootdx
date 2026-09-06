@@ -202,6 +202,21 @@ def test_aggregate_daily_and_calendar_bars_use_last_real_timestamp() -> None:
     assert weekly.iloc[0]["volume"] == 14
 
 
+@pytest.mark.parametrize("frequency", ["120m", "120min"])
+def test_aggregate_bars_accepts_120_minute_aliases(frequency: str) -> None:
+    bars = [
+        _bar("2026-07-30 09:31", 10.0, volume=2),
+        _bar("2026-07-30 11:30", 11.0, volume=3),
+        _bar("2026-07-30 13:01", 12.0, volume=4),
+        _bar("2026-07-30 15:00", 13.0, volume=5),
+    ]
+
+    result = aggregate_bars(bars, frequency)
+
+    assert list(result["datetime"]) == ["2026-07-30 11:30", "2026-07-30 15:00"]
+    assert list(result["volume"]) == [5.0, 9.0]
+
+
 def test_aggregate_bars_returns_typed_empty_frame() -> None:
     result = aggregate_bars([], "month")
 

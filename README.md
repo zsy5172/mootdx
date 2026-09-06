@@ -198,8 +198,11 @@ next 引擎优先使用通达信 `0x0452` 返回的服务器特殊价格表。�
 # 指定历史日期的分钟数据
 client.minutes("600036", date="2017-10-10")
 
-# 当日分钟数据
+# 当前交易日实时分钟数据（0x0537 分时图命令）
 client.minute("600036")
+
+# 最近交易日分钟数据：盘中取实时，盘前/休市回退上一交易日历史分时
+client.latest_minutes("600036")
 
 # 历史逐笔成交，任何时间均可查询
 client.transactions("600036", date="20170209", start=0, offset=100)
@@ -295,13 +298,15 @@ ma5 = ma(daily, 5)
 macd_frame = macd(daily)
 returns = forward_returns(daily, horizons=(1, 5, 20))
 five_minute = aggregate_bars(minute, "5min")
+two_hour = aggregate_bars(minute, "120m")
 trade_summary = summarize_trade_sides(trades)
 rebuilt = trades_to_minute_bars(trades, date="20260729", outside_session="drop")
 ```
 
 指标返回与输入完整对齐的时间序列；MACD 使用通达信双倍柱值，BOLL 使用总体标准差，RSI/ATR 使用
 Wilder 平滑。`vwap()` 默认金额单位为元、成交量单位为手。聚合函数会校验成交量和成交额守恒，并且
-不会让分钟桶跨越午休或交易日。
+不会让分钟桶跨越午休或交易日。120 分钟别名支持 `120m` 和 `120min`，因此上午、下午分别
+形成一个桶。
 
 ### 板块数据
 

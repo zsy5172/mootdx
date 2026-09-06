@@ -504,8 +504,8 @@ legacy baseline 只是现阶段参考实现，不代表完全正确。文档、�
 
 当前进度：
 
-- 已实现 `StdQuoteProtocol` 的 `bars`、`minutes` 编解码，并完成 `minute()` 对当天 `minutes()` 的包装。
-- 已实现 `SyncClient.bars()`、`SyncClient.minutes()`、`SyncClient.minute()` typed API，参数校验和错误语义固定到新核心。
+- 已实现 `StdQuoteProtocol` 的 `bars`、实时 `minute` 和历史 `minutes` 编解码；两种分时命令保持各自的协议语义。
+- 已实现 `SyncClient.bars()`、`SyncClient.minutes()`、`SyncClient.minute()` typed API，并提供 `latest_minutes()` 处理盘前、休市和指数的最近交易日回退。
 - 已新增 `bars` 与 `minutes` 的 replay corpus，并接入 `compat_replay` 的 next parity。
 - 已新增 `bars`/`minutes` 的同包 live 双解码校验、端到端 live smoke 与历史接口 benchmark 脚本。
 
